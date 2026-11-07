@@ -1,7 +1,10 @@
 // Service Worker: macht das Spiel offline spielbar.
 // Strategie "Netzwerk zuerst": neue Versionen kommen sofort an,
 // ohne Netz wird die zuletzt geladene Version aus dem Cache genutzt.
-const CACHE = 'f1rc-v1';
+// Wichtig: Andere Apps auf kenecky.github.io (z. B. Reise-Ausgaben) teilen sich den
+// Cache-Speicher mit uns. Deshalb nur eigene Caches (Präfix 'f1rc-') löschen.
+const PREFIX = 'f1rc-';
+const CACHE = PREFIX + 'v2';
 const ASSETS = [
   './',
   'index.html',
@@ -29,13 +32,14 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => k.startsWith(PREFIX) && k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  if (new URL(e.request.url).origin !== self.location.origin) return;
   e.respondWith(
     fetch(e.request)
       .then(res => {
@@ -43,6 +47,6 @@ self.addEventListener('fetch', e => {
         caches.open(CACHE).then(c => c.put(e.request, copy));
         return res;
       })
-      .catch(() => caches.match(e.request).then(r => r || caches.match('index.html')))
+      .catch(() => caches.open(CACHE).then(c => c.match(e.request).then(r => r || c.match('index.html'))))
   );
 });
