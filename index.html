@@ -71,9 +71,9 @@
 
     <footer class="actions">
       <button id="flagBtn" class="act act-flag act-live">Flagge</button>
-      <button class="act act-vsc" data-label="Virtual Safety Car" data-soon="3">VSC</button>
-      <button class="act act-sc" data-label="Safety Car" data-soon="3">SC</button>
-      <button class="act act-red" data-label="Rote Flagge" data-soon="3">ROT</button>
+      <button id="vscBtn" class="act act-vsc act-live">VSC</button>
+      <button id="scBtn" class="act act-sc act-live">SC</button>
+      <button id="redBtn" class="act act-red act-live">ROT</button>
     </footer>
   </div>
 
@@ -98,6 +98,17 @@
     <div class="flag-sheet-foot">
       <button id="allGreenBtn" class="secondary-btn">Alle Sektoren grün</button>
     </div>
+  </div>
+
+  <div id="controlSheet" class="flag-sheet hidden">
+    <div class="flag-sheet-head">
+      <div>
+        <div id="ctlTitle" class="flag-sheet-title"></div>
+        <div id="ctlSub" class="flag-sheet-sub"></div>
+      </div>
+      <button id="ctlCloseBtn" class="pill-btn">Fertig</button>
+    </div>
+    <div id="ctlBody" class="ctl-body"></div>
   </div>
 
   <div id="startScreen" class="overlay">

@@ -25,23 +25,29 @@ export function trackStatus(race) {
   return 'clear';
 }
 
-const LATE = 20; // Sekunden: bis dahin gilt die Reaktion als rechtzeitig
+import { NEED_LEVEL, NEED_LABEL } from '../sim/hazards.js';
 
-// Bilanz der Flaggen-Entscheidungen für den Rennbericht
+// Sekunden: bis dahin gilt die Reaktion als rechtzeitig
+const LATE = { yellow: 20, double: 20, vsc: 30, sc: 30, red: 45 };
+const RESPONSE_LABEL = ['keine', 'Gelb', 'Doppelt Gelb', 'VSC', 'Safety Car', 'Rote Flagge'];
+
+// Bilanz der Entscheidungen für den Rennbericht
 export function flagReport(race) {
   // Kurze Dreher, nach denen das Auto weiterfährt, müssen nicht zwingend abgesichert werden
   const spins = race.hazards.filter(h => h.type === 'spin');
   const items = race.hazards.filter(h => h.type !== 'spin').map(h => {
     let verdict, note;
+    const need = NEED_LEVEL[h.need];
     if (h.adequateAt === null) {
       verdict = 'missed';
-      note = h.firstFlagAt === null ? 'nicht abgesichert' : 'Flagge nicht ausreichend';
+      note = `Nötig: ${NEED_LABEL[h.need]} – deine höchste Reaktion: ${RESPONSE_LABEL[h.maxResponse]}`;
     } else {
       const rt = h.adequateAt - h.start;
-      verdict = rt <= LATE ? 'ok' : 'late';
-      note = `${rt <= LATE ? 'Reaktion' : 'zu spät'} nach ${Math.round(rt)} s`;
+      verdict = rt <= LATE[h.need] ? 'ok' : 'late';
+      note = `${verdict === 'ok' ? 'Reaktion' : 'zu spät'} nach ${Math.round(rt)} s (nötig: ${NEED_LABEL[h.need]})`;
     }
-    if (h.overflag) note += ', Doppelt Gelb war nicht nötig';
+    if (h.maxResponse >= 3 && h.maxResponse - need >= 2) note += ` · ${RESPONSE_LABEL[h.maxResponse]} war überzogen`;
+    else if (h.maxResponse === 2 && need === 1 && h.type !== 'debris') note += ' · Doppelt Gelb war nicht nötig';
     return { h, verdict, note };
   });
   const reacted = items.filter(i => i.h.adequateAt !== null);
@@ -57,5 +63,6 @@ export function flagReport(race) {
     missed: items.filter(i => i.verdict === 'missed').length,
     avgReaction,
     idleFlagTime: race.idleFlagTime,
+    neutral: race.neutralStats,
   };
 }

@@ -82,6 +82,9 @@ button {
 .flag-green { background: var(--green); color: #04210f; }
 .flag-yellow { background: var(--yellow); color: #000; }
 .flag-double { background: var(--yellow); color: #000; box-shadow: 0 0 0 2px #000 inset, 0 0 0 3px var(--yellow); animation: blink 1s steps(2) infinite; }
+.flag-vsc { background: #000; color: var(--yellow); border: 2px solid var(--yellow); }
+.flag-sc { background: #ff9a1f; color: #000; }
+.flag-red { background: var(--accent); color: #fff; animation: blink 1s steps(2) infinite; }
 .flag-slippery { color: #000; background: repeating-linear-gradient(90deg, var(--yellow) 0 8px, #e10600 8px 16px); }
 @keyframes blink { 50% { opacity: .55; } }
 .flag-start { background: var(--bg-3); color: var(--text); }
@@ -563,3 +566,24 @@ button {
 .report-item { display: flex; gap: 8px; font-size: 12px; padding: 5px 0; border-bottom: 1px solid #1c2435; line-height: 1.35; }
 .report-item .v { flex: none; width: 18px; text-align: center; }
 .report-item .n { color: var(--muted); }
+
+/* ---------- VSC / SC / Rot ---------- */
+.act.on { outline: 3px solid #fff; outline-offset: -3px; box-shadow: 0 0 14px rgba(255,255,255,.35); }
+.ctl-body { overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.ctl-text { margin: 0; color: var(--muted); line-height: 1.45; font-size: 13px; }
+.ctl-status { font-weight: 700; font-size: 14px; }
+.ctl-small { color: var(--muted); font-size: 11px; line-height: 1.4; margin: 0; }
+.ctl-btn { height: 46px; border-radius: 12px; font-weight: 800; font-size: 15px; }
+.ctl-btn:disabled { opacity: .35; }
+.ctl-vsc { background: #000; color: var(--yellow); border: 2px solid var(--yellow); }
+.ctl-sc { background: #ff9a1f; color: #000; }
+.ctl-red { background: var(--accent); color: #fff; }
+.ctl-green { background: var(--green); color: #04210f; }
+.ctl-ghost { background: var(--bg-3); color: var(--text); }
+.ctl-section { margin-top: 4px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.ctl-ok { color: var(--green); font-size: 13px; }
+.ctl-hazard { background: rgba(255, 209, 46, .1); border-left: 3px solid var(--yellow); border-radius: 8px; padding: 8px; font-size: 12px; line-height: 1.35; display: grid; gap: 5px; }
+.progress { height: 6px; border-radius: 3px; background: var(--bg); overflow: hidden; }
+.progress span { display: block; height: 100%; background: var(--green); transition: width .4s; }
+.badge-red { background: var(--accent); color: #fff; }
+.badge-unlap { background: var(--blue); color: #fff; }

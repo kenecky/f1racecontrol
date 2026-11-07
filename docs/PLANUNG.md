@@ -252,7 +252,11 @@ docs/
       und Fahrern, Hinweisbanner, Auto-Abbremsen auf 1×, Flaggen-Bilanz im Rennbericht
 - [x] **Extras**: Tempo-Menü (1×–32× direkt wählbar), Zoom & Verschieben nur in der
       Streckenkarte, Seiten-Zoom gesperrt
-- [ ] **M3 – Neutralisierung**: VSC, Safety Car, rote Flagge inkl. Neustart
+- [x] **M3 – Neutralisierung**: VSC (inkl. „VSC endet“), Safety Car (Feld schließt auf,
+      Zurückrunden der Überrundeten, „SC kommt in dieser Runde rein“, Neustart durch den
+      Führenden, Überholen erst ab der Linie), rote Flagge (Boxengasse, freier Reifenwechsel,
+      Neustart hinter SC oder stehend). Schwere Unfälle (SC / Barriere → Rot), Bergungstempo
+      abhängig von der Reaktion, günstige Boxenstopps unter VSC/SC, Bilanz im Rennbericht
 - [ ] **M4 – Vorfälle & Strafen**: Vorfälle generieren, Indizien, Untersuchung, Urteil,
       Strafen wirken sich aufs Ergebnis aus
 - [ ] **M5 – Bewertung**: Bewertungsachsen, Reaktionen, Rennbericht
@@ -288,6 +292,21 @@ docs/
 | Auto steht hinter Leitplanke / weit im Auslauf | Gelb | Bergung 70–180 s |
 | Auto steht ungeschützt neben der Fahrbahn | Doppelt Gelb | Bergung 70–180 s |
 | Trümmerteile | Gelb oder Gelb-Rot | 40–110 s |
+
+### Neutralisierung & Bergung (M3)
+Jede Gefahr hat eine nötige Stufe: Gelb → Doppelt Gelb → VSC → Safety Car → Rote Flagge.
+Die Bergung läuft umso schneller, je stärker neutralisiert ist. Ist die Reaktion zu schwach,
+kommen die Marshals kaum voran (Barrierenschaden: ohne Rot praktisch keine Reparatur).
+
+| Gefahr | Nötig | Bergung (bei passender Reaktion) |
+|---|---|---|
+| Auto quer am Streckenrand, Kran muss auf die Strecke | VSC | 70–170 s |
+| Schwerer Unfall, Trümmerfeld | Safety Car | 150–240 s |
+| Schwerer Unfall, Barriere beschädigt | Rote Flagge | 6–10 min |
+
+Tempo: VSC ≈ 62 % der Renngeschwindigkeit, Safety Car ≈ 60 %, Weg in die Box bei Rot ≈ 55 %.
+„Unnötige Neutralisierung“ zählt VSC/SC/Rot-Zeit ohne passende Gefahr
+(Kulanz nach Freigabe: VSC 25 s, SC 200 s, Rot 150 s).
 
 Bewertung (Vorstufe zu M5): rechtzeitig = angemessene Flagge innerhalb von 20 s;
 zusätzlich wird „unnötig gelb“ gemessen (Flagge ohne Gefahr, 10 s Kulanz nach Freigabe).

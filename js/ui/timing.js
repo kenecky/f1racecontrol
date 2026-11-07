@@ -39,6 +39,8 @@ export function renderTiming(el, race, { gapMode, selected }) {
     if (car.retired) status = '<span class="badge badge-out">DNF</span>';
     else if (car.offTrack) status = '<span class="badge badge-off">AUS</span>';
     else if (car.finished) status = '<span class="badge badge-fin">🏁</span>';
+    else if (car.redQueued) status = '<span class="badge badge-red">ROT</span>';
+    else if (car.unlap) status = '<span class="badge badge-unlap">+1 RD</span>';
     else if (car.stopTimer > 0) status = '<span class="badge badge-pit">STOPP</span>';
     else if (car.inPit) status = '<span class="badge badge-pit">BOX</span>';
 

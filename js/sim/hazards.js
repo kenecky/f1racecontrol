@@ -1,15 +1,36 @@
-// Gefahren auf der Strecke: Dreher/Ausritte, liegengebliebene Autos, Trümmerteile.
-// Erzeugt Meldungen von Marshals und Fahrern. Die Rennleitung reagiert mit Flaggen.
+// Gefahren auf der Strecke: Dreher, liegengebliebene Autos, Trümmerteile, schwere Unfälle.
+// Erzeugt Meldungen von Marshals und Fahrern. Die Rennleitung reagiert mit Flaggen,
+// VSC, Safety Car oder roter Flagge – davon hängt ab, wie schnell geborgen werden kann.
 import { sectorIndexAt, wrapD } from './trackModel.js';
+import { neutralLevel } from './neutral.js';
 
 export const FLAG_FACTOR = { clear: 1, slippery: 0.97, yellow: 0.92, double: 0.8 };
-const LEVEL = { clear: 0, slippery: 1, yellow: 2, double: 3 };
 
-// Ist die gesetzte Flagge für diese Gefahr ausreichend?
-export function isAdequate(h, flag) {
-  if (h.recommended === 'double') return flag === 'double';
-  if (h.type === 'debris') return flag !== 'clear';
-  return flag === 'yellow' || flag === 'double';
+// Stufen: 0 nichts, 1 Gelb, 2 Doppelt Gelb, 3 VSC, 4 Safety Car, 5 Rote Flagge
+export const NEED_LEVEL = { yellow: 1, double: 2, vsc: 3, sc: 4, red: 5 };
+export const NEED_LABEL = {
+  yellow: 'Gelb', double: 'Doppelt Gelb', vsc: 'VSC', sc: 'Safety Car', red: 'Rote Flagge',
+};
+
+// Bergungstempo je Gefahrenstufe (Zeile) und Reaktion der Rennleitung (Spalte 0–5)
+const WORK_RATE = {
+  yellow: [0.6, 1.0, 1.0, 1.5, 1.8, 3.0],
+  double: [0.4, 0.6, 1.0, 1.6, 2.0, 4.0],
+  vsc:    [0.2, 0.3, 0.5, 1.0, 1.4, 3.0],
+  sc:     [0.1, 0.2, 0.3, 0.6, 1.0, 2.5],
+  red:    [0.0, 0.0, 0.0, 0.1, 0.4, 1.0],
+};
+
+function flagLevel(h, flag) {
+  if (flag === 'double') return 2;
+  if (flag === 'yellow') return 1;
+  if (flag === 'slippery' && h.type === 'debris') return 1;
+  return 0;
+}
+
+// Aktuelle Reaktionsstufe auf diese Gefahr
+export function responseLevel(race, h) {
+  return Math.max(flagLevel(h, race.flags[h.sector]), neutralLevel(race));
 }
 
 export function isYellow(flag) {
@@ -32,7 +53,7 @@ function cornerLabel(c) {
 
 // Beim Überfahren der Ziellinie: Zufallsereignis für die nächste Runde planen
 export function rollLapIncidents(race, car) {
-  if (race.phase !== 'running' || car.lap >= race.laps - 1) return;
+  if (race.phase !== 'running' || car.lap >= race.laps - 1 || race.neutral) return;
   const r = race.rng;
   const L = race.track.L;
   const failP = (100 - car.team.reliability) * 0.000038;
@@ -51,9 +72,13 @@ export function checkPendingIncident(race, car, prev) {
   if (!p || car.retired || car.finished) return;
   if (prev < p.at && car.d >= p.at) {
     car.pendingIncident = null;
-    if (car.inPit || race.phase !== 'running') return;
-    if (p.type === 'spin') startSpin(race, car);
-    else startFailure(race, car);
+    if (car.inPit || race.phase !== 'running' || race.neutral) return;
+    if (p.type === 'failure') startFailure(race, car);
+    else {
+      const corner = cornerNear(race.track, car.d);
+      if ((corner.vmax || 0) >= 170 && race.rng.chance(0.35)) startCrash(race, car, corner);
+      else startSpin(race, car);
+    }
   }
 }
 
@@ -61,18 +86,20 @@ function createHazard(race, props) {
   const h = {
     id: ++race.hazardSeq,
     start: race.time,
-    endAt: null,
+    endAt: null,        // fester Endzeitpunkt (nur Dreher)
+    work: null,         // verbleibende Bergungsarbeit in Sekunden (bei normalem Tempo)
+    workTotal: null,
     ended: false,
     endTime: null,
     firstFlagAt: null,
     adequateAt: null,
-    maxFlag: 'clear',
-    overflag: false,
+    maxResponse: 0,
     complained: false,
     hinted: false,
     sector: sectorIndexAt(race.track, props.d),
     ...props,
   };
+  if (h.work !== null) h.workTotal = h.work;
   h.corner = cornerNear(race.track, props.d);
   race.hazards.push(h);
   return h;
@@ -86,7 +113,7 @@ function startSpin(race, car) {
   car.offTrack = { until: race.time + dur, lateral: side * 11, stuck };
   car.v = 0;
   car.pass = null;
-  const h = createHazard(race, { type: 'spin', carId: car.id, d: car.d, recommended: 'yellow' });
+  const h = createHazard(race, { type: 'spin', carId: car.id, d: car.d, need: 'yellow' });
   car.offTrack.hazardId = h.id;
   const text = r.chance(0.5)
     ? `${car.id} dreht sich in ${cornerLabel(h.corner)} und steht neben der Strecke`
@@ -104,10 +131,10 @@ export function endOffTrack(race, car) {
     retireCar(race, car, 'Im Kiesbett festgefahren', off.lateral);
     const exposed = race.rng.chance(0.5);
     h.type = 'stopped';
-    h.recommended = exposed ? 'double' : 'yellow';
-    h.endAt = race.time + race.rng.range(80, 180);
+    h.need = exposed ? 'double' : 'yellow';
+    h.work = h.workTotal = race.rng.range(70, 160);
     h.desc = `${car.id} steckt fest – ${exposed ? 'Auto steht ungeschützt direkt neben der Fahrbahn' : 'Auto steht weit im Auslauf'}`;
-    race.emit('marshal', `Sektor ${h.sector + 1}: ${car.id} kommt nicht mehr frei. ${exposed ? 'Das Auto steht ungeschützt direkt neben der Fahrbahn, Bergungsfahrzeug wird benötigt.' : 'Das Auto steht weit im Auslauf, Bergung läuft.'}`, { hazard: h.id, sector: h.sector, cars: [car.id] });
+    race.emit('marshal', `Sektor ${h.sector + 1}: ${car.id} kommt nicht mehr frei. ${exposed ? 'Das Auto steht ungeschützt direkt neben der Fahrbahn.' : 'Das Auto steht weit im Auslauf, Bergung läuft.'}`, { hazard: h.id, sector: h.sector, cars: [car.id] });
   } else {
     car.v = 0;
     h.endAt = race.time + 3;
@@ -118,17 +145,36 @@ export function endOffTrack(race, car) {
 function startFailure(race, car) {
   const r = race.rng;
   const side = r.chance(0.5) ? 1 : -1;
-  const exposed = r.chance(0.45);
+  const roll = r.next();
+  const need = roll < 0.4 ? 'yellow' : roll < 0.75 ? 'double' : 'vsc';
   retireCar(race, car, 'Technischer Defekt', side * 12);
-  const h = createHazard(race, {
-    type: 'stopped', carId: car.id, d: car.d,
-    recommended: exposed ? 'double' : 'yellow',
-  });
-  h.endAt = race.time + r.range(70, 180);
-  h.desc = `${car.id} hat ein Problem und stellt das Auto ab – ${exposed ? 'ungeschützt direkt neben der Fahrbahn' : 'hinter der Leitplanke'}`;
+  const where = {
+    yellow: 'sicher hinter der Leitplanke',
+    double: 'ungeschützt direkt neben der Fahrbahn',
+    vsc: 'quer am Streckenrand – der Bergungskran muss dafür auf die Strecke',
+  }[need];
+  const h = createHazard(race, { type: 'stopped', carId: car.id, d: car.d, need, work: r.range(70, 170) });
+  h.desc = `${car.id} hat ein Problem und stellt das Auto ab – ${where}`;
   const quotes = ['Ich verliere Leistung … ich muss anhalten.', 'Kein Antrieb mehr!', 'Etwas ist kaputt, ich stelle das Auto ab.', 'Motor ist aus, Motor ist aus!'];
   race.emit('radio', `Funk ${car.id}: „${r.pick(quotes)}“`, { cars: [car.id] });
-  race.emit('marshal', `Sektor ${h.sector + 1}: ${car.id} steht in ${cornerLabel(h.corner)} – ${exposed ? 'ungeschützt direkt neben der Fahrbahn.' : 'sicher hinter der Leitplanke.'}`, { hazard: h.id, sector: h.sector, cars: [car.id] });
+  race.emit('marshal', `Sektor ${h.sector + 1}: ${car.id} steht in ${cornerLabel(h.corner)} – ${where}.`, { hazard: h.id, sector: h.sector, cars: [car.id] });
+}
+
+function startCrash(race, car, corner) {
+  const r = race.rng;
+  const barrier = r.chance(0.3);
+  const side = r.chance(0.5) ? 1 : -1;
+  retireCar(race, car, 'Unfall', side * 14);
+  const h = createHazard(race, {
+    type: 'crash', carId: car.id, d: car.d,
+    need: barrier ? 'red' : 'sc',
+    work: barrier ? r.range(360, 600) : r.range(150, 240),
+    okAt: race.time + r.range(6, 12),
+  });
+  h.desc = barrier
+    ? `Schwerer Unfall ${car.id} – Barriere stark beschädigt, muss repariert werden`
+    : `Schwerer Unfall ${car.id} – Wrack und Trümmerfeld auf der Strecke`;
+  race.emit('marshal', `Sektor ${h.sector + 1}: SCHWERER UNFALL! ${car.id} schlägt in ${cornerLabel(corner)} heftig in die Barriere ein. ${barrier ? 'Die Barriere ist stark beschädigt und muss repariert werden.' : 'Trümmerteile über die ganze Fahrbahn verteilt.'}`, { hazard: h.id, sector: h.sector, cars: [car.id] });
 }
 
 function retireCar(race, car, reason, lateral) {
@@ -138,31 +184,47 @@ function retireCar(race, car, reason, lateral) {
   car.move = 0;
   car.pass = null;
   car.pendingIncident = null;
+  car.inPit = false;
   car.wreck = { d: car.d, lateral, removed: false };
 }
 
 // Nach einem Überholmanöver: Kontakt mit Trümmerteilen?
 export function maybeContactDebris(race, attacker, defender) {
   if (!race.rng.chance(0.05)) return;
-  const h = createHazard(race, { type: 'debris', d: attacker.d, recommended: 'yellow', cars: [attacker.id, defender.id] });
-  h.endAt = race.time + race.rng.range(40, 110);
+  const h = createHazard(race, {
+    type: 'debris', d: attacker.d, need: 'yellow', cars: [attacker.id, defender.id],
+    work: race.rng.range(40, 110),
+  });
   h.desc = `Trümmerteile auf der Ideallinie nach Kontakt ${attacker.id}/${defender.id}`;
   race.emit('marshal', `Sektor ${h.sector + 1}: Leichte Berührung ${attacker.id}/${defender.id} in ${cornerLabel(h.corner)} – Trümmerteile auf der Ideallinie.`, { hazard: h.id, sector: h.sector, cars: [attacker.id, defender.id] });
 }
 
-// Jeder Simulationsschritt: Flaggenlage auswerten, Bergung, Beschwerden
+// Bergungsfortschritt 0–1
+export function hazardProgress(h) {
+  if (h.ended) return 1;
+  if (!h.workTotal) return 0;
+  return Math.max(0, Math.min(1, 1 - h.work / h.workTotal));
+}
+
+// Jeder Simulationsschritt: Reaktion auswerten, Bergung, Beschwerden
 export function updateHazards(race, dt) {
   const t = race.time;
   for (const h of race.hazards) {
     if (h.ended) continue;
     const flag = race.flags[h.sector];
-    if (flag !== 'clear' && h.firstFlagAt === null) h.firstFlagAt = t;
-    if (LEVEL[flag] > LEVEL[h.maxFlag]) h.maxFlag = flag;
-    if (h.adequateAt === null && isAdequate(h, flag)) h.adequateAt = t;
-    if (flag === 'double' && h.recommended === 'yellow' && h.type !== 'debris') h.overflag = true;
+    const resp = responseLevel(race, h);
+    const need = NEED_LEVEL[h.need];
+    if (resp > 0 && h.firstFlagAt === null) h.firstFlagAt = t;
+    if (resp > h.maxResponse) h.maxResponse = resp;
+    if (h.adequateAt === null && resp >= need) h.adequateAt = t;
 
-    // Fahrer beschweren sich, wenn nicht abgesichert wird
-    if (!h.complained && h.adequateAt === null && flag === 'clear' && t - h.start > 15) {
+    if (h.okAt && t >= h.okAt) {
+      h.okAt = null;
+      race.emit('radio', `Funk ${h.carId}: „Mir geht's gut.“`, { cars: [h.carId] });
+    }
+
+    // Fahrer beschweren sich, wenn gar nicht abgesichert wird
+    if (!h.complained && resp === 0 && t - h.start > 15) {
       h.complained = true;
       const involved = [h.carId, ...(h.cars || [])];
       const witness = race.cars
@@ -171,17 +233,25 @@ export function updateHazards(race, dt) {
       if (witness) {
         const text = h.type === 'debris'
           ? `Funk ${witness.id}: „Da liegen überall Teile in ${h.corner.id}!“`
-          : `Funk ${witness.id}: „Da steht ein Auto in ${h.corner.id} – keine gelbe Flagge?!“`;
+          : h.type === 'crash'
+            ? `Funk ${witness.id}: „Riesiger Unfall in ${h.corner.id}! Da liegt alles voll!“`
+            : `Funk ${witness.id}: „Da steht ein Auto in ${h.corner.id} – keine gelbe Flagge?!“`;
         race.emit('radio', text, { cars: [witness.id], sector: h.sector });
       }
     }
-    // Marshals bitten um mehr Schutz bei gefährlicher Bergung
-    if (!h.hinted && h.recommended === 'double' && h.adequateAt === null && flag === 'yellow' && t - h.start > 20) {
+    // Marshals melden, wenn die Bergung so nicht vorankommt
+    if (!h.hinted && resp > 0 && resp < need && t - h.start > 25) {
       h.hinted = true;
-      race.emit('marshal', `Sektor ${h.sector + 1}: Marshals arbeiten direkt an der Fahrbahn – bitte Schutz der Streckenposten beachten.`, { sector: h.sector });
+      const text = need >= 4
+        ? 'Bergung unter laufendem Rennen nicht möglich – die Marshals können nicht auf die Strecke.'
+        : 'Marshals arbeiten direkt an der Fahrbahn – Bergung kommt so kaum voran.';
+      race.emit('marshal', `Sektor ${h.sector + 1}: ${text}`, { sector: h.sector });
     }
 
-    if (h.endAt !== null && t >= h.endAt) {
+    // Bergung
+    if (h.work !== null) h.work -= dt * WORK_RATE[h.need][resp];
+    const done = h.endAt !== null ? t >= h.endAt : h.work !== null && h.work <= 0;
+    if (done) {
       h.ended = true;
       h.endTime = t;
       const car = h.carId ? race.carById[h.carId] : null;
@@ -189,6 +259,7 @@ export function updateHazards(race, dt) {
       let text;
       if (h.type === 'spin' && h.rejoined) text = `${h.carId} ist zurück auf der Strecke. Gefahr beseitigt.`;
       else if (h.type === 'stopped') text = `Auto von ${h.carId} ist geborgen. Strecke frei.`;
+      else if (h.type === 'crash') text = h.need === 'red' ? 'Unfallstelle geräumt, Barriere repariert. Strecke frei.' : 'Unfallstelle geräumt. Strecke frei.';
       else text = 'Trümmerteile sind beseitigt. Strecke frei.';
       race.emit('marshal', `Sektor ${h.sector + 1}: ${text}`, { sector: h.sector, cleared: h.id });
     }

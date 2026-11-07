@@ -6,15 +6,16 @@ import {
   FLAG_FACTOR, isYellow, rollLapIncidents, checkPendingIncident, endOffTrack,
   maybeContactDebris, updateHazards,
 } from './hazards.js';
+import {
+  neutralSpeedFactor, passingBanned, moveSafetyCar, afterMove, onLineCrossed,
+  pitDecision, enterPitUnderRed, arriveInQueue, trackNeutralUse,
+} from './neutral.js';
 
 export const DT = 0.05;          // Simulationsschritt in Sekunden
 const MS_LEN = 100;              // Mini-Sektor-Länge (m) für Abstandsberechnung
 
-export const COMPOUNDS = {
-  S: { id: 'S', name: 'Soft',   offset: 0.00, deg: 0.075, cliff: 18 },
-  M: { id: 'M', name: 'Medium', offset: 0.35, deg: 0.045, cliff: 30 },
-  H: { id: 'H', name: 'Hard',   offset: 0.70, deg: 0.028, cliff: 44 },
-};
+import { COMPOUNDS } from './tyres.js';
+export { COMPOUNDS };
 
 export class Race {
   constructor({ track, teams, drivers, seed }) {
@@ -38,6 +39,10 @@ export class Race {
     this.hazards = [];
     this.hazardSeq = 0;
     this.idleFlagTime = 0;
+    this.neutral = null;      // { type: 'vsc' | 'sc' | 'red', phase, ... }
+    this.sc = null;           // Safety Car auf der Strecke
+    this.physGap = new Map();
+    this.neutralStats = { vsc: 0, sc: 0, red: 0, vscTime: 0, scTime: 0, redTime: 0, idle: 0 };
 
     const teamById = Object.fromEntries(teams.map(t => [t.id, t]));
     this.cars = drivers.map(drv => {
@@ -58,6 +63,9 @@ export class Race {
         finished: false, finishTime: null, finishDist: 0, finishPos: null,
         retired: false, dnf: null, wreck: null,
         offTrack: null, pendingIncident: null,
+        usedCompounds: new Set(), unlap: null, restartHold: false,
+        redBound: false, redQueued: false, queueD: null, redSlot: null,
+        launchUntil: 400,
         gridPos: 0,
       };
     });
@@ -78,6 +86,7 @@ export class Race {
       c.reaction = r.range(0.18, 0.36) + (r.chance(0.08) ? r.range(0.2, 0.5) : 0);
       c.launch = r.range(0.92, 1.06);
       this.planStrategy(c, i);
+      c.usedCompounds.add(c.compound);
       c.lapNoise = this.newLapNoise(c);
     });
   }
@@ -111,6 +120,8 @@ export class Race {
   }
 
   get lightsOn() {
+    const n = this.neutral;
+    if (n && n.type === 'red' && n.phase === 'grid') return Math.min(5, Math.floor(n.lightsTimer) + 1);
     if (this.phase !== 'lights') return 0;
     return Math.min(5, Math.floor(this.lightsTimer) + 1);
   }
@@ -153,11 +164,14 @@ export class Race {
     this.time += DT;
     const tr = this.track;
     const L = tr.L;
+    this.computePhysGap();
+    moveSafetyCar(this, DT);
 
     // 1) Wunschgeschwindigkeit jedes Autos
     for (const car of this.cars) {
       car.move = 0;
       if (car.retired) continue;
+      if (car.redQueued) { car.v = 0; continue; }
       if (car.offTrack) {
         car.v = 0;
         if (this.time >= car.offTrack.until) endOffTrack(this, car);
@@ -175,19 +189,31 @@ export class Race {
       } else if (car.inPit) {
         vt = tr.pitLaneSpeed;
       } else {
-        vt = speedAt(tr, car.d) * (tr.baseLap / this.lapTarget(car));
-        const flag = this.flags[sectorIndexAt(tr, car.d)];
-        vt *= FLAG_FACTOR[flag];
-        if (car.pass && !car.pass.slow && isYellow(flag)) car.pass = null; // Überholverbot unter Gelb
-        if (car.pass && this.time < car.pass.until) vt *= car.pass.blue ? 1.02 : 1.06;
-        if (car.defendUntil > this.time) vt *= 0.985;
+        const nf = neutralSpeedFactor(this, car);
+        if (nf !== null) {
+          // Neutralisierung: einheitliches Tempo für alle
+          vt = speedAt(tr, car.d) * nf;
+          if (car.pass && !car.pass.slow) car.pass = null;
+        } else {
+          vt = speedAt(tr, car.d) * (tr.baseLap / this.lapTarget(car));
+          const flag = this.flags[sectorIndexAt(tr, car.d)];
+          vt *= FLAG_FACTOR[flag];
+          // Überholverbot unter Gelb bzw. bis zur Linie nach einem Neustart
+          if (car.pass && !car.pass.slow && (isYellow(flag) || passingBanned(this, car))) car.pass = null;
+          if (car.pass && this.time < car.pass.until) vt *= car.pass.blue ? 1.02 : 1.06;
+          if (car.defendUntil > this.time) vt *= 0.985;
+        }
       }
       if (this.time < car.reaction) vt = 0;
-      const launch = car.lap === 0 && car.d < 400 ? car.launch : 1;
+      const launch = car.d < car.launchUntil ? car.launch : 1;
       if (vt > car.v) car.v = Math.min(vt, car.v + accelAt(car.v) * launch * DT);
       else car.v = Math.max(vt, car.v - 50 * DT);
       car.desiredV = vt;
       car.move = car.v * DT;
+      // Rote Flagge: an der zugewiesenen Position in der Boxengasse anhalten
+      if (car.redBound && car.inPit && car.queueD !== null && car.d + car.move >= car.queueD) {
+        car.move = Math.max(0, car.queueD - car.d);
+      }
     }
 
     // 2) Zweikämpfe: niemand fährt durch den Vordermann hindurch
@@ -201,6 +227,9 @@ export class Race {
       if (car.finished) continue;
       this.handleCrossings(car, prev);
       checkPendingIncident(this, car, prev);
+      if (car.redBound && car.inPit && !car.redQueued && car.queueD !== null && car.d >= car.queueD - 0.01) {
+        arriveInQueue(this, car);
+      }
     }
 
     // 4) Überholmanöver abschließen
@@ -221,7 +250,9 @@ export class Race {
       }
     }
 
+    afterMove(this, DT);
     updateHazards(this, DT);
+    trackNeutralUse(this, DT);
 
     if (this.phase === 'chequered' && this.cars.every(c => c.finished || c.retired)) {
       this.phase = 'finished';
@@ -232,11 +263,13 @@ export class Race {
   resolveTraffic() {
     const tr = this.track;
     const L = tr.L;
-    const onTrack = this.cars.filter(c => !c.retired && !c.finished && !c.inPit && !c.offTrack && c.stopTimer <= 0);
-    if (onTrack.length < 2) return;
+    const onTrack = this.onTrackCars();
+    if (onTrack.length < 1) return;
+    const scObj = this.sc && !this.sc.inPit
+      ? { id: 'SC', isSC: true, d: this.sc.d, move: this.sc.move, v: this.sc.v } : null;
 
-    // Physische Reihenfolge auf der Runde
-    const phys = [...onTrack].sort((a, b) => wrapD(tr, a.d) - wrapD(tr, b.d));
+    // Physische Reihenfolge auf der Runde (inkl. Safety Car)
+    const phys = [...onTrack, ...(scObj ? [scObj] : [])].sort((a, b) => wrapD(tr, a.d) - wrapD(tr, b.d));
     const aheadOf = new Map();
     phys.forEach((c, i) => aheadOf.set(c, phys[(i + 1) % phys.length]));
 
@@ -247,27 +280,32 @@ export class Race {
       if (!A || A === B) continue;
       const gapOld = wrapD(tr, A.d - B.d);
       if (gapOld > 200) continue;
+      if (B.unlap) continue; // Zurückrunden hinter dem SC: darf am Feld vorbei
       if (B.pass && B.pass.target === A.id && this.time < B.pass.until) continue;
 
       const gapNew = gapOld + A.move - B.move;
-      const minGap = Math.max(7, 0.3 * B.v);
+      const minGap = A.isSC ? 35 : Math.max(7, 0.3 * B.v);
+      const banned = passingBanned(this, B);
 
-      if (gapNew < minGap * 1.8) {
+      if (!A.isSC && gapNew < minGap * 1.8) {
         const lapping = B.d - A.d > L / 2;
         const underYellow = isYellow(this.flags[sectorIndexAt(tr, B.d)]) || isYellow(this.flags[sectorIndexAt(tr, A.d)]);
-        if (lapping && !underYellow) {
+        if (lapping && !underYellow && !banned) {
           // Überrundung: blaue Flagge, Hinterbänkler macht Platz
           this.startPass(B, A, { blue: true });
           continue;
         }
-        const startPhase = A.lap === 0 && A.d < 600;
-        if (!startPhase && B.desiredV > 40 && A.v < speedAt(tr, A.d) * 0.6) {
+        const startPhase = A.d < A.launchUntil;
+        const slowA = banned
+          ? A.v < 6 && B.desiredV > 15
+          : !startPhase && B.desiredV > 40 && A.v < speedAt(tr, A.d) * 0.6;
+        if (slowA) {
           // deutlich langsameres Auto (z. B. Boxenausfahrt, nach Dreher) – auch unter Gelb erlaubt
           this.startPass(B, A, { slow: true });
           continue;
         }
         const zone = tr.zones.find(z => inRange(tr, B.d, z.start, z.end));
-        if (zone && !underYellow) {
+        if (zone && !underYellow && !banned) {
           const key = `${B.lap}:${zone.corner}`;
           if (!B.tried.has(key)) {
             B.tried.add(key);
@@ -287,6 +325,26 @@ export class Race {
         }
       }
     }
+  }
+
+  onTrackCars() {
+    return this.cars.filter(c => !c.retired && !c.finished && !c.inPit && !c.offTrack && !c.redQueued && c.stopTimer <= 0);
+  }
+
+  // Abstand jedes Autos zum physisch Vorausfahrenden (inkl. Safety Car)
+  computePhysGap() {
+    this.physGap.clear();
+    if (!this.neutral || this.neutral.type !== 'sc') return;
+    const tr = this.track;
+    const list = [...this.onTrackCars()];
+    if (this.sc && !this.sc.inPit) list.push({ d: this.sc.d, isSC: true });
+    if (list.length < 2) return;
+    list.sort((a, b) => wrapD(tr, a.d) - wrapD(tr, b.d));
+    list.forEach((c, i) => {
+      if (c.isSC) return;
+      const ahead = list[(i + 1) % list.length];
+      this.physGap.set(c, wrapD(tr, ahead.d - c.d));
+    });
   }
 
   overtakeChance(B, A, zone) {
@@ -311,12 +369,21 @@ export class Race {
     const L = tr.L;
 
     // Boxengasse
-    if (!car.inPit && this.phase === 'running') {
+    if (!car.inPit && this.phase === 'running' && crossed(tr, prev, car.d, tr.pit.entry)) {
       const next = car.plan[car.planIdx];
-      if (next && car.lap + 1 >= next.lap && car.lap < this.laps - 2 && crossed(tr, prev, car.d, tr.pit.entry)) {
+      const decision = pitDecision(this, car, next);
+      if (decision === 'red') {
+        car.inPit = true;
+        car.pass = null;
+        car.unlap = null;
+        if (!car.redBound) enterPitUnderRed(this, car);
+        car.stoppedThisVisit = true;
+      } else if (decision && car.lap < this.laps - 2) {
         car.inPit = true;
         car.stoppedThisVisit = false;
         car.pass = null;
+        car.unlap = null;
+        if (decision === 'cheap') car.cheapStop = true;
       }
     }
     if (car.inPit) {
@@ -364,8 +431,13 @@ export class Race {
         this.emit('fastest', `Schnellste Runde: ${car.id} ${formatLap(lapTime)}`, { cars: [car.id] });
       }
 
+      onLineCrossed(this, car);
       if (this.phase === 'running' && car.lap >= this.laps) {
         this.phase = 'chequered';
+        if (this.neutral) {
+          this.neutral = null;
+          this.sc = null;
+        }
         this.finishCar(car);
         this.emit('chequered', `Zielflagge! ${car.driver.first} ${car.driver.last} gewinnt den ${tr.def.grandPrix}.`, { cars: [car.id] });
       } else if (this.phase === 'chequered') {
@@ -391,10 +463,13 @@ export class Race {
       car.compound = next.compound;
       car.planIdx++;
     }
+    car.usedCompounds.add(car.compound);
+    const cheap = car.cheapStop ? ' – günstiger Stopp unter Neutralisierung' : '';
+    car.cheapStop = false;
     car.tyreAge = 0;
     car.stops++;
     car.stopTimer = 0;
-    this.emit('pit', `Boxenstopp ${car.id}: ${from} → ${COMPOUNDS[car.compound].name} (${car.lastStopTime.toFixed(1).replace('.', ',')} s)`, { cars: [car.id] });
+    this.emit('pit', `Boxenstopp ${car.id}: ${from} → ${COMPOUNDS[car.compound].name} (${car.lastStopTime.toFixed(1).replace('.', ',')} s)${cheap}`, { cars: [car.id] });
   }
 
   // ---------- Abfragen ----------

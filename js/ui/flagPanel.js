@@ -41,7 +41,7 @@ export class FlagPanel {
     const t = race.time;
     const sig = JSON.stringify([
       race.flags, this.focus,
-      race.hazards.map(h => [h.id, h.ended, h.type, h.recommended, t - (h.endTime ?? t) < 30]),
+      race.hazards.map(h => [h.id, h.ended, h.type, h.need, t - (h.endTime ?? t) < 30]),
     ]);
     if (sig === this.sig) return;
     this.sig = sig;

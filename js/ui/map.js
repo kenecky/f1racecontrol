@@ -364,6 +364,7 @@ export class TrackMap {
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this.drawSectorOverlay(ctx, race);
     if (!race) return;
+    this.drawNeutral(ctx, race);
 
     // Liegengebliebene Autos
     for (const car of race.cars) {
@@ -412,6 +413,49 @@ export class TrackMap {
         this.drawLabel(ctx, x, y, label, sel);
       }
     }
+    this.drawSafetyCar(ctx, race);
+  }
+
+  // VSC / SC: gelb gestrichelte Strecke, Rot: rote Strecke
+  drawNeutral(ctx, race) {
+    const n = race.neutral;
+    if (!n) return;
+    const ws = this.widthScale();
+    this.tracePath(ctx, 0, this.track.L);
+    ctx.closePath();
+    ctx.lineWidth = 3 * ws;
+    ctx.lineCap = 'butt';
+    if (n.type === 'red') {
+      ctx.strokeStyle = 'rgba(225, 6, 0, 0.85)';
+      ctx.stroke();
+    } else {
+      ctx.setLineDash([10, 8]);
+      ctx.lineDashOffset = -(performance.now() / 40) % 18;
+      ctx.strokeStyle = n.type === 'sc' ? 'rgba(255, 154, 31, 0.9)' : 'rgba(255, 209, 46, 0.85)';
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.lineDashOffset = 0;
+    }
+  }
+
+  drawSafetyCar(ctx, race) {
+    const sc = race.sc;
+    if (!sc) return;
+    const lat = sc.inPit ? this.track.pit.side * PIT_OFFSET_PX * this.widthScale() : 0;
+    const [x, y] = this.pos(sc.d, lat);
+    const w = 22, h = 13;
+    ctx.fillStyle = '#ff9a1f';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(x - w / 2, y - h / 2, w, h, 4);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#000';
+    ctx.font = '900 9px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('SC', x, y + 0.5);
   }
 
   drawLabel(ctx, x, y, label, sel) {

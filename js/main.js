@@ -10,6 +10,10 @@ import { TrackMap } from './ui/map.js';
 import { renderTiming, formatClock, formatGap } from './ui/timing.js';
 import { Feed } from './ui/feed.js';
 import { FlagPanel } from './ui/flagPanel.js';
+import { ControlPanel } from './ui/controlPanel.js';
+import {
+  deployVSC, endVSC, deploySC, allowUnlap, scInThisLap, redFlag, restartRace, canRestart,
+} from './sim/neutral.js';
 import { loadSettings, saveSettings } from './storage.js';
 
 const SPEEDS = [1, 2, 4, 8, 16, 32];
@@ -27,6 +31,28 @@ const flagPanel = new FlagPanel({
     setSectorFlag(race, idx, flag);
     map.highlightSector = idx;
     flagPanel.render(race);
+    refreshUi();
+  },
+});
+
+const controlPanel = new ControlPanel({
+  root: $('controlSheet'),
+  title: $('ctlTitle'),
+  sub: $('ctlSub'),
+  body: $('ctlBody'),
+  onAction: action => {
+    const actions = {
+      'vsc-on': () => deployVSC(race),
+      'vsc-off': () => endVSC(race),
+      'sc-on': () => deploySC(race),
+      'sc-unlap': () => allowUnlap(race),
+      'sc-in': () => scInThisLap(race),
+      'red-on': () => redFlag(race),
+      'restart-sc': () => restartRace(race, 'sc'),
+      'restart-standing': () => restartRace(race, 'standing'),
+    };
+    if (actions[action]) actions[action]();
+    controlPanel.sig = '';
     refreshUi();
   },
 });
@@ -62,6 +88,7 @@ function newRace(seed = randomSeed()) {
   unread = 0;
   updateBadge();
   closeFlags();
+  closeControl();
   map.selected = null;
   $('seedInfo').textContent = `Rennen #${seed}`;
   $('seedInput').value = '';
@@ -140,6 +167,7 @@ function refreshUi() {
   updateStatus();
   updateAlert();
   flagPanel.render(race);
+  controlPanel.render(race);
   if (!touching) renderTiming($('timing'), race, timingOpts());
 }
 
@@ -152,7 +180,12 @@ function updateStatus() {
 
   const flag = $('flag');
   const status = trackStatus(race);
+  const n = race.neutral;
   if (race.phase === 'chequered' || race.phase === 'finished') { flag.textContent = 'ZIEL'; flag.className = 'flag-chip flag-chequered'; }
+  else if (n && n.type === 'red' && n.phase === 'grid') { flag.textContent = 'NEUSTART'; flag.className = 'flag-chip flag-start'; }
+  else if (n && n.type === 'red') { flag.textContent = 'ROT'; flag.className = 'flag-chip flag-red'; }
+  else if (n && n.type === 'sc') { flag.textContent = n.go ? 'SC NEUSTART' : n.phase === 'in' ? 'SC IN' : 'SAFETY CAR'; flag.className = 'flag-chip flag-sc'; }
+  else if (n && n.type === 'vsc') { flag.textContent = n.phase === 'ending' ? 'VSC ENDET' : 'VSC'; flag.className = 'flag-chip flag-vsc'; }
   else if (race.phase === 'pre' || race.phase === 'lights') { flag.textContent = 'START'; flag.className = 'flag-chip flag-start'; }
   else if (status === 'double') { flag.textContent = 'GELB ×2'; flag.className = 'flag-chip flag-double'; }
   else if (status === 'yellow') { flag.textContent = 'GELB'; flag.className = 'flag-chip flag-yellow'; }
@@ -160,7 +193,10 @@ function updateStatus() {
   else { flag.textContent = 'GRÜN'; flag.className = 'flag-chip flag-green'; }
 
   const lights = $('lights');
-  lights.classList.toggle('hidden', race.phase !== 'lights');
+  lights.classList.toggle('hidden', race.lightsOn === 0);
+  $('vscBtn').classList.toggle('on', Boolean(n && n.type === 'vsc'));
+  $('scBtn').classList.toggle('on', Boolean(n && n.type === 'sc'));
+  $('redBtn').classList.toggle('on', Boolean(n && n.type === 'red'));
   [...lights.children].forEach((el, i) => el.classList.toggle('on', i < race.lightsOn));
 
   $('gapHead').textContent = settings.gapMode === 'interval' ? 'Intervall' : 'Abstand';
@@ -174,14 +210,30 @@ function updateAlert() {
   const open = race.hazards.filter(h => !h.ended && h.adequateAt === null);
   const h = open[open.length - 1];
   if (h) {
+    el.dataset.kind = 'flags';
     el.dataset.sector = h.sector;
-    el.className = `alert${h.recommended === 'double' && race.flags[h.sector] === 'yellow' ? ' alert-double' : ''}`;
+    // orange: es wurde reagiert, aber (noch) nicht ausreichend
+    el.className = `alert${h.maxResponse > 0 ? ' alert-double' : ''}`;
     el.innerHTML = `<span class="alert-text">⚠ Sektor ${h.sector + 1}: ${h.desc}</span><span class="alert-go">Flaggen ›</span>`;
+    return;
+  }
+  const n = race.neutral;
+  const anyOpen = race.hazards.some(x => !x.ended && x.type !== 'spin');
+  let neutralMsg = null;
+  if (n && n.type === 'red' && canRestart(race)) neutralMsg = ['red', '✓ Strecke geräumt – Neustart freigeben'];
+  else if (n && n.type === 'red' && n.phase === 'stopped') neutralMsg = ['red', 'Rennen unterbrochen – Bergung läuft'];
+  else if (n && n.type === 'vsc' && n.phase === 'active' && !anyOpen) neutralMsg = ['vsc', '✓ Strecke frei – VSC beenden'];
+  else if (n && n.type === 'sc' && n.phase === 'out' && !anyOpen) neutralMsg = ['sc', '✓ Strecke frei – Safety Car reinholen'];
+  if (neutralMsg) {
+    el.dataset.kind = neutralMsg[0];
+    el.className = `alert${neutralMsg[1].startsWith('✓') ? ' alert-ok' : ''}`;
+    el.innerHTML = `<span class="alert-text">${neutralMsg[1]}</span><span class="alert-go">Öffnen ›</span>`;
     return;
   }
   const done = race.hazards.find(x => x.ended && t - x.endTime < 60 && race.flags[x.sector] !== 'clear'
     && !race.hazards.some(y => y.sector === x.sector && !y.ended));
   if (done) {
+    el.dataset.kind = 'flags';
     el.dataset.sector = done.sector;
     el.className = 'alert alert-ok';
     el.innerHTML = `<span class="alert-text">✓ Sektor ${done.sector + 1} ist wieder frei</span><span class="alert-go">Grün setzen ›</span>`;
@@ -218,9 +270,21 @@ function setSpeed(v) {
 
 function openFlags(idx = null) {
   if (!race) return;
+  closeControl();
   map.showSectors = true;
   map.highlightSector = idx;
   flagPanel.open(race, idx);
+}
+
+function openControl(kind) {
+  if (!race) return;
+  closeFlags();
+  if (controlPanel.isOpen && controlPanel.kind === kind) { closeControl(); return; }
+  controlPanel.open(race, kind);
+}
+
+function closeControl() {
+  controlPanel.close();
 }
 
 function closeFlags() {
@@ -272,12 +336,18 @@ function showResults() {
       <div>Sektor ${i.h.sector + 1}: ${i.h.desc}<br><span class="n">${i.note}</span></div></div>`).join('');
   const report = `
     <div class="report">
-      <h3>Rennleitung · Flaggen</h3>
+      <h3>Rennleitung · Bilanz</h3>
       <div class="report-stats">
         <div><b>${rep.ok}/${rep.total}</b><span>rechtzeitig</span></div>
         <div><b>${rep.avgReaction === null ? '–' : Math.round(rep.avgReaction) + ' s'}</b><span>Ø Reaktion</span></div>
         <div><b>${Math.round(rep.idleFlagTime)} s</b><span>unnötig gelb</span></div>
       </div>
+      <div class="report-stats">
+        <div><b>${rep.neutral.vsc}× · ${formatMin(rep.neutral.vscTime)}</b><span>VSC</span></div>
+        <div><b>${rep.neutral.sc}× · ${formatMin(rep.neutral.scTime)}</b><span>Safety Car</span></div>
+        <div><b>${rep.neutral.red}× · ${formatMin(rep.neutral.redTime)}</b><span>Rote Flagge</span></div>
+      </div>
+      ${rep.neutral.idle > 5 ? `<div class="report-item"><span class="v">⚠</span><div>Neutralisierung ohne ausreichenden Grund: <b>${formatMin(rep.neutral.idle)}</b><br><span class="n">VSC/SC/Rot länger oder öfter als nötig – schlecht für den Rennfluss.</span></div></div>` : ''}
       ${items || '<div class="report-item"><span class="v">✓</span><div>Keine Gefahren, die eine Flagge erforderten.</div></div>'}
       ${rep.spins ? `<div class="report-item"><span class="v">↺</span><div><span class="n">${rep.spins} kurze(r) Dreher ohne Folgen (keine Flagge zwingend nötig)</span></div></div>` : ''}
     </div>`;
@@ -293,7 +363,13 @@ function showResults() {
       <div><span>Überholmanöver</span>${overtakes}</div>
     </div>`;
   closeFlags();
+  closeControl();
   $('resultScreen').classList.remove('hidden');
+}
+
+function formatMin(t) {
+  t = Math.round(t);
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
 }
 
 // ---------- Sonstiges ----------
@@ -388,7 +464,15 @@ $('allGreenBtn').addEventListener('click', () => {
   flagPanel.render(race);
   refreshUi();
 });
-$('alertBanner').addEventListener('click', () => openFlags(Number($('alertBanner').dataset.sector)));
+$('alertBanner').addEventListener('click', () => {
+  const el = $('alertBanner');
+  if (el.dataset.kind === 'flags') openFlags(Number(el.dataset.sector));
+  else openControl(el.dataset.kind);
+});
+$('vscBtn').addEventListener('click', () => openControl('vsc'));
+$('scBtn').addEventListener('click', () => openControl('sc'));
+$('redBtn').addEventListener('click', () => openControl('red'));
+$('ctlCloseBtn').addEventListener('click', closeControl);
 
 document.querySelectorAll('.act[data-soon]').forEach(b => b.addEventListener('click', () => {
   toast(`${b.dataset.label}: kommt in Meilenstein ${b.dataset.soon}`);
