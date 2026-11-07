@@ -607,3 +607,39 @@ button {
 #app.dragging .panels { display: block; }
 .warn-icon { vertical-align: -3px; flex: none; }
 .msg-icon .warn-icon { vertical-align: -2px; }
+
+/* ---------- Fälle ---------- */
+.cases-bar { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--bg-2); border-bottom: 1px solid var(--line); font-weight: 700; }
+.cases-bar .pill-btn { margin-left: auto; background: var(--accent); color: #fff; padding: 0 14px; }
+.case { border-bottom: 1px solid #1c2435; }
+.case.open { background: #121a2a; }
+.case-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; text-align: left; }
+.case-no { color: var(--muted); font-weight: 700; font-size: 12px; min-width: 26px; }
+.case-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.case-title { font-weight: 700; font-size: 13px; line-height: 1.3; }
+.case-meta { color: var(--muted); font-size: 11px; margin-top: 2px; }
+.case-status { font-size: 9px; font-weight: 800; letter-spacing: .05em; padding: 3px 6px; border-radius: 5px; white-space: nowrap; }
+.st-new { background: var(--accent); color: #fff; }
+.st-inv { background: var(--yellow); color: #000; }
+.st-post { background: var(--blue); color: #fff; }
+.st-done { background: var(--green); color: #04210f; }
+.st-nfa { background: #3a4252; color: var(--text); }
+.case-body { padding: 0 12px 12px 48px; display: flex; flex-direction: column; gap: 10px; }
+.case-summary { margin: 0; font-size: 13px; line-height: 1.45; }
+.evidence { display: flex; flex-direction: column; gap: 6px; }
+.ev { display: flex; gap: 8px; font-size: 12px; line-height: 1.4; background: var(--bg-3); border-radius: 8px; padding: 7px 8px; }
+.ev-icon { flex: none; }
+.ev-label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+.ev-more { color: var(--muted); font-size: 11px; font-style: italic; }
+.case-actions { display: flex; flex-direction: column; gap: 8px; }
+.case-actions-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.case-actions-row .ctl-btn { font-size: 13px; height: 42px; }
+.verdict { font-size: 13px; padding: 8px 10px; border-radius: 8px; background: rgba(31,191,90,.12); border-left: 3px solid var(--green); }
+.verdict-form { display: flex; flex-direction: column; gap: 6px; }
+.vf-label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; margin-top: 4px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { padding: 7px 11px; border-radius: 16px; background: var(--bg-3); border: 1px solid var(--line); font-size: 12px; font-weight: 600; }
+.chip.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+.verdict-form .ctl-btn { margin-top: 6px; }
+.pen { margin-left: 4px; font-size: 9px; font-weight: 800; color: #ff6b6b; vertical-align: 1px; }
+#openCasesBtn { grid-column: 1 / -1; background: var(--yellow); color: #000; }

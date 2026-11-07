@@ -5,7 +5,7 @@ export const WARN_ICON = '<svg class="warn-icon" viewBox="0 0 24 24" width="16" 
 
 const ICONS = {
   info: 'ℹ️', start: '🚦', overtake: '↗', fastest: '⏱', pit: '🔧', chequered: '🏁', finish: '🏁',
-  marshal: WARN_ICON, radio: '📻', rc: '🚩',
+  marshal: WARN_ICON, radio: '📻', rc: '🚩', case: '⚖️', tl: '📏',
 };
 
 export class Feed {

@@ -37,7 +37,7 @@ export function isYellow(flag) {
   return flag === 'yellow' || flag === 'double';
 }
 
-function cornerNear(track, d) {
+export function cornerNear(track, d) {
   const x = wrapD(track, d);
   let best = track.corners[0], bd = Infinity;
   for (const c of track.corners) {
@@ -47,7 +47,7 @@ function cornerNear(track, d) {
   return best;
 }
 
-function cornerLabel(c) {
+export function cornerLabel(c) {
   return c.name !== c.id ? `${c.id} (${c.name})` : c.id;
 }
 
@@ -105,7 +105,7 @@ function createHazard(race, props) {
   return h;
 }
 
-function startSpin(race, car) {
+export function startSpin(race, car) {
   const r = race.rng;
   const stuck = r.chance(0.2);
   const dur = r.range(6, 14);
@@ -188,15 +188,28 @@ function retireCar(race, car, reason, lateral) {
   car.wreck = { d: car.d, lateral, removed: false };
 }
 
-// Nach einem Überholmanöver: Kontakt mit Trümmerteilen?
-export function maybeContactDebris(race, attacker, defender) {
-  if (!race.rng.chance(0.05)) return;
+// Auto bleibt nach einem Vorfall liegen (z. B. nach Kollision)
+export function stopCarAfterIncident(race, car, reason) {
+  const r = race.rng;
+  const exposed = r.chance(0.5);
+  retireCar(race, car, reason, (r.chance(0.5) ? 1 : -1) * 12);
+  const h = createHazard(race, {
+    type: 'stopped', carId: car.id, d: car.d, need: exposed ? 'double' : 'yellow', work: r.range(70, 160),
+  });
+  h.desc = `${car.id} steht nach dem Vorfall – ${exposed ? 'ungeschützt direkt neben der Fahrbahn' : 'sicher hinter der Leitplanke'}`;
+  race.emit('marshal', `Sektor ${h.sector + 1}: ${car.id} kann nicht weiterfahren und steht in ${cornerLabel(h.corner)} – ${exposed ? 'ungeschützt direkt neben der Fahrbahn.' : 'sicher hinter der Leitplanke.'}`, { hazard: h.id, sector: h.sector, cars: [car.id] });
+  return h;
+}
+
+// Trümmerteile nach einer Berührung
+export function createDebris(race, attacker, defender) {
   const h = createHazard(race, {
     type: 'debris', d: attacker.d, need: 'yellow', cars: [attacker.id, defender.id],
     work: race.rng.range(40, 110),
   });
   h.desc = `Trümmerteile auf der Ideallinie nach Kontakt ${attacker.id}/${defender.id}`;
-  race.emit('marshal', `Sektor ${h.sector + 1}: Leichte Berührung ${attacker.id}/${defender.id} in ${cornerLabel(h.corner)} – Trümmerteile auf der Ideallinie.`, { hazard: h.id, sector: h.sector, cars: [attacker.id, defender.id] });
+  race.emit('marshal', `Sektor ${h.sector + 1}: Trümmerteile auf der Ideallinie nach Berührung ${attacker.id}/${defender.id} in ${cornerLabel(h.corner)}.`, { hazard: h.id, sector: h.sector, cars: [attacker.id, defender.id] });
+  return h;
 }
 
 // Bergungsfortschritt 0–1

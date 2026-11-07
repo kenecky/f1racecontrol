@@ -1,5 +1,6 @@
 // Zeitentabelle
 import { COMPOUNDS, formatLap } from '../sim/race.js';
+import { unservedSecs } from '../control/stewards.js';
 
 export function formatGap(g, isRef) {
   if (isRef) return '';
@@ -27,7 +28,7 @@ export function renderTiming(el, race, { gapMode, selected }) {
     const pos = i + 1;
     let gapText;
     if (!started) gapText = `Startplatz ${car.gridPos}`;
-    else if (car.retired) gapText = 'Ausfall';
+    else if (car.retired) gapText = car.dsq ? 'DSQ' : 'Ausfall';
     else if (gapMode === 'interval') gapText = i === 0 ? (car.finished ? '🏁' : 'Intervall') : formatGap(race.gap(car, st[i - 1]), false);
     else gapText = i === 0 ? (car.finished ? '🏁' : 'Führung') : formatGap(race.gap(car, leader), false);
 
@@ -36,7 +37,8 @@ export function renderTiming(el, race, { gapMode, selected }) {
       : `<span class="delta ${delta > 0 ? 'up' : 'down'}">${delta > 0 ? '▲' : '▼'}${Math.abs(delta)}</span>`;
 
     let status = '';
-    if (car.retired) status = '<span class="badge badge-out">DNF</span>';
+    if (car.dsq) status = '<span class="badge badge-out">DSQ</span>';
+    else if (car.retired) status = '<span class="badge badge-out">DNF</span>';
     else if (car.offTrack) status = '<span class="badge badge-off">AUS</span>';
     else if (car.finished) status = '<span class="badge badge-fin">🏁</span>';
     else if (car.redQueued) status = '<span class="badge badge-red">ROT</span>';
@@ -56,12 +58,16 @@ export function renderTiming(el, race, { gapMode, selected }) {
         ${car.retired ? `<div><span>Ausfall</span>${car.dnf}</div>` : ''}
       </div>` : '';
     const fl = race.fastest && race.fastest.carId === car.id ? '<span class="fl" title="Schnellste Runde">⏱</span>' : '';
+    const pen = unservedSecs(car);
+    const pending = [...car.serve, ...(car.serving ? [car.serving] : [])].map(p => p.type.toUpperCase()).join(' ');
+    const penHtml = (pen ? `<span class="pen">+${pen}</span>` : '') + (pending ? `<span class="pen">${pending}</span>` : '')
+      + (car.giveBack ? '<span class="pen">↩</span>' : '');
 
     return `
       <div class="row${sel ? ' selected' : ''}${car.retired ? ' retired' : ''}" data-id="${car.id}">
         <span class="pos">${pos}</span>
         <span class="teambar" style="background:${car.team.color}"></span>
-        <span class="code">${car.id}${fl}</span>
+        <span class="code">${car.id}${fl}${penHtml}</span>
         ${deltaHtml}
         <span class="rst">${status}</span>
         <span class="gap">${gapText}</span>

@@ -11,6 +11,10 @@ import { renderTiming, formatClock, formatGap } from './ui/timing.js';
 import { Feed } from './ui/feed.js';
 import { FlagPanel } from './ui/flagPanel.js';
 import { ControlPanel } from './ui/controlPanel.js';
+import { CasesPanel } from './ui/casesPanel.js';
+import {
+  investigate, postpone, noFurtherAction, decide, openCases, stewardReport, unservedSecs,
+} from './control/stewards.js';
 import {
   deployVSC, endVSC, deploySC, allowUnlap, scInThisLap, redFlag, restartRace, canRestart,
 } from './sim/neutral.js';
@@ -57,8 +61,24 @@ const controlPanel = new ControlPanel({
   },
 });
 
+const casesPanel = new CasesPanel($('cases'), {
+  onAction: (act, id, form) => {
+    const c = id ? race.cases.find(x => x.id === id) : null;
+    if (act === 'investigate') investigate(race, c);
+    else if (act === 'investigate-now') { c.status = 'investigating'; race.emit('rc', `Fall #${c.id} wird untersucht: ${c.title}`); }
+    else if (act === 'nfa') noFurtherAction(race, c);
+    else if (act === 'post') postpone(race, c);
+    else if (act === 'decide') decide(race, c, { carId: form.carId, penalty: form.penalty || 'none', points: form.points });
+    else if (act === 'results') { showResults(); return; }
+    casesPanel.render(race);
+    updateCasesBadge();
+    if (act !== 'render') renderTiming($('timing'), race, timingOpts());
+  },
+});
+
 let race = null;
 let paused = true;
+let seenCases = 0;
 let acc = 0;
 let lastFrame = performance.now();
 let lastUi = 0;
@@ -83,6 +103,10 @@ function newRace(seed = randomSeed()) {
   acc = 0;
   resultShown = false;
   seenHazards = 0;
+  seenCases = 0;
+  casesPanel.open.clear();
+  casesPanel.forms = {};
+  casesPanel.sig = '';
   prevD.clear();
   feed.reset();
   unread = 0;
@@ -169,6 +193,13 @@ function refreshUi() {
   updateAlert();
   flagPanel.render(race);
   controlPanel.render(race);
+  if (activeTab === 'cases') casesPanel.render(race);
+  updateCasesBadge();
+  if (race.cases.length > seenCases) {
+    const c = race.cases[race.cases.length - 1];
+    seenCases = race.cases.length;
+    if (activeTab !== 'cases') toast(`Neuer Fall #${c.id}: ${c.typeName}`);
+  }
   if (!touching) renderTiming($('timing'), race, timingOpts());
 }
 
@@ -249,6 +280,13 @@ function updatePauseBtn() {
   $('app').classList.toggle('is-paused', Boolean(paused && race && race.phase !== 'pre'));
 }
 
+function updateCasesBadge() {
+  const n = race ? race.cases.filter(c => c.status === 'new').length : 0;
+  const b = $('casesBadge');
+  b.textContent = n;
+  b.classList.toggle('hidden', n === 0);
+}
+
 function updateBadge() {
   const b = $('feedBadge');
   b.textContent = unread > 99 ? '99+' : unread;
@@ -323,8 +361,8 @@ function showResults() {
   const rows = st.map((c, i) => `
     <tr>
       <td class="r-pos">${c.retired ? '–' : i + 1}</td>
-      <td><span class="teambar" style="background:${c.team.color}"></span>${c.driver.first[0]}. ${c.driver.last}</td>
-      <td class="r-gap">${c.retired ? 'DNF' : i === 0 ? formatClock(c.finishTime) : formatGap(race.gap(c, winner), false)}</td>
+      <td><span class="teambar" style="background:${c.team.color}"></span>${c.driver.first[0]}. ${c.driver.last}${unservedSecs(c) ? `<span class="pen">+${unservedSecs(c)} s</span>` : ''}</td>
+      <td class="r-gap">${c.dsq ? 'DSQ' : c.retired ? 'DNF' : i === 0 ? formatClock(race.adjustedFinish(c)) : formatGap(race.gap(c, winner), false)}</td>
       <td class="r-stops">${c.stops}</td>
     </tr>`).join('');
   const fl = race.fastest ? `${race.carById[race.fastest.carId].driver.last} – ${formatLap(race.fastest.time)} (Runde ${race.fastest.lap})` : '–';
@@ -353,8 +391,28 @@ function showResults() {
       ${rep.spins ? `<div class="report-item"><span class="v">↺</span><div><span class="n">${rep.spins} kurze(r) Dreher ohne Folgen (keine Flagge zwingend nötig)</span></div></div>` : ''}
     </div>`;
 
+  const open = openCases(race).length;
+  const srep = stewardReport(race);
+  const sIcon = { ok: '✅', lenient: '🔽', harsh: '🔼', wrong: '❌', open: '⏳' };
+  const sItems = srep.items.map(i => `
+    <div class="report-item"><span class="v">${sIcon[i.verdict]}</span>
+      <div>#${i.c.id} ${i.c.title}<br><span class="n">${i.note}</span></div></div>`).join('');
+  const stewards = `
+    <div class="report">
+      <h3>Rennkommissare · Urteile</h3>
+      <div class="report-stats">
+        <div><b>${srep.ok}/${srep.total}</b><span>angemessen</span></div>
+        <div><b>${srep.lenient + srep.harsh}</b><span>zu mild/hart</span></div>
+        <div><b>${srep.wrong + srep.open}</b><span>falsch/offen</span></div>
+      </div>
+      ${sItems || '<div class="report-item"><span class="v">✓</span><div>Keine Fälle in diesem Rennen.</div></div>'}
+      ${srep.inconsistent.map(g => `<div class="report-item"><span class="v">⚖</span><div>Inkonsequent: gleichartige Fälle ${g} unterschiedlich bestraft.</div></div>`).join('')}
+    </div>`;
+  $('resultTitle').textContent = open ? `⏳ Vorläufiges Ergebnis – ${open} ${open > 1 ? 'Fälle' : 'Fall'} offen` : '🏁 Rennergebnis';
+  $('openCasesBtn').classList.toggle('hidden', open === 0);
   $('resultBody').innerHTML = `
     ${report}
+    ${stewards}
     <table class="results">
       <thead><tr><th>Pos</th><th>Fahrer</th><th>Zeit/Abstand</th><th>Stopps</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -380,6 +438,7 @@ function setTab(tab) {
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${tab}`));
   if (tab === 'feed') { unread = 0; updateBadge(); }
+  if (tab === 'cases' && race) { casesPanel.sig = ''; casesPanel.render(race); }
 }
 
 let toastTimer = null;
@@ -537,6 +596,11 @@ document.querySelectorAll('.act[data-soon]').forEach(b => b.addEventListener('cl
 
 $('newRaceBtn').addEventListener('click', () => newRace());
 $('closeResultBtn').addEventListener('click', () => $('resultScreen').classList.add('hidden'));
+$('openCasesBtn').addEventListener('click', () => {
+  $('resultScreen').classList.add('hidden');
+  setCollapsed(false);
+  setTab('cases');
+});
 $('menuBtn').addEventListener('click', () => {
   if (!race || race.phase === 'pre') return;
   paused = true;

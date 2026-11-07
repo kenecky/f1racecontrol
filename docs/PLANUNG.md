@@ -257,8 +257,14 @@ docs/
       Führenden, Überholen erst ab der Linie), rote Flagge (Boxengasse, freier Reifenwechsel,
       Neustart hinter SC oder stehend). Schwere Unfälle (SC / Barriere → Rot), Bergungstempo
       abhängig von der Reaktion, günstige Boxenstopps unter VSC/SC, Bilanz im Rennbericht
-- [ ] **M4 – Vorfälle & Strafen**: Vorfälle generieren, Indizien, Untersuchung, Urteil,
-      Strafen wirken sich aufs Ergebnis aus
+- [x] **M4 – Vorfälle & Strafen**: Kollisionen, Abdrängen, Überholen neben der Strecke,
+      Team-Beschwerden, Track Limits, Speeding Boxengasse, Unsafe Release, Überholen unter
+      Gelb, VSC-Delta. Fälle-Tab mit Beweisen (TV, Telemetrie, Position, Funk), Untersuchen /
+      Keine Untersuchung / Nach dem Rennen, Urteil mit Strafpunkten. Strafen wirken im Rennen
+      (Zeitstrafe beim Stopp oder am Ende, Durchfahrt, Stop & Go, Platz zurückgeben, DSQ).
+      Bewertung jedes Urteils und Konsistenz-Prüfung im Rennbericht
+- [x] **Extras**: Bereich unter der Karte wischbar (Strecke wird größer/gedreht),
+      SC-Reinholen nur bis Sektor 6, SC baut in der Einfahrtsrunde Vorsprung auf
 - [ ] **M5 – Bewertung**: Bewertungsachsen, Reaktionen, Rennbericht
 - [ ] **M6 – Speichern/Laden**: Rennen fortsetzen, Statistik
 - [ ] **M7 – Saison**: weitere Strecken, Meisterschaftstabelle, Strafpunkte über die Saison
@@ -307,6 +313,25 @@ kommen die Marshals kaum voran (Barrierenschaden: ohne Rot praktisch keine Repar
 Tempo: VSC ≈ 62 % der Renngeschwindigkeit, Safety Car ≈ 60 %, Weg in die Box bei Rot ≈ 55 %.
 „Unnötige Neutralisierung“ zählt VSC/SC/Rot-Zeit ohne passende Gefahr
 (Kulanz nach Freigabe: VSC 25 s, SC 200 s, Rot 150 s).
+
+### Vorfälle & Strafen (M4)
+Pro Rennen entstehen ca. 6–8 Fälle. Jeder Fall hat eine interne Wahrheit (Verantwortlicher,
+angemessene Strafe, übliche Strafpunkte). Die Beweise führen dorthin, können aber unklar
+(Signalaussetzer) oder parteiisch (Funk) sein.
+
+| Fall | Schuld (Wahrscheinlichkeit) | Angemessen |
+|---|---|---|
+| Kollision | Angreifer 50 %, Verteidiger 20 %, Rennunfall 30 % | leicht: Verwarnung/5 s · Schaden: 5–10 s · Ausfall: 10 s · Rennunfall: keine |
+| Abdrängen | Verteidiger 55 %, sonst kein Vergehen | 5 s |
+| Überholen neben der Strecke | Angreifer (40 % geben freiwillig zurück) | Platz zurückgeben oder 5 s; zurückgegeben: keine |
+| Team-Beschwerde | kein Vergehen | keine |
+| Track Limits | 3./4./5.+ Verstoß | S/W-Flagge / 5 s / 10 s |
+| Speeding Boxengasse | Fahrer | 5 s |
+| Unsafe Release | Team/Fahrer | Verwarnung–5 s (mit Kontakt 5–10 s) |
+| Überholen unter Gelb | Fahrer | Gelb: 5–10 s · Doppelt Gelb: 10 s–Durchfahrt |
+| VSC-Delta | Fahrer | 5 s (knapp: Verwarnung) |
+
+Durchfahrt/Stop & Go mit weniger als 3 Runden Rest bzw. nach dem Rennen → +20 s / +30 s.
 
 Bewertung (Vorstufe zu M5): rechtzeitig = angemessene Flagge innerhalb von 20 s;
 zusätzlich wird „unnötig gelb“ gemessen (Flagge ohne Gefahr, 10 s Kulanz nach Freigabe).
