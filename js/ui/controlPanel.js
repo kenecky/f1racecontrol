@@ -1,5 +1,7 @@
 // Panel für VSC, Safety Car und rote Flagge.
-import { canRestart } from '../sim/neutral.js';
+import { canRestart, scInPossibleThisLap, scInLastSector } from '../sim/neutral.js';
+import { sectorIndexAt } from '../sim/trackModel.js';
+import { WARN_ICON } from './feed.js';
 import { hazardProgress } from '../sim/hazards.js';
 
 const TITLES = { vsc: 'Virtual Safety Car', sc: 'Safety Car', red: 'Rote Flagge' };
@@ -46,7 +48,7 @@ export class ControlPanel {
       const p = Math.round(hazardProgress(h) * 100);
       return `
         <div class="ctl-hazard">
-          <div>⚠ Sektor ${h.sector + 1}: ${h.desc}</div>
+          <div>${WARN_ICON} Sektor ${h.sector + 1}: ${h.desc}</div>
           <div class="progress"><span style="width:${p}%"></span></div>
           <div class="ctl-small">Bergung ${p} %</div>
         </div>`;
@@ -60,6 +62,7 @@ export class ControlPanel {
     const active = race.hazards.filter(h => !h.ended && h.type !== 'spin');
     const sig = JSON.stringify([
       kind, n && n.type, n && n.phase, n && n.unlap, n && n.go, Math.floor(race.time / 2),
+      scInPossibleThisLap(race),
       race.cars.filter(c => c.unlap).length, race.cars.filter(c => c.redQueued).length,
       active.map(h => Math.round(hazardProgress(h) * 50)), canRestart(race),
     ]);
@@ -103,7 +106,11 @@ export class ControlPanel {
             ? `<div class="ctl-small">${unlapping.length ? `Zurückrunden läuft: ${unlapping.join(', ')}` : 'Überrundete haben sich zurückgerundet.'}</div>`
             : `<button class="ctl-btn ctl-ghost" data-action="sc-unlap">Überrundete zurückrunden lassen</button>
                <p class="ctl-small">Überrundete Autos überholen das Feld und das Safety Car und schließen hinten wieder an. Dauert etwa eine Runde.</p>`;
-          html += '<button class="ctl-btn ctl-green" data-action="sc-in">Safety Car kommt in dieser Runde rein</button>';
+          const now = scInPossibleThisLap(race);
+          const sec = race.sc && !race.sc.inPit ? sectorIndexAt(race.track, race.sc.d) + 1 : null;
+          const last = scInLastSector(race.track);
+          html += `<button class="ctl-btn ctl-green" data-action="sc-in">${now ? 'Safety Car kommt in dieser Runde rein' : 'Safety Car kommt nächste Runde rein'}</button>
+            <p class="ctl-small">${sec ? `SC ist in Sektor ${sec}. ` : ''}Reinholen in dieser Runde nur bis Sektor ${last} möglich, danach erst in der nächsten Runde.</p>`;
         } else {
           html = `<div class="ctl-status">${n.go ? 'Neustart läuft – Grün an der Ziellinie.' : 'Safety Car kommt in dieser Runde rein. Der Führende bestimmt das Tempo.'}</div>`;
         }

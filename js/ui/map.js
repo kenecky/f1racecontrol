@@ -16,6 +16,9 @@ export class TrackMap {
     this.showSectors = false;
     this.highlightSector = null;
     this.zoom = 1;
+    this.paused = false;
+    this.anim = 0;          // Animationsuhr, steht bei Pause still
+    this.lastDraw = null;
     this.panX = 0;
     this.panY = 0;
     this.bg = document.createElement('canvas');
@@ -43,18 +46,28 @@ export class TrackMap {
       c.height = Math.round(rect.height * dpr);
     }
     const tr = this.track;
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (let i = 0; i < tr.N; i++) {
-      minX = Math.min(minX, tr.xs[i]); maxX = Math.max(maxX, tr.xs[i]);
-      minY = Math.min(minY, tr.ys[i]); maxY = Math.max(maxY, tr.ys[i]);
-    }
     const pad = 22;
-    const s = Math.min((this.w - 2 * pad) / (maxX - minX), (this.h - 2 * pad) / (maxY - minY));
+    const padTop = 70; // Platz für Einblendungen (Vorfälle, VSC, SC …)
+    const bounds = rot => {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (let i = 0; i < tr.N; i++) {
+        const [x, y] = rot ? [tr.ys[i], -tr.xs[i]] : [tr.xs[i], tr.ys[i]];
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+      }
+      const s = Math.min((this.w - 2 * pad) / (maxX - minX), (this.h - padTop - pad) / (maxY - minY));
+      return { minX, minY, maxX, maxY, s };
+    };
+    // Hohe, schmale Karte (z. B. eingeklappter Bereich): Strecke um 90° drehen, wenn sie dadurch deutlich größer wird
+    const normal = bounds(false), rotated = bounds(true);
+    this.rot = rotated.s > normal.s * 1.2;
+    const { minX, minY, maxX, maxY, s } = this.rot ? rotated : normal;
     this.scale = s;
     this.ox = (this.w - (maxX - minX) * s) / 2 - minX * s;
-    this.oy = (this.h - (maxY - minY) * s) / 2 - minY * s;
-    this.cx = (minX + maxX) / 2;
-    this.cy = (minY + maxY) / 2;
+    this.oy = padTop + (this.h - padTop - pad - (maxY - minY) * s) / 2 - minY * s;
+    // Mittelpunkt in Streckenkoordinaten (ungedreht)
+    const mx = (minX + maxX) / 2, my = (minY + maxY) / 2;
+    [this.cx, this.cy] = this.rot ? [-my, mx] : [mx, my];
     this.clampPan();
     this.bgDirty = true;
   }
@@ -87,6 +100,7 @@ export class TrackMap {
   }
 
   toPx([x, y]) {
+    if (this.rot) [x, y] = [y, -x];
     return [(this.ox + x * this.scale) * this.zoom + this.panX, (this.oy + y * this.scale) * this.zoom + this.panY];
   }
 
@@ -242,9 +256,10 @@ export class TrackMap {
     ctx.textBaseline = 'middle';
     for (const c of tr.corners) {
       const p = pointAt(tr, c.d);
-      const dx = p[0] - this.cx, dy = p[1] - this.cy;
-      const len = Math.hypot(dx, dy) || 1;
       const [px, py] = this.toPx(p);
+      const [qx, qy] = this.toPx([this.cx, this.cy]);
+      const dx = px - qx, dy = py - qy;
+      const len = Math.hypot(dx, dy) || 1;
       const off = 15 * ws;
       ctx.fillText(c.id.replace('T', ''), px + (dx / len) * off, py + (dy / len) * off);
     }
@@ -300,9 +315,10 @@ export class TrackMap {
       tr.sectors.forEach(sec => {
         const mid = (sec.start + sec.end) / 2;
         const p = pointAt(tr, mid);
-        const dx = p[0] - this.cx, dy = p[1] - this.cy;
-        const len = Math.hypot(dx, dy) || 1;
         const [px, py] = this.toPx(p);
+        const [qx, qy] = this.toPx([this.cx, this.cy]);
+        const dx = px - qx, dy = py - qy;
+        const len = Math.hypot(dx, dy) || 1;
         const x = px - (dx / len) * 16 * ws, y = py - (dy / len) * 16 * ws;
         ctx.fillStyle = 'rgba(61,139,255,0.9)';
         ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill();
@@ -356,6 +372,9 @@ export class TrackMap {
   }
 
   draw(race, renderD) {
+    const now = performance.now();
+    if (!this.paused && this.lastDraw !== null) this.anim += Math.min(0.25, (now - this.lastDraw) / 1000);
+    this.lastDraw = now;
     if (this.bgDirty) this.drawBackground();
     const ctx = this.ctx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -430,7 +449,7 @@ export class TrackMap {
       ctx.stroke();
     } else {
       ctx.setLineDash([10, 8]);
-      ctx.lineDashOffset = -(performance.now() / 40) % 18;
+      ctx.lineDashOffset = -(this.anim * 25) % 18;
       ctx.strokeStyle = n.type === 'sc' ? 'rgba(255, 154, 31, 0.9)' : 'rgba(255, 209, 46, 0.85)';
       ctx.stroke();
       ctx.setLineDash([]);
@@ -461,7 +480,9 @@ export class TrackMap {
   drawLabel(ctx, x, y, label, sel) {
     ctx.font = `${sel ? 700 : 600} 10px system-ui, sans-serif`;
     const w = ctx.measureText(label).width + 8;
-    const lx = x + 8, ly = y - 16;
+    // am rechten Rand nach links ausweichen
+    const lx = x + 8 + w > this.w - 4 ? x - 8 - w : x + 8;
+    const ly = y - 16;
     ctx.fillStyle = sel ? '#fff' : 'rgba(11,15,23,0.85)';
     ctx.fillRect(lx, ly, w, 14);
     ctx.fillStyle = sel ? '#0b0f17' : '#e6e9ef';

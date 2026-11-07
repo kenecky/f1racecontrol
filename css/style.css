@@ -587,3 +587,23 @@ button {
 .progress span { display: block; height: 100%; background: var(--green); transition: width .4s; }
 .badge-red { background: var(--accent); color: #fff; }
 .badge-unlap { background: var(--blue); color: #fff; }
+
+/* ---------- Bereich unter der Karte herunterwischen ---------- */
+.drag-handle {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 16px;
+  background: var(--bg-2);
+  touch-action: none;
+  cursor: grab;
+}
+.drag-handle span { width: 40px; height: 4px; border-radius: 2px; background: #3a4458; }
+.tabs { touch-action: none; }
+#app.collapsed .map-wrap { height: auto; flex: 1; }
+#app.collapsed .panels { display: none; }
+#app.collapsed .tab.active { border-bottom-color: transparent; }
+#app.dragging .map-wrap { flex: none; }
+#app.dragging .panels { display: block; }
+.warn-icon { vertical-align: -3px; flex: none; }
+.msg-icon .warn-icon { vertical-align: -2px; }

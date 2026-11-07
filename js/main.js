@@ -134,6 +134,7 @@ function frame(now) {
       const p = prevD.get(c);
       renderD.set(c, p === undefined ? c.d : p + (c.d - p) * alpha);
     }
+    map.paused = paused;
     map.draw(race, renderD);
 
     if (now - lastUi > 300) {
@@ -452,7 +453,63 @@ timingEl.addEventListener('click', e => {
   if (row) select(row.dataset.id);
 });
 
-document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => {
+  if (suppressTabClick) return;
+  if (settings.panelCollapsed) setCollapsed(false);
+  setTab(b.dataset.tab);
+}));
+
+// ---------- Bereich unter der Karte herunter-/hochwischen ----------
+const appEl = $('app');
+const mapWrap = document.querySelector('.map-wrap');
+let drag = null;
+let suppressTabClick = false;
+
+function setCollapsed(on) {
+  settings.panelCollapsed = on;
+  appEl.classList.toggle('collapsed', on);
+  saveSettings(settings);
+}
+
+function maxMapHeight() {
+  const used = ['.status', '#dragHandle', '.tabs', '.actions']
+    .reduce((sum, sel) => sum + document.querySelector(sel).getBoundingClientRect().height, 0);
+  return appEl.getBoundingClientRect().height - used;
+}
+
+function dragStart(e) {
+  drag = { y: e.clientY, h: mapWrap.getBoundingClientRect().height, moved: false, last: null };
+}
+$('dragHandle').addEventListener('pointerdown', dragStart);
+document.querySelector('.tabs').addEventListener('pointerdown', dragStart);
+window.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dy = e.clientY - drag.y;
+  if (!drag.moved && Math.abs(dy) < 8) return;
+  if (!drag.moved) {
+    drag.moved = true;
+    appEl.classList.add('dragging');
+    appEl.classList.remove('collapsed');
+  }
+  const minH = 200;
+  drag.last = Math.max(minH, Math.min(maxMapHeight(), drag.h + dy));
+  mapWrap.style.height = `${drag.last}px`;
+});
+const dragEnd = () => {
+  if (!drag) return;
+  if (drag.moved) {
+    const expandedH = Math.max(200, window.innerHeight * 0.34);
+    const collapse = drag.last > (expandedH + maxMapHeight()) / 2;
+    appEl.classList.remove('dragging');
+    mapWrap.style.height = '';
+    setCollapsed(collapse);
+    suppressTabClick = true;
+    setTimeout(() => { suppressTabClick = false; }, 50);
+  }
+  drag = null;
+};
+window.addEventListener('pointerup', dragEnd);
+window.addEventListener('pointercancel', dragEnd);
 
 $('flagBtn').addEventListener('click', () => {
   if (flagPanel.isOpen) closeFlags();
@@ -502,6 +559,7 @@ document.addEventListener('touchmove', e => {
 // ---------- Start ----------
 
 $('speedBtn').textContent = `${settings.speed}×`;
+appEl.classList.toggle('collapsed', settings.panelCollapsed);
 $('labelsBtn').classList.toggle('active', settings.showLabels);
 newRace();
 requestAnimationFrame(frame);

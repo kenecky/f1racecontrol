@@ -42,6 +42,7 @@ export class Race {
     this.neutral = null;      // { type: 'vsc' | 'sc' | 'red', phase, ... }
     this.sc = null;           // Safety Car auf der Strecke
     this.physGap = new Map();
+    this.behindSC = new Set();
     this.neutralStats = { vsc: 0, sc: 0, red: 0, vscTime: 0, scTime: 0, redTime: 0, idle: 0 };
 
     const teamById = Object.fromEntries(teams.map(t => [t.id, t]));
@@ -334,6 +335,7 @@ export class Race {
   // Abstand jedes Autos zum physisch Vorausfahrenden (inkl. Safety Car)
   computePhysGap() {
     this.physGap.clear();
+    this.behindSC.clear();
     if (!this.neutral || this.neutral.type !== 'sc') return;
     const tr = this.track;
     const list = [...this.onTrackCars()];
@@ -344,6 +346,7 @@ export class Race {
       if (c.isSC) return;
       const ahead = list[(i + 1) % list.length];
       this.physGap.set(c, wrapD(tr, ahead.d - c.d));
+      if (ahead.isSC) this.behindSC.add(c);
     });
   }
 

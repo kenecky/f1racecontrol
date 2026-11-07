@@ -1,5 +1,5 @@
 // Neutralisierungen: Virtual Safety Car, Safety Car, rote Flagge (inkl. Neustart).
-import { speedAt, wrapD, crossed } from './trackModel.js';
+import { speedAt, wrapD, crossed, sectorIndexAt } from './trackModel.js';
 import { COMPOUNDS } from './tyres.js';
 
 export const VSC_FACTOR = 0.62;   // Delta-Tempo unter VSC (Anteil der Renngeschwindigkeit)
@@ -80,13 +80,32 @@ export function scInThisLap(race) {
   if (!n || n.type !== 'sc' || n.phase !== 'out' || !race.sc) return false;
   const tr = race.track;
   n.phase = 'in';
-  // Zu knapp vor der Boxeneinfahrt? Dann erst in der nächsten Runde.
-  n.skipEntry = !race.sc.inPit && wrapD(tr, tr.pit.entry - race.sc.d) < 400;
+  // Nach dem letzten erlaubten Sektor (Standard: 6 von 12) erst in der nächsten Runde
+  n.skipEntry = !race.sc.inPit && !scInPossibleThisLap(race);
   const t10 = tr.corners[tr.corners.length - 1].d;
   n.restartPoint = wrapD(tr, t10 - race.rng.range(0, 160));
   n.go = false;
-  race.emit('rc', 'SAFETY CAR KOMMT IN DIESER RUNDE REIN');
+  race.emit('rc', n.skipEntry
+    ? 'SAFETY CAR KOMMT IN DER NÄCHSTEN RUNDE REIN'
+    : 'SAFETY CAR KOMMT IN DIESER RUNDE REIN');
   return true;
+}
+
+// Letzter Marshal-Sektor, in dem „SC in dieser Runde“ noch möglich ist (1-basiert)
+export function scInLastSector(track) {
+  return track.def.scInLastSector ?? Math.ceil(track.sectors.length / 2);
+}
+
+export function scInPossibleThisLap(race) {
+  if (!race.sc) return false;
+  return sectorIndexAt(race.track, race.sc.d) < scInLastSector(race.track);
+}
+
+// Einfahrtsrunde: ab dem Grenz-Sektor baut das SC Vorsprung auf
+function scPullingAway(race) {
+  const n = race.neutral;
+  return Boolean(n && n.type === 'sc' && n.phase === 'in' && !n.skipEntry && race.sc && !race.sc.inPit
+    && sectorIndexAt(race.track, race.sc.d) >= scInLastSector(race.track) - 1);
 }
 
 export function redFlag(race) {
@@ -180,6 +199,8 @@ export function neutralSpeedFactor(race, car) {
   // Safety Car
   if (car.unlap) return 1.0;
   if (n.go) return null;
+  // SC fährt in der Einfahrtsrunde davon – der Führende bleibt auf SC-Tempo
+  if (race.behindSC.has(car) && scPullingAway(race)) return SC_SPEED;
   const g = race.physGap.get(car) ?? 999;
   if (g > 300) return 0.92;
   if (g > 80) return 0.78;
@@ -198,9 +219,7 @@ export function moveSafetyCar(race, dt) {
   let v;
   if (sc.inPit) v = tr.pitLaneSpeed;
   else {
-    v = speedAt(tr, sc.d) * SC_SPEED;
-    // In der Einfahrtsrunde zieht das SC davon, damit der Führende neu starten kann
-    if (n && n.phase === 'in' && !n.skipEntry && wrapD(tr, tr.pit.entry - sc.d) < 500) v = speedAt(tr, sc.d) * 0.85;
+    v = speedAt(tr, sc.d) * (scPullingAway(race) ? 0.85 : SC_SPEED);
   }
   sc.v = v;
   sc.move = v * dt;
