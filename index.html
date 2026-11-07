@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0f17">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Race Control">
+  <title>F1 Race Control</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="status">
+      <button id="menuBtn" class="icon-btn" aria-label="Neues Rennen">☰</button>
+      <div class="status-lap">
+        <span class="label">Runde</span>
+        <span id="lap">–</span>
+      </div>
+      <div id="flag" class="flag-chip flag-start">START</div>
+      <div id="clock" class="status-clock">0:00:00</div>
+      <button id="speedBtn" class="pill-btn" aria-label="Tempo">4×</button>
+      <button id="pauseBtn" class="pill-btn pause-btn" aria-label="Pause">▶</button>
+    </header>
+
+    <section class="map-wrap">
+      <canvas id="map"></canvas>
+      <div id="lights" class="lights hidden"><span></span><span></span><span></span><span></span><span></span></div>
+      <button id="labelsBtn" class="map-btn" aria-label="Kürzel anzeigen">ABC</button>
+      <div class="paused-tag">PAUSE</div>
+    </section>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="timing">Zeiten</button>
+      <button class="tab" data-tab="feed">Meldungen <span id="feedBadge" class="badge-count hidden">0</span></button>
+      <button class="tab" data-tab="cases">Fälle</button>
+    </nav>
+
+    <main class="panels">
+      <div id="panel-timing" class="panel active">
+        <div class="timing-head">
+          <span class="pos">P</span>
+          <span class="teambar"></span>
+          <span class="code">Fahrer</span>
+          <span class="delta"></span>
+          <span class="rst"></span>
+          <button id="gapHead" class="gap gap-head">Abstand</button>
+          <span class="tyrecell">Reifen</span>
+          <span class="stops">St</span>
+        </div>
+        <div id="timing"></div>
+      </div>
+      <div id="panel-feed" class="panel">
+        <ul id="feed" class="feed"></ul>
+      </div>
+      <div id="panel-cases" class="panel">
+        <div class="empty">
+          <div class="empty-icon">⚖️</div>
+          Noch keine Vorfälle.<br>
+          Untersuchungen und Strafen kommen mit Meilenstein 4.
+        </div>
+      </div>
+    </main>
+
+    <footer class="actions">
+      <button class="act act-flag" data-label="Flaggen" data-soon="2">Flagge</button>
+      <button class="act act-vsc" data-label="Virtual Safety Car" data-soon="3">VSC</button>
+      <button class="act act-sc" data-label="Safety Car" data-soon="3">SC</button>
+      <button class="act act-red" data-label="Rote Flagge" data-soon="3">ROT</button>
+    </footer>
+  </div>
+
+  <div id="startScreen" class="overlay">
+    <div class="sheet">
+      <div class="brand">
+        <div class="brand-mark"></div>
+        <div>
+          <div class="brand-title">RACE CONTROL</div>
+          <div class="brand-sub">Rennleitung · Formel 1</div>
+        </div>
+      </div>
+      <div class="event-card">
+        <div class="event-gp">Großer Preis von Österreich</div>
+        <div class="event-track">Red Bull Ring · Spielberg</div>
+        <div class="event-facts">
+          <div><b>71</b><span>Runden</span></div>
+          <div><b>4,318</b><span>km</span></div>
+          <div><b>22</b><span>Fahrer</span></div>
+        </div>
+      </div>
+      <p class="intro">Du bist der Rennleiter. Beobachte das Rennen und greif ein, wenn es nötig ist. Fahrer und Teams agieren selbstständig.</p>
+      <button id="startBtn" class="primary-btn">Rennen starten</button>
+      <details class="options">
+        <summary>Optionen</summary>
+        <label>Rennen-Nr. (gleiche Nr. = gleiches Rennen)
+          <input id="seedInput" type="number" inputmode="numeric" placeholder="zufällig">
+        </label>
+        <div id="seedInfo" class="seed-info"></div>
+      </details>
+    </div>
+  </div>
+
+  <div id="resultScreen" class="overlay hidden">
+    <div class="sheet">
+      <h2 class="sheet-title">🏁 Rennergebnis</h2>
+      <div id="resultBody"></div>
+      <div class="sheet-actions">
+        <button id="closeResultBtn" class="secondary-btn">Schließen</button>
+        <button id="newRaceBtn" class="primary-btn">Neues Rennen</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

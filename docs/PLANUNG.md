@@ -39,8 +39,8 @@ Einfluss. Unsere Aufgabe: Situationen erkennen, bewerten und richtig reagieren.
 
 1. **Rennstart**: Startaufstellung steht, Formationsrunde wird übersprungen
    (später evtl. Startfreigabe als Entscheidung).
-2. **Rennen läuft im Zeitraffer** – Geschwindigkeit wählbar (z. B. 5×, 10×, 20×, 40×).
-   Ein 71-Runden-Rennen soll bei Standard-Tempo ca. 20–30 Min. dauern.
+2. **Rennen läuft im Zeitraffer** – Geschwindigkeit wählbar (1×, 2×, 4×, 8×, 16×, 32×).
+   Ein 71-Runden-Rennen dauert real ca. 83 Min. → bei Standard-Tempo **4× ca. 21 Min.**
 3. **Ereignisse** (Unfall, Dreher, Trümmerteil, Kontakt, Track-Limits-Verstoß,
    Team-Beschwerde, Wetter …) erscheinen im Meldungsfeed.
    - **Kritische Ereignisse** (Auto steht auf der Strecke, schwerer Unfall)
@@ -243,8 +243,9 @@ docs/
 
 ## 10. Meilensteine
 
-- [ ] **M1 – Grundgerüst**: Seite + PWA-Basis, Red Bull Ring als 2D-Karte,
-      20+ Autos fahren im Zeitraffer, Zeitentabelle, Tempo/Pause
+- [x] **M1 – Grundgerüst**: Seite + PWA-Basis, Red Bull Ring als 2D-Karte,
+      22 Autos fahren im Zeitraffer, Zeitentabelle, Tempo/Pause
+      (inkl. Startampel, Überholen in Zonen, Boxenstopps, Reifen, Meldungsfeed, Ergebnis)
 - [ ] **M2 – Flaggen**: Marshal-Sektoren, gelb/doppelt gelb/grün setzen,
       Autos reagieren darauf
 - [ ] **M3 – Neutralisierung**: VSC, Safety Car, rote Flagge inkl. Neustart
@@ -258,10 +259,21 @@ docs/
 
 ---
 
-## 11. Offene Punkte
+## 11. Stand der Simulation (M1)
+
+- Strecke: Spline aus Kontrollpunkten, Geschwindigkeitsprofil aus Kurvenradien
+  plus Kurven-Höchstgeschwindigkeiten (`vmax` in den Streckendaten)
+- Rundenzeit = Basiszeit + Team-/Fahrer-Abschlag + Reifenmischung + Abnutzung
+  + Spritlast + Tagesform-Streuung (Konstanz)
+- Überholen nur in Überholzonen (Bremszonen T1, T3, T4) mit Wahrscheinlichkeit
+  aus Pace-Vorteil und Aggressivität; Überrundete machen Platz (blaue Flagge)
+- Boxenstopps nach vorab geplanter Strategie (1- oder 2-Stopp), Pflicht: 2 Mischungen
+- Startaufstellung aus simuliertem Qualifying
+- Rennen-Nr. (Seed): gleiche Nummer = identisches Rennen
+
+## 12. Offene Punkte
 
 - Genaue Anzahl und Lage der Marshal-Sektoren am Red Bull Ring
 - Konkrete Stärkewerte für Teams/Fahrer
-- Standard-Zeitraffer-Tempo (Ziel: 20–30 Min. pro Rennen)
 - Reifenstrategien der CPU-Teams (Detailtiefe)
 - Gewichtung der Bewertungsachsen

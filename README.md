@@ -9,3 +9,29 @@ Fahrer und Teams fahren automatisch.
 - Daten werden lokal auf dem Gerät gespeichert
 
 Planung und Fahrplan: [docs/PLANUNG.md](docs/PLANUNG.md)
+
+## Spielen
+
+Über GitHub Pages im Handy-Browser öffnen und über „Zum Startbildschirm hinzufügen“
+als App installieren.
+
+Lokal testen (ES-Module brauchen einen Webserver):
+
+```
+python3 -m http.server 8000
+```
+
+Dann `http://localhost:8000` öffnen.
+
+## Projektstruktur
+
+```
+index.html            Seite
+css/style.css         Gestaltung
+js/main.js            Game-Loop, Verbindung Simulation ↔ Oberfläche
+js/sim/               Simulation (Strecke, Rennen)
+js/ui/                Karte, Zeitentabelle, Meldungen
+js/data/              Teams, Fahrer, Strecken (Werte frei anpassbar)
+js/storage.js         Lokale Speicherung
+sw.js                 Offline-Betrieb (PWA)
+```
