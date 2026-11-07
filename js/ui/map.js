@@ -1,7 +1,10 @@
-// Streckenkarte (Canvas): Strecke, Boxengasse, Kurven, Autos.
-import { pointAt, wrapD } from '../sim/trackModel.js';
+// Streckenkarte (Canvas): Strecke, Boxengasse, Marshal-Sektoren, Flaggen,
+// Gefahrenstellen, Autos. Zoom (Zwei-Finger / Mausrad) und Verschieben nur hier.
+import { pointAt, wrapD, sectorIndexAt } from '../sim/trackModel.js';
 
 const PIT_OFFSET_PX = 9;
+const MAX_ZOOM = 6;
+const FLAG_COLORS = { yellow: '#ffd12e', double: '#ffd12e' };
 
 export class TrackMap {
   constructor(canvas, track) {
@@ -10,12 +13,23 @@ export class TrackMap {
     this.track = track;
     this.selected = null;
     this.showLabels = false;
+    this.showSectors = false;
+    this.highlightSector = null;
+    this.zoom = 1;
+    this.panX = 0;
+    this.panY = 0;
     this.bg = document.createElement('canvas');
-    this.onSelect = null;
-    canvas.addEventListener('click', e => this.handleClick(e));
+    this.bgDirty = true;
+    this.onSelectCar = null;
+    this.onSelectSector = null;
+    this.onZoomChange = null;
+    this.pointers = new Map();
+    this.setupInput();
     new ResizeObserver(() => this.resize()).observe(canvas);
     this.resize();
   }
+
+  // ---------- Größe & Ansicht ----------
 
   resize() {
     const rect = this.canvas.getBoundingClientRect();
@@ -41,76 +55,292 @@ export class TrackMap {
     this.oy = (this.h - (maxY - minY) * s) / 2 - minY * s;
     this.cx = (minX + maxX) / 2;
     this.cy = (minY + maxY) / 2;
-    this.drawBackground();
+    this.clampPan();
+    this.bgDirty = true;
+  }
+
+  setView(zoom, panX, panY) {
+    this.zoom = Math.min(MAX_ZOOM, Math.max(1, zoom));
+    this.panX = panX;
+    this.panY = panY;
+    this.clampPan();
+    this.bgDirty = true;
+    if (this.onZoomChange) this.onZoomChange(this.zoom);
+  }
+
+  resetView() {
+    this.setView(1, 0, 0);
+  }
+
+  zoomAt(factor, sx, sy) {
+    const z0 = this.zoom;
+    const z1 = Math.min(MAX_ZOOM, Math.max(1, z0 * factor));
+    // Punkt unter dem Finger bleibt an Ort und Stelle
+    const bx = (sx - this.panX) / z0, by = (sy - this.panY) / z0;
+    this.setView(z1, sx - bx * z1, sy - by * z1);
+  }
+
+  clampPan() {
+    const z = this.zoom;
+    this.panX = Math.min(0, Math.max(this.w - this.w * z, this.panX));
+    this.panY = Math.min(0, Math.max(this.h - this.h * z, this.panY));
   }
 
   toPx([x, y]) {
-    return [this.ox + x * this.scale, this.oy + y * this.scale];
+    return [(this.ox + x * this.scale) * this.zoom + this.panX, (this.oy + y * this.scale) * this.zoom + this.panY];
   }
 
   pos(d, lateralPx = 0) {
-    return this.toPx(pointAt(this.track, d, lateralPx / this.scale));
+    return this.toPx(pointAt(this.track, d, lateralPx / (this.scale * this.zoom)));
+  }
+
+  widthScale() {
+    return 1 + (this.zoom - 1) * 0.35;
+  }
+
+  // ---------- Eingabe ----------
+
+  setupInput() {
+    const c = this.canvas;
+    const local = e => {
+      const r = c.getBoundingClientRect();
+      return [e.clientX - r.left, e.clientY - r.top];
+    };
+    c.addEventListener('pointerdown', e => {
+      c.setPointerCapture(e.pointerId);
+      const [x, y] = local(e);
+      this.pointers.set(e.pointerId, { x, y, sx: x, sy: y });
+      if (this.pointers.size === 1) this.tapCandidate = { x, y, t: performance.now() };
+      else this.tapCandidate = null;
+      if (this.pointers.size === 2) {
+        const [a, b] = [...this.pointers.values()];
+        this.pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom: this.zoom };
+      }
+    });
+    c.addEventListener('pointermove', e => {
+      const p = this.pointers.get(e.pointerId);
+      if (!p) return;
+      const [x, y] = local(e);
+      const dx = x - p.x, dy = y - p.y;
+      p.x = x; p.y = y;
+      if (this.tapCandidate && Math.hypot(x - this.tapCandidate.x, y - this.tapCandidate.y) > 8) this.tapCandidate = null;
+      if (this.pointers.size === 2 && this.pinch) {
+        const [a, b] = [...this.pointers.values()];
+        const dist = Math.hypot(a.x - b.x, a.y - b.y);
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+        const target = this.pinch.zoom * (dist / this.pinch.dist);
+        this.zoomAt(target / this.zoom, mx, my);
+        // Verschieben mit zwei Fingern
+        this.setView(this.zoom, this.panX + dx / 2, this.panY + dy / 2);
+      } else if (this.pointers.size === 1 && this.zoom > 1 && !this.tapCandidate) {
+        this.setView(this.zoom, this.panX + dx, this.panY + dy);
+      }
+    });
+    const end = e => {
+      const tap = this.tapCandidate && this.pointers.size === 1 && performance.now() - this.tapCandidate.t < 500;
+      this.pointers.delete(e.pointerId);
+      if (this.pointers.size < 2) this.pinch = null;
+      if (tap && e.type === 'pointerup') this.handleTap(this.tapCandidate.x, this.tapCandidate.y);
+      this.tapCandidate = null;
+    };
+    c.addEventListener('pointerup', end);
+    c.addEventListener('pointercancel', end);
+    c.addEventListener('wheel', e => {
+      e.preventDefault();
+      const [x, y] = local(e);
+      this.zoomAt(e.deltaY < 0 ? 1.2 : 1 / 1.2, x, y);
+    }, { passive: false });
+    c.addEventListener('dblclick', e => {
+      e.preventDefault();
+      const [x, y] = local(e);
+      if (this.zoom > 1.5) this.resetView();
+      else this.zoomAt(2.5, x, y);
+    });
+  }
+
+  handleTap(x, y) {
+    // 1) Auto in der Nähe?
+    let best = null, bd = 18 * 18;
+    for (const h of this.hit || []) {
+      const d = (h.x - x) ** 2 + (h.y - y) ** 2;
+      if (d < bd) { bd = d; best = h; }
+    }
+    if (best) {
+      if (this.onSelectCar) this.onSelectCar(best.id);
+      return;
+    }
+    // 2) Streckenabschnitt → Marshal-Sektor
+    const tr = this.track;
+    let bestD = null, bestDist = 28 * 28;
+    for (let i = 0; i < tr.N; i += 2) {
+      const [px, py] = this.toPx([tr.xs[i], tr.ys[i]]);
+      const d = (px - x) ** 2 + (py - y) ** 2;
+      if (d < bestDist) { bestDist = d; bestD = i * tr.ds; }
+    }
+    if (bestD !== null && this.onSelectSector) this.onSelectSector(sectorIndexAt(tr, bestD));
+    else if (this.onSelectCar) this.onSelectCar(null);
+  }
+
+  // ---------- Zeichnen ----------
+
+  tracePath(ctx, from, to, lat = 0) {
+    const steps = Math.max(2, Math.round((to - from) / 5));
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const [x, y] = this.pos(from + (to - from) * (i / steps), lat);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
   }
 
   drawBackground() {
     const tr = this.track;
     const ctx = this.bg.getContext('2d');
+    const ws = this.widthScale();
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, this.w, this.h);
-
-    const path = (from, to, lat = 0) => {
-      ctx.beginPath();
-      const steps = Math.max(2, Math.round((to - from) / 5));
-      for (let i = 0; i <= steps; i++) {
-        const [x, y] = this.pos(from + (to - from) * (i / steps), lat);
-        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-      }
-    };
-
-    // Boxengasse
-    const pitSide = tr.pit.side * PIT_OFFSET_PX;
-    const pitTo = tr.pit.exit + tr.L;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+
+    // Boxengasse
     ctx.strokeStyle = '#2a3140';
-    ctx.lineWidth = 4;
-    path(tr.pit.entry, pitTo, pitSide);
+    ctx.lineWidth = 4 * ws;
+    this.tracePath(ctx, tr.pit.entry, tr.pit.exit + tr.L, tr.pit.side * PIT_OFFSET_PX * ws);
     ctx.stroke();
 
     // Strecke
-    path(0, tr.L);
+    this.tracePath(ctx, 0, tr.L);
     ctx.closePath();
     ctx.strokeStyle = '#3a4252';
-    ctx.lineWidth = 11;
+    ctx.lineWidth = 11 * ws;
     ctx.stroke();
     ctx.strokeStyle = '#1b2029';
-    ctx.lineWidth = 7.5;
+    ctx.lineWidth = 7.5 * ws;
     ctx.stroke();
 
+    // Sektorgrenzen (kleine Striche)
+    ctx.strokeStyle = '#4b5568';
+    ctx.lineWidth = 1.5;
+    ctx.lineCap = 'butt';
+    for (const sec of tr.sectors) {
+      if (sec.start === 0) continue;
+      const [ax, ay] = this.pos(sec.start, -8 * ws);
+      const [bx, by] = this.pos(sec.start, 8 * ws);
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+    }
+
     // Start/Ziel
-    const [ax, ay] = this.pos(0, -7);
-    const [bx, by] = this.pos(0, 7);
+    const [ax, ay] = this.pos(0, -7 * ws);
+    const [bx, by] = this.pos(0, 7 * ws);
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = 2.5;
-    ctx.lineCap = 'butt';
     ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
 
-    // Kurvennummern
+    // Kurvennummern (außen)
     ctx.font = '600 10px system-ui, sans-serif';
     ctx.fillStyle = '#7d8799';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (const c of tr.corners) {
       const p = pointAt(tr, c.d);
-      let dx = p[0] - this.cx, dy = p[1] - this.cy;
+      const dx = p[0] - this.cx, dy = p[1] - this.cy;
       const len = Math.hypot(dx, dy) || 1;
       const [px, py] = this.toPx(p);
-      ctx.fillText(c.id.replace('T', ''), px + (dx / len) * 15, py + (dy / len) * 15);
+      const off = 15 * ws;
+      ctx.fillText(c.id.replace('T', ''), px + (dx / len) * off, py + (dy / len) * off);
+    }
+    this.bgDirty = false;
+  }
+
+  drawSectorOverlay(ctx, race) {
+    const tr = this.track;
+    const ws = this.widthScale();
+    const t = performance.now() / 1000;
+    tr.sectors.forEach((sec, i) => {
+      const flag = race ? race.flags[i] : 'clear';
+      const hl = this.highlightSector === i;
+      if (flag === 'clear' && !hl) return;
+      ctx.lineCap = 'butt';
+      ctx.lineJoin = 'round';
+      if (hl) {
+        this.tracePath(ctx, sec.start, sec.end);
+        ctx.strokeStyle = 'rgba(61,139,255,0.55)';
+        ctx.lineWidth = 15 * ws;
+        ctx.stroke();
+      }
+      if (flag === 'yellow' || flag === 'double') {
+        this.tracePath(ctx, sec.start, sec.end);
+        ctx.strokeStyle = FLAG_COLORS[flag];
+        ctx.globalAlpha = flag === 'double' ? 0.65 + 0.35 * Math.sin(t * 6) : 0.9;
+        ctx.lineWidth = (flag === 'double' ? 7.5 : 5) * ws;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        if (flag === 'double') {
+          ctx.strokeStyle = '#1b2029';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+      } else if (flag === 'slippery') {
+        this.tracePath(ctx, sec.start, sec.end);
+        ctx.lineWidth = 5 * ws;
+        ctx.setLineDash([6, 6]);
+        ctx.strokeStyle = '#ffd12e';
+        ctx.stroke();
+        ctx.lineDashOffset = 6;
+        ctx.strokeStyle = '#e10600';
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.lineDashOffset = 0;
+      }
+    });
+
+    if (this.showSectors) {
+      ctx.font = '700 10px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      tr.sectors.forEach(sec => {
+        const mid = (sec.start + sec.end) / 2;
+        const p = pointAt(tr, mid);
+        const dx = p[0] - this.cx, dy = p[1] - this.cy;
+        const len = Math.hypot(dx, dy) || 1;
+        const [px, py] = this.toPx(p);
+        const x = px - (dx / len) * 16 * ws, y = py - (dy / len) * 16 * ws;
+        ctx.fillStyle = 'rgba(61,139,255,0.9)';
+        ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.fillText(String(sec.id), x, y + 0.5);
+      });
+    }
+  }
+
+  drawHazards(ctx, race) {
+    const t = performance.now() / 1000;
+    for (const h of race.hazards) {
+      if (h.ended) continue;
+      const [x, y] = this.pos(h.d, 0);
+      const s = 9 + Math.sin(t * 5) * 1.2;
+      const ty = y - 14;
+      ctx.beginPath();
+      ctx.moveTo(x, ty - s);
+      ctx.lineTo(x + s, ty + s * 0.75);
+      ctx.lineTo(x - s, ty + s * 0.75);
+      ctx.closePath();
+      ctx.fillStyle = '#ffd12e';
+      ctx.fill();
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = '#000';
+      ctx.font = '900 10px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('!', x, ty + 2);
     }
   }
 
   carLateral(race, car) {
-    // Startaufstellung versetzt, Überholmanöver nebeneinander
+    const ws = this.widthScale();
+    if (car.offTrack) return car.offTrack.lateral * ws;
+    if (car.inPit || car.stopTimer > 0) return this.track.pit.side * PIT_OFFSET_PX * ws;
     let lat = 0;
     if (car.lap === 0 && car.d < 120) {
       const side = car.gridPos % 2 === 1 ? -1 : 1;
@@ -120,63 +350,79 @@ export class TrackMap {
       const target = race.carById[car.pass.target];
       const gap = Math.abs(wrapD(race.track, target.d - car.d));
       const g = Math.min(gap, race.track.L - gap);
-      if (g < 40) lat += (car.pass.blue ? 4 : 5) * (1 - g / 40) * -1;
+      if (g < 40) lat -= (car.pass.blue ? 4 : 5) * (1 - g / 40);
     }
-    return lat;
+    return lat * ws;
   }
 
   draw(race, renderD) {
+    if (this.bgDirty) this.drawBackground();
     const ctx = this.ctx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.drawImage(this.bg, 0, 0);
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    this.drawSectorOverlay(ctx, race);
     if (!race) return;
+
+    // Liegengebliebene Autos
+    for (const car of race.cars) {
+      if (!car.wreck || car.wreck.removed) continue;
+      const [x, y] = this.pos(car.wreck.d, car.wreck.lateral * this.widthScale());
+      ctx.beginPath();
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.fillStyle = car.team.color;
+      ctx.globalAlpha = 0.55;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = '#ff5a5a';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+    this.drawHazards(ctx, race);
 
     const standings = race.standings();
     const posOf = new Map(standings.map((c, i) => [c, i + 1]));
     this.hit = [];
     for (const car of [...standings].reverse()) {
-      if (car.retired) continue;
+      if (car.retired) {
+        if (car.wreck && !car.wreck.removed) {
+          const [x, y] = this.pos(car.wreck.d, car.wreck.lateral * this.widthScale());
+          this.hit.push({ id: car.id, x, y });
+          if (this.selected === car.id) this.drawLabel(ctx, x, y, `${car.id} – Ausfall`, true);
+        }
+        continue;
+      }
       const d = renderD.get(car) ?? car.d;
-      const lat = car.inPit || car.stopTimer > 0 ? this.track.pit.side * PIT_OFFSET_PX : this.carLateral(race, car);
-      const [x, y] = this.pos(d, lat);
+      const [x, y] = this.pos(d, this.carLateral(race, car));
       const sel = this.selected === car.id;
-      const r = sel ? 6.5 : 5;
+      const r = (sel ? 6.5 : 5) * Math.min(1.4, this.widthScale());
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fillStyle = car.team.color;
       ctx.fill();
       ctx.lineWidth = sel ? 2.5 : 1.5;
-      ctx.strokeStyle = sel ? '#fff' : '#0b0f17';
+      ctx.strokeStyle = sel ? '#fff' : car.offTrack ? '#ffd12e' : '#0b0f17';
       ctx.stroke();
       this.hit.push({ id: car.id, x, y });
 
       const pos = posOf.get(car);
-      if (sel || this.showLabels || pos === 1) {
-        const label = this.showLabels && !sel ? car.id : `${pos} ${car.id}`;
-        ctx.font = `${sel ? 700 : 600} 10px system-ui, sans-serif`;
-        const w = ctx.measureText(label).width + 8;
-        const lx = x + 8, ly = y - 16;
-        ctx.fillStyle = sel ? '#fff' : 'rgba(11,15,23,0.85)';
-        ctx.fillRect(lx, ly, w, 14);
-        ctx.fillStyle = sel ? '#0b0f17' : '#e6e9ef';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(label, lx + 4, ly + 7.5);
+      if (sel || this.showLabels || pos === 1 || this.zoom >= 2.5) {
+        const label = sel || pos === 1 ? `${pos} ${car.id}` : car.id;
+        this.drawLabel(ctx, x, y, label, sel);
       }
     }
   }
 
-  handleClick(e) {
-    if (!this.hit) return;
-    const rect = this.canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left, y = e.clientY - rect.top;
-    let best = null, bd = 22 * 22;
-    for (const h of this.hit) {
-      const d = (h.x - x) ** 2 + (h.y - y) ** 2;
-      if (d < bd) { bd = d; best = h; }
-    }
-    if (this.onSelect) this.onSelect(best ? best.id : null);
+  drawLabel(ctx, x, y, label, sel) {
+    ctx.font = `${sel ? 700 : 600} 10px system-ui, sans-serif`;
+    const w = ctx.measureText(label).width + 8;
+    const lx = x + 8, ly = y - 16;
+    ctx.fillStyle = sel ? '#fff' : 'rgba(11,15,23,0.85)';
+    ctx.fillRect(lx, ly, w, 14);
+    ctx.fillStyle = sel ? '#0b0f17' : '#e6e9ef';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, lx + 4, ly + 7.5);
   }
 }

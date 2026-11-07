@@ -1,7 +1,11 @@
 // Rennsimulation: Autos, Rundenzeiten, Überholen, Boxenstopps, Zeitnahme.
 // Unabhängig von der Darstellung – kann auch ohne Browser laufen (Tests).
 import { createRng } from '../util/rng.js';
-import { speedAt, wrapD, inRange, crossed, accelAt } from './trackModel.js';
+import { speedAt, wrapD, inRange, crossed, accelAt, sectorIndexAt } from './trackModel.js';
+import {
+  FLAG_FACTOR, isYellow, rollLapIncidents, checkPendingIncident, endOffTrack,
+  maybeContactDebris, updateHazards,
+} from './hazards.js';
 
 export const DT = 0.05;          // Simulationsschritt in Sekunden
 const MS_LEN = 100;              // Mini-Sektor-Länge (m) für Abstandsberechnung
@@ -28,6 +32,13 @@ export class Race {
     this.firstCross = [];
     this.finishCount = 0;
 
+    // Rennleitung
+    this.flags = track.sectors.map(() => 'clear');   // Flagge je Marshal-Sektor
+    this.flagLog = [];
+    this.hazards = [];
+    this.hazardSeq = 0;
+    this.idleFlagTime = 0;
+
     const teamById = Object.fromEntries(teams.map(t => [t.id, t]));
     this.cars = drivers.map(drv => {
       const team = teamById[drv.team];
@@ -45,7 +56,8 @@ export class Race {
         msK: -1, cross: [],
         reaction: 0, launch: 1,
         finished: false, finishTime: null, finishDist: 0, finishPos: null,
-        retired: false,
+        retired: false, dnf: null, wreck: null,
+        offTrack: null, pendingIncident: null,
         gridPos: 0,
       };
     });
@@ -146,6 +158,11 @@ export class Race {
     for (const car of this.cars) {
       car.move = 0;
       if (car.retired) continue;
+      if (car.offTrack) {
+        car.v = 0;
+        if (this.time >= car.offTrack.until) endOffTrack(this, car);
+        continue;
+      }
       if (car.stopTimer > 0) {
         car.v = 0;
         car.stopTimer -= DT;
@@ -159,6 +176,9 @@ export class Race {
         vt = tr.pitLaneSpeed;
       } else {
         vt = speedAt(tr, car.d) * (tr.baseLap / this.lapTarget(car));
+        const flag = this.flags[sectorIndexAt(tr, car.d)];
+        vt *= FLAG_FACTOR[flag];
+        if (car.pass && !car.pass.slow && isYellow(flag)) car.pass = null; // Überholverbot unter Gelb
         if (car.pass && this.time < car.pass.until) vt *= car.pass.blue ? 1.02 : 1.06;
         if (car.defendUntil > this.time) vt *= 0.985;
       }
@@ -180,6 +200,7 @@ export class Race {
       car.d += car.move;
       if (car.finished) continue;
       this.handleCrossings(car, prev);
+      checkPendingIncident(this, car, prev);
     }
 
     // 4) Überholmanöver abschließen
@@ -191,13 +212,16 @@ export class Race {
         if (!car.pass.blue) {
           const pos = this.standings().indexOf(car) + 1;
           const zone = car.pass.zone ? ` (${car.pass.zone})` : '';
-          this.emit('overtake', `${car.id} überholt ${target.id} – P${pos}${zone}`, { cars: [car.id, target.id] });
+          this.emit('overtake', `${car.id} überholt ${target.id} – P${pos}${zone}`, { cars: [car.id, target.id], slow: car.pass.slow });
+          if (car.pass.zone) maybeContactDebris(this, car, target);
         }
         car.pass = null;
-      } else if (this.time >= car.pass.until || target.inPit || target.finished) {
+      } else if (this.time >= car.pass.until || target.inPit || target.finished || target.retired || target.offTrack) {
         car.pass = null;
       }
     }
+
+    updateHazards(this, DT);
 
     if (this.phase === 'chequered' && this.cars.every(c => c.finished || c.retired)) {
       this.phase = 'finished';
@@ -208,7 +232,7 @@ export class Race {
   resolveTraffic() {
     const tr = this.track;
     const L = tr.L;
-    const onTrack = this.cars.filter(c => !c.retired && !c.finished && !c.inPit && c.stopTimer <= 0);
+    const onTrack = this.cars.filter(c => !c.retired && !c.finished && !c.inPit && !c.offTrack && c.stopTimer <= 0);
     if (onTrack.length < 2) return;
 
     // Physische Reihenfolge auf der Runde
@@ -230,19 +254,20 @@ export class Race {
 
       if (gapNew < minGap * 1.8) {
         const lapping = B.d - A.d > L / 2;
-        if (lapping) {
+        const underYellow = isYellow(this.flags[sectorIndexAt(tr, B.d)]) || isYellow(this.flags[sectorIndexAt(tr, A.d)]);
+        if (lapping && !underYellow) {
           // Überrundung: blaue Flagge, Hinterbänkler macht Platz
           this.startPass(B, A, { blue: true });
           continue;
         }
         const startPhase = A.lap === 0 && A.d < 600;
         if (!startPhase && B.desiredV > 40 && A.v < speedAt(tr, A.d) * 0.6) {
-          // deutlich langsameres Auto (z. B. Boxenausfahrt)
-          this.startPass(B, A, {});
+          // deutlich langsameres Auto (z. B. Boxenausfahrt, nach Dreher) – auch unter Gelb erlaubt
+          this.startPass(B, A, { slow: true });
           continue;
         }
         const zone = tr.zones.find(z => inRange(tr, B.d, z.start, z.end));
-        if (zone) {
+        if (zone && !underYellow) {
           const key = `${B.lap}:${zone.corner}`;
           if (!B.tried.has(key)) {
             B.tried.add(key);
@@ -276,8 +301,8 @@ export class Race {
     return Math.max(0.02, Math.min(0.85, p));
   }
 
-  startPass(B, A, { blue = false, zone = null }) {
-    B.pass = { target: A.id, until: this.time + (blue ? 8 : 6), blue, zone };
+  startPass(B, A, { blue = false, zone = null, slow = false }) {
+    B.pass = { target: A.id, until: this.time + (blue ? 8 : 6), blue, zone, slow };
     if (!blue) A.defendUntil = this.time + 4;
   }
 
@@ -345,6 +370,8 @@ export class Race {
         this.emit('chequered', `Zielflagge! ${car.driver.first} ${car.driver.last} gewinnt den ${tr.def.grandPrix}.`, { cars: [car.id] });
       } else if (this.phase === 'chequered') {
         this.finishCar(car);
+      } else {
+        rollLapIncidents(this, car);
       }
     }
   }

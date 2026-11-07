@@ -6,6 +6,7 @@ const DEFAULTS = {
   speed: 4,
   gapMode: 'leader',   // 'leader' | 'interval'
   showLabels: false,
+  slowOnIncident: true, // bei neuen Vorfällen auf 1× abbremsen
 };
 
 export function loadSettings() {

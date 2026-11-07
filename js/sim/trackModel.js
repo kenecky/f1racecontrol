@@ -138,6 +138,12 @@ export function buildTrack(def) {
     factor: z.factor,
   }));
   track.sectorEnds = def.timingSectors.map(s => wrap(cornerD(s.corner) + s.offset));
+  const starts = def.marshalSectors.map(m => (m.line ? 0 : wrap(cornerD(m.corner) + m.offset)));
+  track.sectors = starts.map((start, i) => {
+    const end = i + 1 < starts.length ? starts[i + 1] : L;
+    const corners = track.corners.filter(c => c.d >= start && c.d < end).map(c => c.id);
+    return { id: i + 1, start, end, corners };
+  });
   track.pit = {
     entry: wrap(cornerD(def.pit.entry.corner) + def.pit.entry.offset),
     exit: wrap(cornerD(def.pit.exit.corner) + def.pit.exit.offset),
@@ -183,4 +189,12 @@ export function inRange(track, d, a, b) {
 // Wurde Markierung m (Rundenposition) zwischen prev und next (Rennmeter) überfahren?
 export function crossed(track, prev, next, m) {
   return Math.floor((next - m) / track.L) > Math.floor((prev - m) / track.L);
+}
+
+// Marshal-Sektor (Index) an Position d
+export function sectorIndexAt(track, d) {
+  const x = wrapD(track, d);
+  const secs = track.sectors;
+  for (let i = secs.length - 1; i >= 0; i--) if (x >= secs[i].start) return i;
+  return 0;
 }

@@ -59,6 +59,23 @@ export const RED_BULL_RING = {
     { corner: 'T8', offset: 100 },
   ],
 
+  // Marshal-Sektoren (Streckenposten-Abschnitte für Flaggen).
+  // Jeder Eintrag ist der Beginn eines Sektors relativ zu einer Kurve; Sektor 1 beginnt an der Ziellinie.
+  marshalSectors: [
+    { line: true },
+    { corner: 'T1', offset: -150 },
+    { corner: 'T1', offset: 150 },
+    { corner: 'T2', offset: -200 },
+    { corner: 'T3', offset: -200 },
+    { corner: 'T3', offset: 150 },
+    { corner: 'T4', offset: -200 },
+    { corner: 'T4', offset: 150 },
+    { corner: 'T6', offset: -80 },
+    { corner: 'T7', offset: 80 },
+    { corner: 'T8', offset: 200 },
+    { corner: 'T9', offset: 120 },
+  ],
+
   // Boxengasse: Einfahrt nach T10, Ausfahrt nach T1 (Meter relativ zur Kurve)
   pit: {
     entry: { corner: 'T10', offset: 60 },

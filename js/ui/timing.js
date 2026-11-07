@@ -27,6 +27,7 @@ export function renderTiming(el, race, { gapMode, selected }) {
     const pos = i + 1;
     let gapText;
     if (!started) gapText = `Startplatz ${car.gridPos}`;
+    else if (car.retired) gapText = 'Ausfall';
     else if (gapMode === 'interval') gapText = i === 0 ? (car.finished ? '🏁' : 'Intervall') : formatGap(race.gap(car, st[i - 1]), false);
     else gapText = i === 0 ? (car.finished ? '🏁' : 'Führung') : formatGap(race.gap(car, leader), false);
 
@@ -35,7 +36,9 @@ export function renderTiming(el, race, { gapMode, selected }) {
       : `<span class="delta ${delta > 0 ? 'up' : 'down'}">${delta > 0 ? '▲' : '▼'}${Math.abs(delta)}</span>`;
 
     let status = '';
-    if (car.finished) status = '<span class="badge badge-fin">🏁</span>';
+    if (car.retired) status = '<span class="badge badge-out">DNF</span>';
+    else if (car.offTrack) status = '<span class="badge badge-off">AUS</span>';
+    else if (car.finished) status = '<span class="badge badge-fin">🏁</span>';
     else if (car.stopTimer > 0) status = '<span class="badge badge-pit">STOPP</span>';
     else if (car.inPit) status = '<span class="badge badge-pit">BOX</span>';
 
@@ -48,11 +51,12 @@ export function renderTiming(el, race, { gapMode, selected }) {
         <div><span>Beste Runde</span>${formatLap(car.bestLap)}</div>
         <div><span>Reifen</span>${COMPOUNDS[car.compound].name}, ${car.tyreAge} Rd</div>
         <div><span>Stopps</span>${car.stops}</div>
+        ${car.retired ? `<div><span>Ausfall</span>${car.dnf}</div>` : ''}
       </div>` : '';
     const fl = race.fastest && race.fastest.carId === car.id ? '<span class="fl" title="Schnellste Runde">⏱</span>' : '';
 
     return `
-      <div class="row${sel ? ' selected' : ''}" data-id="${car.id}">
+      <div class="row${sel ? ' selected' : ''}${car.retired ? ' retired' : ''}" data-id="${car.id}">
         <span class="pos">${pos}</span>
         <span class="teambar" style="background:${car.team.color}"></span>
         <span class="code">${car.id}${fl}</span>

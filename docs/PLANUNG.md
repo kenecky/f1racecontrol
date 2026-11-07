@@ -246,8 +246,12 @@ docs/
 - [x] **M1 – Grundgerüst**: Seite + PWA-Basis, Red Bull Ring als 2D-Karte,
       22 Autos fahren im Zeitraffer, Zeitentabelle, Tempo/Pause
       (inkl. Startampel, Überholen in Zonen, Boxenstopps, Reifen, Meldungsfeed, Ergebnis)
-- [ ] **M2 – Flaggen**: Marshal-Sektoren, gelb/doppelt gelb/grün setzen,
-      Autos reagieren darauf
+- [x] **M2 – Flaggen**: 12 Marshal-Sektoren, Grün/Gelb/Doppelt Gelb/Gelb-Rot setzen,
+      Autos reagieren (langsamer, Überholverbot). Gefahren: Dreher, liegengebliebene
+      Autos (Defekt / festgefahren), Trümmerteile nach Kontakt. Meldungen von Marshals
+      und Fahrern, Hinweisbanner, Auto-Abbremsen auf 1×, Flaggen-Bilanz im Rennbericht
+- [x] **Extras**: Tempo-Menü (1×–32× direkt wählbar), Zoom & Verschieben nur in der
+      Streckenkarte, Seiten-Zoom gesperrt
 - [ ] **M3 – Neutralisierung**: VSC, Safety Car, rote Flagge inkl. Neustart
 - [ ] **M4 – Vorfälle & Strafen**: Vorfälle generieren, Indizien, Untersuchung, Urteil,
       Strafen wirken sich aufs Ergebnis aus
@@ -271,9 +275,26 @@ docs/
 - Startaufstellung aus simuliertem Qualifying
 - Rennen-Nr. (Seed): gleiche Nummer = identisches Rennen
 
+### Flaggen & Gefahren (M2)
+| Flagge | Wirkung auf die Autos |
+|---|---|
+| Gelb | ca. 8 % langsamer im Sektor, Überholverbot |
+| Doppelt Gelb | ca. 20 % langsamer im Sektor, Überholverbot |
+| Gelb-Rot | ca. 3 % langsamer, Überholen erlaubt |
+
+| Gefahr | Angemessene Flagge | Dauer |
+|---|---|---|
+| Kurzer Dreher (Auto fährt weiter) | Gelb (nicht zwingend) | 6–14 s |
+| Auto steht hinter Leitplanke / weit im Auslauf | Gelb | Bergung 70–180 s |
+| Auto steht ungeschützt neben der Fahrbahn | Doppelt Gelb | Bergung 70–180 s |
+| Trümmerteile | Gelb oder Gelb-Rot | 40–110 s |
+
+Bewertung (Vorstufe zu M5): rechtzeitig = angemessene Flagge innerhalb von 20 s;
+zusätzlich wird „unnötig gelb“ gemessen (Flagge ohne Gefahr, 10 s Kulanz nach Freigabe).
+
 ## 12. Offene Punkte
 
-- Genaue Anzahl und Lage der Marshal-Sektoren am Red Bull Ring
+- Marshal-Sektoren: aktuell 12 (vereinfacht), ggf. an echte Einteilung anpassen
 - Konkrete Stärkewerte für Teams/Fahrer
 - Reifenstrategien der CPU-Teams (Detailtiefe)
 - Gewichtung der Bewertungsachsen

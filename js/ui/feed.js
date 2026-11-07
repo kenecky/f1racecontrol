@@ -1,6 +1,7 @@
 // Meldungsfeed (neueste oben)
 const ICONS = {
   info: 'ℹ️', start: '🚦', overtake: '↗', fastest: '⏱', pit: '🔧', chequered: '🏁', finish: '🏁',
+  marshal: '🦺', radio: '📻', rc: '🚩',
 };
 
 export class Feed {

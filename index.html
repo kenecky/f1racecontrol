@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#0b0f17">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -24,7 +24,7 @@
       </div>
       <div id="flag" class="flag-chip flag-start">START</div>
       <div id="clock" class="status-clock">0:00:00</div>
-      <button id="speedBtn" class="pill-btn" aria-label="Tempo">4×</button>
+      <button id="speedBtn" class="pill-btn" aria-label="Tempo" aria-haspopup="true">4×</button>
       <button id="pauseBtn" class="pill-btn pause-btn" aria-label="Pause">▶</button>
     </header>
 
@@ -32,7 +32,9 @@
       <canvas id="map"></canvas>
       <div id="lights" class="lights hidden"><span></span><span></span><span></span><span></span><span></span></div>
       <button id="labelsBtn" class="map-btn" aria-label="Kürzel anzeigen">ABC</button>
+      <button id="zoomResetBtn" class="map-btn map-btn-zoom hidden" aria-label="Zoom zurücksetzen">⤢ Gesamt</button>
       <div class="paused-tag">PAUSE</div>
+      <button id="alertBanner" class="alert hidden"></button>
     </section>
 
     <nav class="tabs">
@@ -68,11 +70,34 @@
     </main>
 
     <footer class="actions">
-      <button class="act act-flag" data-label="Flaggen" data-soon="2">Flagge</button>
+      <button id="flagBtn" class="act act-flag act-live">Flagge</button>
       <button class="act act-vsc" data-label="Virtual Safety Car" data-soon="3">VSC</button>
       <button class="act act-sc" data-label="Safety Car" data-soon="3">SC</button>
       <button class="act act-red" data-label="Rote Flagge" data-soon="3">ROT</button>
     </footer>
+  </div>
+
+  <div id="speedMenu" class="popover hidden" role="menu">
+    <div class="popover-title">Tempo</div>
+    <div class="speed-grid"></div>
+    <label class="switch-row">
+      <input id="slowToggle" type="checkbox">
+      <span>Bei neuen Vorfällen auf 1× abbremsen</span>
+    </label>
+  </div>
+
+  <div id="flagSheet" class="flag-sheet hidden">
+    <div class="flag-sheet-head">
+      <div>
+        <div class="flag-sheet-title">Flaggen</div>
+        <div class="flag-sheet-sub">Marshal-Sektoren · Tippe auf die Strecke, um einen Sektor zu wählen</div>
+      </div>
+      <button id="flagCloseBtn" class="pill-btn">Fertig</button>
+    </div>
+    <div id="flagList" class="flag-list"></div>
+    <div class="flag-sheet-foot">
+      <button id="allGreenBtn" class="secondary-btn">Alle Sektoren grün</button>
+    </div>
   </div>
 
   <div id="startScreen" class="overlay">
