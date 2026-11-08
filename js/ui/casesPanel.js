@@ -1,14 +1,15 @@
-// Tab "Fälle": Vorfälle untersuchen und Urteile fällen.
+// Tab "Entscheidungen": Vorfälle untersuchen und Urteile fällen.
 import { PENALTIES } from '../control/stewards.js';
 
 const STATUS = {
   new: ['NEU', 'st-new'],
   investigating: ['IN UNTERSUCHUNG', 'st-inv'],
   post: ['NACH DEM RENNEN', 'st-post'],
+  hearing: ['ANHÖRUNG', 'st-hear'],
   decided: ['ENTSCHIEDEN', 'st-done'],
   nfa: ['KEINE UNTERSUCHUNG', 'st-nfa'],
 };
-const EV_ICON = { video: '🎥', telemetry: '📊', position: '📍', radio: '📻', data: '📋' };
+const EV_ICON = { video: '🎥', telemetry: '📊', position: '📍', radio: '📻', data: '📋', hearing: '🗣️' };
 
 export class CasesPanel {
   constructor(el, { onAction }) {
@@ -43,13 +44,13 @@ export class CasesPanel {
     const finished = race.phase === 'finished';
     const sig = JSON.stringify([
       finished, [...this.open], this.forms,
-      race.cases.map(c => [c.id, c.status, c.evidence.length, c.verdict && c.verdict.penalty]),
+      race.cases.map(c => [c.id, c.status, c.evidence.length, c.verdict && c.verdict.penalty, c.hearing ? c.hearing.length : 0]),
     ]);
     if (sig === this.sig) return;
     this.sig = sig;
 
     if (!race.cases.length) {
-      this.el.innerHTML = `<div class="empty"><div class="empty-icon">⚖️</div>Noch keine Vorfälle.<br>Vorfälle zwischen Fahrern und Regelverstöße erscheinen hier.</div>`;
+      this.el.innerHTML = `<div class="empty"><div class="empty-icon">⚖️</div>Noch keine Entscheidungen.<br>Vorfälle zwischen Fahrern und Regelverstöße erscheinen hier.</div>`;
       return;
     }
     const head = finished
@@ -60,7 +61,8 @@ export class CasesPanel {
   }
 
   card(race, c, finished) {
-    const [label, cls] = STATUS[c.status];
+    let [label, cls] = STATUS[c.status];
+    if (c.status === 'post' && finished) label = 'ANHÖRUNG OFFEN';
     const open = this.open.has(c.id);
     let body = '';
     if (open) {
@@ -69,17 +71,22 @@ export class CasesPanel {
       const evHtml = evs.map(e => `
         <div class="ev"><span class="ev-icon">${EV_ICON[e.kind] || '•'}</span>
           <div><div class="ev-label">${e.label}</div><div>${e.text}</div></div></div>`).join('');
+      const hearing = c.hearing ? `
+        <div class="hearing-title">Anhörung bei der Rennleitung</div>
+        ${c.hearing.map(e => `
+          <div class="ev ev-hearing"><span class="ev-icon">${EV_ICON[e.kind] || '•'}</span>
+            <div><div class="ev-label">${e.label}</div><div>${e.text}</div></div></div>`).join('')}` : '';
       const more = !showAll && c.evidence.length > evs.length
         ? `<div class="ev-more">Weitere Beweise (Telemetrie, Positionen, Funk) nach Untersuchungsbeginn.</div>` : '';
       body = `
         <div class="case-body">
           <p class="case-summary">${c.summary}</p>
-          <div class="evidence">${evHtml}${more}</div>
+          <div class="evidence">${evHtml}${more}${hearing}</div>
           ${this.actions(race, c, finished)}
         </div>`;
     }
     return `
-      <div class="case${open ? ' open' : ''}" data-id="${c.id}">
+      <div class="case ${cls}-card${open ? ' open' : ''}" data-id="${c.id}">
         <button class="case-head" data-act="toggle">
           <span class="case-no">#${c.id}</span>
           <span class="case-main">
@@ -105,10 +112,15 @@ export class CasesPanel {
     }
     if (c.status === 'post' && !finished) {
       return `
-        <p class="ctl-small">Wird nach dem Rennen entschieden.</p>
-        <button class="ctl-btn ctl-ghost" data-act="investigate-now">Jetzt untersuchen</button>`;
+        <p class="ctl-small">Nach dem Rennen werden die beteiligten Fahrer zur Anhörung vorgeladen. Erst danach wird entschieden.</p>
+        <button class="ctl-btn ctl-ghost" data-act="investigate-now">Doch jetzt untersuchen</button>`;
     }
-    if (c.status === 'investigating' || c.status === 'post') return this.form(c, finished);
+    if (c.status === 'post') {
+      return `
+        <p class="ctl-small">Die Fahrer schildern ihre Sicht, dazu kommen weitere Aufnahmen und Daten.</p>
+        <button class="ctl-btn ctl-sc" data-act="hearing">Fahrer zur Anhörung vorladen</button>`;
+    }
+    if (c.status === 'investigating' || c.status === 'hearing') return this.form(c, finished);
     const v = c.verdict;
     if (!v || !v.carId) return '<div class="verdict">Urteil: <b>Keine Strafe</b></div>';
     const pts = v.points ? ` · ${v.points} Strafpunkt${v.points > 1 ? 'e' : ''}` : '';

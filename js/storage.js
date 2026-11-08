@@ -6,9 +6,9 @@ const DEFAULTS = {
   speed: 4,
   gapMode: 'leader',   // 'leader' | 'interval'
   showLabels: false,
-  slowOnIncident: true,
-  panelCollapsed: false,
-  showTower: true,       // Ranking-Tower in der Karte // Zeiten/Meldungen/Fälle eingeklappt // bei neuen Vorfällen auf 1× abbremsen
+  slowOnIncident: true,  // bei neuen Vorfällen auf 1× abbremsen
+  panelCollapsed: false, // Zeiten/Meldungen/Entscheidungen eingeklappt
+  showTower: true,       // Ranking-Tower in der Karte
 };
 
 const HISTORY_KEY = 'f1rc.history.v1';

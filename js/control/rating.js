@@ -5,7 +5,7 @@ import { NEED_LEVEL, NEED_LABEL } from '../sim/hazards.js';
 
 const HAZARD_WEIGHT = { yellow: 10, double: 15, vsc: 18, sc: 25, red: 35 };
 const LATE = { yellow: 20, double: 20, vsc: 30, sc: 30, red: 45 };
-const CASE_COST = { ok: 0, lenient: 9, harsh: 9, wrong: 15, open: 15 };
+const CASE_COST = { ok: 0, lenient: 9, harsh: 9, wrong: 15, open: 15, pending: 0 };
 export const AXES = [
   { id: 'safety', name: 'Sicherheit', weight: 0.35, hint: 'Gefahren rechtzeitig und ausreichend abgesichert' },
   { id: 'fairness', name: 'Fairness', weight: 0.35, hint: 'Urteile treffen den Richtigen in angemessener Höhe' },
@@ -74,7 +74,7 @@ export function rateRace(race) {
   const total = Math.round(rated.reduce((s, a) => s + scores[a.id] * a.weight, 0) / wsum);
   return {
     scores, total, ...gradeFor(total),
-    provisional: sr.open > 0,
+    provisional: sr.open > 0 || sr.pending > 0,
     voices: buildVoices(race, fr, sr, scores, total, over),
     fr, sr,
   };
@@ -97,10 +97,10 @@ function buildVoices(race, fr, sr, scores, total, over) {
     } else if (it.verdict === 'harsh') {
       say(`Teamchef ${team(v.carId)}`, `„Ja, das war nicht sauber – aber ${PENALTIES[v.penalty].name} ist viel zu hart.“`, 'neg');
     } else if (it.verdict === 'lenient' && t.victim) {
-      say(`Teamchef ${team(t.victim)}`, `„Bei Fall #${c.id} kommt ${t.offender} viel zu billig davon.“`, 'neg');
+      say(`Teamchef ${team(t.victim)}`, `„Bei Entscheidung #${c.id} kommt ${t.offender} viel zu billig davon.“`, 'neg');
     }
   }
-  if (sr.open) say('Presse', `„Die Kommissare lassen ${sr.open === 1 ? 'einen Fall' : `${sr.open} Fälle`} unentschieden – Teams fordern Klarheit.“`, 'neg');
+  if (sr.open) say('Presse', `„Die Kommissare lassen ${sr.open === 1 ? 'eine Entscheidung' : `${sr.open} Entscheidungen`} offen – Teams fordern Klarheit.“`, 'neg');
   for (const it of fr.items) {
     const h = it.h;
     if (it.verdict === 'missed') {

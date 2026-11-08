@@ -275,6 +275,8 @@ docs/
       karierte Ziellinie; Ranking-Tower im TV-Stil; Massenunfälle (3–5 Autos, selten,
       bei Regen häufiger); Bergungsfortschritt auch im Banner und Flaggen-Panel;
       Zoom wird beim Ein-/Ausklappen zurückgesetzt; keine Team-Beschwerden gegen eigene Fahrer
+- [x] **Anhörungen**: „Nach dem Rennen“ verschobene Entscheidungen zählen erst nach der Anhörung
+      (Schilderungen der Fahrer + zusätzliche Onboard-/Teamdaten); Tab heißt „Entscheidungen“
 - [ ] **Wetter / Regenrennen**: Regen (leicht/stark), Intermediates/Regenreifen, Aquaplaning,
       mehr Dreher und Massenunfälle, Rennstart hinter SC, rote Flagge bei zu viel Wasser
 - [ ] **M6 – Speichern/Laden**: Rennen fortsetzen, Statistik

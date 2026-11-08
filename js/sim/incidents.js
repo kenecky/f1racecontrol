@@ -34,7 +34,7 @@ function createCase(race, props) {
   c.typeName = CASE_TYPES[c.type].name;
   c.options = CASE_TYPES[c.type].options;
   race.cases.push(c);
-  race.emit('case', `Neuer Fall #${c.id}: ${c.title}`, { caseId: c.id, cars: c.cars });
+  race.emit('case', `Neue Entscheidung #${c.id}: ${c.title}`, { caseId: c.id, cars: c.cars });
   return c;
 }
 
@@ -458,4 +458,43 @@ function startPileup(race, cars) {
       ? { offender: B.id, expected: ['10s', 'dt'], points: [2, 3], victim: A.id }
       : { offender: null, expected: ['none'], points: [0, 0], victim: A.id },
   });
+}
+
+// ---------- Anhörung nach dem Rennen ----------
+
+// Schilderungen der Fahrer und zusätzliche Daten, die erst bei der Anhörung vorliegen
+export function hearingEvidence(race, c) {
+  const r = race.rng;
+  const t = c.truth;
+  const out = [];
+  const admit = ['„Ich habe mich verbremst, das war mein Fehler.“', '„Ich hätte etwas früher reagieren müssen.“', '„Im Nachhinein war das zu optimistisch.“'];
+  const defend = ['„Ich habe nichts falsch gemacht.“', '„Ich hatte die Linie, der andere hätte Platz lassen müssen.“', '„Das war ganz normales Racing.“'];
+  const accept = ['„Ehrlich gesagt: ein Rennunfall.“', '„So etwas passiert im Zweikampf.“'];
+  const single = c.cars.length === 1;
+  for (const id of c.cars) {
+    const other = c.cars.find(x => x !== id);
+    let text;
+    if (t.offender === id) text = r.chance(0.35) ? r.pick(admit) : single ? r.pick(['„Das war keine Absicht.“', '„Ich habe davon im Auto nichts gemerkt.“']) : r.pick(defend);
+    else if (single) text = r.chance(0.6) ? '„Da war nichts Unerlaubtes.“' : r.pick(defend);
+    else if (t.victim === id) text = t.offender || r.chance(0.5) ? `„Das war klar der Fehler von ${t.offender || other}.“` : r.pick(accept);
+    else if (c.type === 'pileup') text = '„Ich konnte nicht mehr ausweichen.“';
+    else text = r.chance(0.5) ? r.pick(defend) : `„${other} hat mir keine Chance gelassen.“`;
+    out.push(ev('hearing', `Schilderung ${id}`, text));
+  }
+  const [A, B] = c.cars;
+  const sharp = (mean, sd = 6) => measure(race, mean, sd, 0, 100);
+  if (c.type === 'collision' || c.type === 'complaint') {
+    const mean = t.offender === A ? 34 : t.offender === B ? 70 : 57;
+    out.push(ev('video', 'Zusätzliche Onboard-Aufnahmen', `Onboard von ${B}: Vorderachse von ${A} beim Einlenken bei etwa ${pct(sharp(mean))} der Fahrzeuglänge.`));
+  } else if (c.type === 'forcedOff') {
+    const victim = c.cars[1];
+    out.push(ev('video', 'Zusätzliche Onboard-Aufnahmen', `Onboard von ${victim}: Vorderachse am Scheitelpunkt bei etwa ${pct(sharp(t.offender ? 72 : 38))} der Fahrzeuglänge von ${A}.`));
+  } else if (c.type === 'offTrackPass') {
+    out.push(ev('video', 'Hochauflösende Streckenkamera', `${A}: ${t.offender ? 4 : r.int(2, 3)} Räder jenseits der weißen Linie.`));
+  } else if (c.type === 'yellowPass') {
+    out.push(ev('data', `Teamdaten ${B}`, t.offender ? `Keine technischen Probleme bei ${B} – das Auto war voll funktionsfähig.` : `${B} hatte einen bestätigten Ausfall der Energierückgewinnung.`));
+  } else if (c.type === 'pileup') {
+    out.push(ev('telemetry', `Detaildaten ${B}`, `Bremspunkt ${f1(measure(race, t.offender ? 15 : 5, 3, 0, 30))} m später als in den Vorrunden.`));
+  }
+  return out;
 }

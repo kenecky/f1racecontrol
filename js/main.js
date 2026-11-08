@@ -15,7 +15,7 @@ import { CasesPanel } from './ui/casesPanel.js';
 import { renderTower } from './ui/tower.js';
 import { hazardProgress } from './sim/hazards.js';
 import {
-  investigate, postpone, noFurtherAction, decide, openCases, stewardReport, unservedSecs,
+  investigate, postpone, noFurtherAction, decide, openCases, stewardReport, unservedSecs, startHearing,
 } from './control/stewards.js';
 import {
   deployVSC, endVSC, deploySC, allowUnlap, scInThisLap, redFlag, restartRace, canRestart,
@@ -68,7 +68,8 @@ const casesPanel = new CasesPanel($('cases'), {
   onAction: (act, id, form) => {
     const c = id ? race.cases.find(x => x.id === id) : null;
     if (act === 'investigate') investigate(race, c);
-    else if (act === 'investigate-now') { c.status = 'investigating'; race.emit('rc', `Fall #${c.id} wird untersucht: ${c.title}`); }
+    else if (act === 'investigate-now') { c.status = 'investigating'; race.emit('rc', `Entscheidung #${c.id} wird untersucht: ${c.title}`); }
+    else if (act === 'hearing') startHearing(race, c);
     else if (act === 'nfa') noFurtherAction(race, c);
     else if (act === 'post') postpone(race, c);
     else if (act === 'decide') decide(race, c, { carId: form.carId, penalty: form.penalty || 'none', points: form.points });
@@ -218,7 +219,7 @@ function refreshUi() {
   if (race.cases.length > seenCases) {
     const c = race.cases[race.cases.length - 1];
     seenCases = race.cases.length;
-    if (activeTab !== 'cases') toast(`Neuer Fall #${c.id}: ${c.typeName}`);
+    if (activeTab !== 'cases') toast(`Neue Entscheidung #${c.id}: ${c.typeName}`);
   }
   if (!touching) {
     renderTiming($('timing'), race, timingOpts());
@@ -262,6 +263,7 @@ function updateAlert() {
   const el = $('alertBanner');
   const t = race.time;
   el.style.background = '';
+  if (race.phase === 'finished') { el.className = 'alert hidden'; return; }
   const open = race.hazards.filter(h => !h.ended && h.adequateAt === null);
   const h = open[open.length - 1];
   if (h) {
@@ -418,22 +420,26 @@ function showResults() {
 
   const open = openCases(race).length;
   const srep = stewardReport(race);
-  const sIcon = { ok: '✅', lenient: '🔽', harsh: '🔼', wrong: '❌', open: '⏳' };
+  const sIcon = { ok: '✅', lenient: '🔽', harsh: '🔼', wrong: '❌', open: '❓', pending: '⏳' };
   const sItems = srep.items.map(i => `
     <div class="report-item"><span class="v">${sIcon[i.verdict]}</span>
       <div>#${i.c.id} ${i.c.title}<br><span class="n">${i.note}</span></div></div>`).join('');
   const stewards = `
     <div class="report">
-      <h3>Rennkommissare · Urteile</h3>
+      <h3>Rennkommissare · Entscheidungen</h3>
       <div class="report-stats">
         <div><b>${srep.ok}/${srep.total}</b><span>angemessen</span></div>
         <div><b>${srep.lenient + srep.harsh}</b><span>zu mild/hart</span></div>
-        <div><b>${srep.wrong + srep.open}</b><span>falsch/offen</span></div>
+        <div><b>${srep.wrong + srep.open + srep.pending}</b><span>falsch/offen</span></div>
       </div>
-      ${sItems || '<div class="report-item"><span class="v">✓</span><div>Keine Fälle in diesem Rennen.</div></div>'}
-      ${srep.inconsistent.map(g => `<div class="report-item"><span class="v">⚖</span><div>Inkonsequent: gleichartige Fälle ${g} unterschiedlich bestraft.</div></div>`).join('')}
+      ${sItems || '<div class="report-item"><span class="v">✓</span><div>Keine Entscheidungen in diesem Rennen.</div></div>'}
+      ${srep.inconsistent.map(g => `<div class="report-item"><span class="v">⚖</span><div>Inkonsequent: gleichartige Vorfälle ${g} unterschiedlich bestraft.</div></div>`).join('')}
     </div>`;
-  $('resultTitle').textContent = open ? `⏳ Vorläufiges Ergebnis – ${open} ${open > 1 ? 'Fälle' : 'Fall'} offen` : '🏁 Rennergebnis';
+  const hearings = race.cases.filter(c => c.status === 'post' || c.status === 'hearing').length;
+  const parts = [];
+  if (hearings) parts.push(`${hearings} ${hearings > 1 ? 'Anhörungen' : 'Anhörung'}`);
+  if (open - hearings > 0) parts.push(`${open - hearings} ${open - hearings > 1 ? 'Entscheidungen' : 'Entscheidung'}`);
+  $('resultTitle').textContent = open ? `⏳ Vorläufiges Ergebnis – ${parts.join(' und ')} offen` : '🏁 Rennergebnis';
   $('openCasesBtn').classList.toggle('hidden', open === 0);
   // Gesamtbewertung
   const rating = rateRace(race);
@@ -504,7 +510,11 @@ function setTab(tab) {
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${tab}`));
   if (tab === 'feed') { unread = 0; updateBadge(); }
-  if (tab === 'cases' && race) { casesPanel.sig = ''; casesPanel.render(race); }
+  if (tab === 'cases' && race) {
+    casesPanel.sig = '';
+    casesPanel.render(race);
+    $('panel-cases').scrollTop = 0;   // beim Öffnen immer oben beginnen
+  }
 }
 
 let toastTimer = null;

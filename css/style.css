@@ -609,8 +609,15 @@ button {
 /* ---------- Fälle ---------- */
 .cases-bar { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--bg-2); border-bottom: 1px solid var(--line); font-weight: 700; }
 .cases-bar .pill-btn { margin-left: auto; background: var(--accent); color: #fff; padding: 0 14px; }
-.case { border-bottom: 1px solid #1c2435; }
-.case.open { background: #121a2a; }
+#cases { padding: 8px 8px 12px; display: flex; flex-direction: column; gap: 8px; }
+.cases-bar { border-radius: 10px; border: 1px solid var(--line); }
+.case { background: #161e2e; border: 1px solid #263046; border-left: 4px solid #3a4458; border-radius: 10px; overflow: hidden; }
+.case.st-new-card { border-left-color: var(--accent); }
+.case.st-inv-card { border-left-color: var(--yellow); }
+.case.st-post-card, .case.st-hear-card { border-left-color: var(--blue); }
+.case.st-done-card { border-left-color: var(--green); background: #131a26; }
+.case.st-nfa-card { border-left-color: #4a5266; background: #131a26; }
+.case.open { background: #1b2538; border-color: #34405a; }
 .case-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; text-align: left; }
 .case-no { color: var(--muted); font-weight: 700; font-size: 12px; min-width: 26px; }
 .case-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
@@ -622,7 +629,7 @@ button {
 .st-post { background: var(--blue); color: #fff; }
 .st-done { background: var(--green); color: #04210f; }
 .st-nfa { background: #3a4252; color: var(--text); }
-.case-body { padding: 0 12px 12px 48px; display: flex; flex-direction: column; gap: 10px; }
+.case-body { padding: 0 12px 12px 12px; display: flex; flex-direction: column; gap: 10px; }
 .case-summary { margin: 0; font-size: 13px; line-height: 1.45; }
 .evidence { display: flex; flex-direction: column; gap: 6px; }
 .ev { display: flex; gap: 8px; font-size: 12px; line-height: 1.4; background: var(--bg-3); border-radius: 8px; padding: 7px 8px; }
@@ -702,3 +709,7 @@ button {
 .tw-row.out { opacity: .45; }
 .tw-tyre { font-weight: 900; font-size: 10px; text-align: center; }
 .tw-tyre.S { color: #ff2d2d; } .tw-tyre.M { color: var(--yellow); } .tw-tyre.H { color: #f0f0f0; }
+.st-hear { background: #8a5cff; color: #fff; }
+.hearing-title { margin-top: 6px; color: #b79cff; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+.ev-hearing { background: rgba(138, 92, 255, .12); }
+.tab { white-space: nowrap; font-size: 13px; }

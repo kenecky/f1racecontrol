@@ -1,4 +1,4 @@
-// Rennkommissare: Fälle untersuchen, Urteile fällen, Strafen anwenden, Urteile bewerten.
+// Rennkommissare: Entscheidungen untersuchen, Urteile fällen, Strafen anwenden, Urteile bewerten.
 export const PENALTIES = {
   none:     { name: 'Keine Strafe',         short: '–',    sev: 0 },
   warning:  { name: 'Verwarnung',           short: 'Verw.', sev: 1 },
@@ -11,27 +11,37 @@ export const PENALTIES = {
   dsq:      { name: 'Disqualifikation',     short: 'DSQ',  sev: 7 },
 };
 
+import { hearingEvidence } from '../sim/incidents.js';
+
 export function openCases(race) {
-  return race.cases.filter(c => c.status === 'new' || c.status === 'investigating' || c.status === 'post');
+  return race.cases.filter(c => ['new', 'investigating', 'post', 'hearing'].includes(c.status));
+}
+
+// Nach dem Rennen: Fahrer zur Anhörung bei der Rennleitung vorladen
+export function startHearing(race, c) {
+  if (c.status !== 'post' || race.phase !== 'finished') return;
+  c.status = 'hearing';
+  c.hearing = hearingEvidence(race, c);
+  race.emit('rc', `Anhörung zu Entscheidung #${c.id}: ${c.cars.join(', ')} bei der Rennleitung.`);
 }
 
 export function investigate(race, c) {
   if (c.status !== 'new') return;
   c.status = 'investigating';
-  race.emit('rc', `Fall #${c.id} wird untersucht: ${c.title}`);
+  race.emit('rc', `Entscheidung #${c.id} wird untersucht: ${c.title}`);
 }
 
 export function postpone(race, c) {
   if (c.status !== 'new' && c.status !== 'investigating') return;
   c.status = 'post';
-  race.emit('rc', `Fall #${c.id} wird nach dem Rennen untersucht: ${c.title}`);
+  race.emit('rc', `Entscheidung #${c.id} wird nach dem Rennen untersucht (Anhörung): ${c.title}`);
 }
 
 export function noFurtherAction(race, c) {
   if (c.status === 'decided' || c.status === 'nfa') return;
   c.status = 'nfa';
   c.verdict = { carId: null, penalty: 'none', points: 0, time: race.time };
-  race.emit('rc', `Fall #${c.id}: Keine weitere Untersuchung – ${c.title}`);
+  race.emit('rc', `Entscheidung #${c.id}: Keine weitere Untersuchung – ${c.title}`);
   reactToVerdict(race, c);
 }
 
@@ -64,7 +74,7 @@ export function decide(race, c, { carId, penalty, points }) {
   if (!carId || penalty === 'none') {
     c.status = 'decided';
     c.verdict = { carId: null, penalty: 'none', points: 0, time: race.time };
-    race.emit('rc', `Fall #${c.id}: Keine Strafe – ${c.title}`);
+    race.emit('rc', `Entscheidung #${c.id}: Keine Strafe – ${c.title}`);
     reactToVerdict(race, c);
     return;
   }
@@ -139,6 +149,7 @@ function expectedText(t) {
 export function evaluateCase(race, c) {
   const t = c.truth;
   const v = c.verdict;
+  if (!v && (c.status === 'post' || c.status === 'hearing')) return { verdict: 'pending', note: 'Anhörung nach dem Rennen ausstehend' };
   if (!v) return { verdict: 'open', note: 'Nicht entschieden' };
   const fine = 'angemessen';
   if (!t.offender) {
@@ -181,6 +192,7 @@ export function stewardReport(race) {
     items,
     total: items.length,
     ok: count('ok'), lenient: count('lenient'), harsh: count('harsh'), wrong: count('wrong'), open: count('open'),
+    pending: count('pending'),
     inconsistent,
   };
 }
