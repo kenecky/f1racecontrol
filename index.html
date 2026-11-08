@@ -19,7 +19,7 @@
     <header class="status">
       <button id="menuBtn" class="icon-btn" aria-label="Neues Rennen">☰</button>
       <div class="status-lap">
-        <span class="label">Runde</span>
+        <span id="lapLabel" class="label">Runde</span>
         <span id="lap">–</span>
       </div>
       <div id="flag" class="flag-chip flag-start">START</div>
@@ -86,7 +86,7 @@
     <div class="speed-grid"></div>
     <label class="switch-row">
       <input id="slowToggle" type="checkbox">
-      <span>Bei neuen Vorfällen auf 1× abbremsen</span>
+      <span>Bei neuen Vorfällen und Entscheidungen auf 1× abbremsen</span>
     </label>
   </div>
 
@@ -118,7 +118,7 @@
   <div id="startScreen" class="overlay">
     <div class="sheet">
       <div class="brand">
-        <div class="brand-mark"></div>
+        <img class="brand-mark brand-img" src="icons/icon-192.png" alt="">
         <div>
           <div class="brand-title">RACE CONTROL</div>
           <div class="brand-sub">Rennleitung · Formel 1</div>
@@ -132,6 +132,7 @@
         <div id="evRound" class="event-round"></div>
         <div id="evGp" class="event-gp"></div>
         <div id="evTrack" class="event-track"></div>
+        <div id="weekendSteps" class="weekend-steps"></div>
         <div class="event-facts">
           <div><b id="evLaps"></b><span>Runden</span></div>
           <div><b id="evKm"></b><span>km</span></div>
@@ -148,6 +149,15 @@
         <summary>Optionen</summary>
         <label id="trackLabel">Strecke (Einzelrennen)
           <select id="trackSel"></select>
+        </label>
+        <label id="kindLabel">Session (Einzelrennen)
+          <select id="kindSel">
+            <option value="race">Rennen</option>
+            <option value="quali">Qualifying</option>
+            <option value="fp">Freies Training</option>
+            <option value="sq">Sprint-Qualifying</option>
+            <option value="sprint">Sprint</option>
+          </select>
         </label>
         <label>Rennen-Nr. (gleiche Nr. = gleiches Rennen)
           <input id="seedInput" type="number" inputmode="numeric" placeholder="zufällig">

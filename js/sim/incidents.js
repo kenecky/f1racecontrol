@@ -15,6 +15,9 @@ export const CASE_TYPES = {
   unsafeRelease: { name: 'Unsichere Boxenfreigabe',       options: ['warning', '5s', '10s'] },
   yellowPass:    { name: 'Überholen unter Gelb',          options: ['warning', '5s', '10s', 'dt', 'sg', 'grid3', 'grid5'] },
   vscDelta:      { name: 'VSC-Delta unterschritten',      options: ['warning', '5s', '10s', 'dt'] },
+  ignoredOrder:  { name: 'Anordnung nicht befolgt',       options: ['warning', '5s', '10s', 'dt', 'sg', 'grid5', 'dsq'] },
+  tlLap:         { name: 'Track Limits (Rundenzeit)',     options: ['deleteLap'] },
+  impeding:      { name: 'Behinderung',                   options: ['warning', 'grid3', 'grid5', 'grid10'] },
 };
 
 const f1 = x => x.toFixed(1).replace('.', ',');
@@ -497,4 +500,74 @@ export function hearingEvidence(race, c) {
     out.push(ev('telemetry', `Detaildaten ${B}`, `Bremspunkt ${f1(measure(race, t.offender ? 15 : 5, 3, 0, 30))} m später als in den Vorrunden.`));
   }
   return out;
+}
+
+// ---------- Anordnung nicht befolgt (Platz zurückgeben) ----------
+
+export function createIgnoredOrderCase(race, car, victim, gb) {
+  const r = race.rng;
+  const behind = race.gap(victim, car);
+  const gapTxt = behind && behind.time !== undefined ? `${f1(Math.abs(behind.time))} s` : 'unbekannt';
+  const ignored = Boolean(gb.ignore);
+  createCase(race, {
+    type: 'ignoredOrder', cars: [car.id, victim.id],
+    title: `${car.id} gibt Platz an ${victim.id} nicht zurück`,
+    summary: `${car.id} sollte die Position an ${victim.id} zurückgeben, hat das aber innerhalb der Frist nicht getan.`,
+    evidence: [
+      ev('data', 'Anordnung', `Rennleitung an ${car.team.name}: ${car.id} muss die Position an ${victim.id} zurückgeben.`, true),
+      ev('data', 'Abstand jetzt', `${victim.id} liegt ${gapTxt} hinter ${car.id}.`, true),
+      ev('telemetry', `Telemetrie ${car.id}`, ignored
+        ? `Keine Temporeduzierung erkennbar (Rundenzeiten ${f1(r.range(0, 0.2))} s langsamer als zuvor).`
+        : `${car.id} fährt ${f1(r.range(0.8, 1.6))} s pro Runde langsamer, um ${victim.id} vorbeizulassen.`),
+      ev('radio', `Teamfunk ${car.team.name}`, ignored ? '„Wir haben ihn informiert … er sagt, er sei nicht vorne gewesen.“' : '„Er hat gewartet, aber der andere kommt nicht ran.“'),
+      ev('data', 'Leitlinie', 'Wird eine angeordnete Positionsrückgabe bewusst nicht befolgt, folgt üblicherweise eine Zeit- oder Durchfahrtsstrafe.'),
+    ],
+    truth: ignored
+      ? { offender: car.id, expected: ['10s', 'dt'], points: [1, 2], victim: victim.id }
+      : { offender: null, expected: ['none'], points: [0, 0], victim: victim.id },
+  });
+}
+
+// ---------- Qualifying / Training ----------
+
+export function createLapCase(race, car, lapRec, corner) {
+  const r = race.rng;
+  const four = r.chance(0.7);
+  const wheels = four ? 4 : r.int(2, 3);
+  const c = createCase(race, {
+    type: 'tlLap', cars: [car.id], corner,
+    title: `Track Limits ${car.id} in ${corner} – Runde streichen?`,
+    summary: `${car.id} geht auf der gezeiteten Runde (${lapRec.label}) in ${corner} weit über die Randsteine.`,
+    evidence: [
+      ev('position', 'Streckenkamera', r.chance(0.2)
+        ? `Kamerawinkel ungünstig – mindestens ${wheels >= 3 ? 3 : 2} Räder jenseits der weißen Linie.`
+        : `${wheels} Räder jenseits der weißen Linie.`, true),
+      ev('data', 'Runde', `Rundenzeit ${lapRec.label} – wird gestrichen, falls alle vier Räder draußen waren.`, true),
+      ev('data', 'Leitlinie', 'Rundenzeit wird gestrichen, wenn alle vier Räder jenseits der weißen Linie waren.'),
+    ],
+    truth: four
+      ? { offender: car.id, expected: ['deleteLap'], points: [0, 0] }
+      : { offender: null, expected: ['none'], points: [0, 0] },
+  });
+  c.lapRef = lapRec.id;
+}
+
+export function createImpedingCase(race, slow, fast, lost) {
+  const r = race.rng;
+  const warned = r.chance(0.8);
+  createCase(race, {
+    type: 'impeding', cars: [slow.id, fast.id],
+    title: `${slow.id} behindert ${fast.id}?`,
+    summary: `${fast.id} trifft auf schneller Runde auf ${slow.id} und muss lupfen.`,
+    evidence: [
+      ev('video', 'TV-Bilder', `${fast.id} kommt mit hohem Tempo, ${slow.id} fährt auf der Ideallinie langsam.`, true),
+      ev('telemetry', `Telemetrie ${fast.id}`, `Zeitverlust im Sektor etwa ${f1(lost)} s.`),
+      ev('radio', `Teamfunk ${slow.team.name}`, warned ? `Aufzeichnung: „Achtung, ${fast.id} kommt auf schneller Runde.“ (${Math.round(r.range(4, 9))} s vorher)` : 'Keine Warnung an den Fahrer aufgezeichnet.'),
+      ev('radio', `Funk ${fast.id}`, '„Was macht der da?! Meine Runde ist hin!“'),
+      ev('data', 'Leitlinie', 'Unnötiges Behindern im Qualifying: üblich 3 Startplätze; hat das Team nicht gewarnt, oft nur Verwarnung.'),
+    ],
+    truth: warned
+      ? { offender: slow.id, expected: lost > 0.4 ? ['grid3'] : ['warning', 'grid3'], points: [0, 1], victim: fast.id }
+      : { offender: slow.id, expected: ['warning'], points: [0, 0], victim: fast.id },
+  });
 }

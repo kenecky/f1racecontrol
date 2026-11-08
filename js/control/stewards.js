@@ -9,6 +9,7 @@ export const PENALTIES = {
   dt:       { name: 'Durchfahrtsstrafe',    short: 'DT',   sev: 4 },
   sg:       { name: '10-s-Stop-and-Go',     short: 'SG',   sev: 5 },
   dsq:      { name: 'Disqualifikation',     short: 'DSQ',  sev: 7 },
+  deleteLap: { name: 'Rundenzeit streichen', short: 'Runde gestr.', sev: 1 },
   grid3:    { name: 'Startplatzstrafe 3 Plätze (nächstes Rennen)',  short: '−3 SP',  sev: 2, places: 3 },
   grid5:    { name: 'Startplatzstrafe 5 Plätze (nächstes Rennen)',  short: '−5 SP',  sev: 3, places: 5 },
   grid10:   { name: 'Startplatzstrafe 10 Plätze (nächstes Rennen)', short: '−10 SP', sev: 4, places: 10 },
@@ -101,6 +102,10 @@ function carryOver(race, car, places, why) {
 }
 
 function applyPenalty(race, car, penalty, c) {
+  if (penalty === 'deleteLap') {
+    if (race.deleteLap) race.deleteLap(car, c.lapRef);
+    return;
+  }
   if (PENALTIES[penalty].places) {
     carryOver(race, car, PENALTIES[penalty].places, c.typeName);
     return;
@@ -125,7 +130,9 @@ function applyPenalty(race, car, penalty, c) {
       } else if (!victimBehind) {
         race.emit('rc', `${victim.id} liegt bereits wieder vor ${car.id}.`);
       } else {
-        car.giveBack = { target: victim.id, until: race.time + 120, voluntary: false, caseId: c.id };
+        // Manche Fahrer ignorieren die Anordnung (abhängig von der Aggressivität)
+        const ignore = race.rng.chance(Math.max(0.05, (car.driver.aggression - 50) / 150));
+        car.giveBack = { target: victim.id, until: race.time + 120, voluntary: false, caseId: c.id, ignore };
       }
       break;
     }

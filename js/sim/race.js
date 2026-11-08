@@ -8,7 +8,7 @@ import {
 } from './hazards.js';
 import {
   rollBattleIncident, onGiveBackDone, rollTrackLimits, rollPitSpeeding, rollUnsafeRelease,
-  createYellowPassCase, rollVscDelta, rollPileup, checkPileup,
+  createYellowPassCase, rollVscDelta, rollPileup, checkPileup, createIgnoredOrderCase,
 } from './incidents.js';
 import { unservedSecs } from '../control/stewards.js';
 import {
@@ -24,12 +24,17 @@ import { createWeather, updateWeather } from './weather.js';
 export { COMPOUNDS };
 
 export class Race {
-  constructor({ track, teams, drivers, seed, weather = 'dry', gridPenalties = {} }) {
+  constructor({
+    track, teams, drivers, seed, weather = 'dry', gridPenalties = {},
+    kind = 'race', laps = null, gridOrder = null, durationSec = null,
+  }) {
+    this.kind = kind;            // race | sprint | fp | quali | sq
     this.gridPenalties = gridPenalties;
+    this.gridOrder = gridOrder;  // Startaufstellung aus dem Qualifying (Fahrer-IDs)
     this.track = track;
     this.seed = seed;
     this.rng = createRng(seed);
-    this.laps = track.laps;
+    this.laps = laps || track.laps;
     this.time = 0;              // Rennzeit seit "Lichter aus"
     this.phase = 'pre';         // pre → lights → running → chequered → finished
     this.lightsTimer = 0;
@@ -50,7 +55,7 @@ export class Race {
     this.sc = null;           // Safety Car auf der Strecke
     this.physGap = new Map();
     this.behindSC = new Set();
-    this.weather = createWeather(seed, weather, track.laps * track.baseLap * 1.05, track.def.rainChance ?? 0.38);
+    this.weather = createWeather(seed, weather, durationSec || this.laps * track.baseLap * 1.05, track.def.rainChance ?? 0.38);
     this.pendingPileup = null;
     this.maxLeaderLap = -1;
     this.cases = [];          // Fälle für die Rennkommissare
@@ -91,6 +96,10 @@ export class Race {
     for (const [id, places] of Object.entries(gridPenalties)) {
       if (this.carById[id]) this.emit('rc', `${id} startet mit einer Startplatzstrafe von ${places} Plätzen von Platz ${this.carById[id].gridPos}.`, { cars: [id] });
     }
+    for (const u of this.unservedGrid || []) {
+      const what = u.places > 10 ? 'Durchfahrtsstrafe' : `${u.places > 5 ? 10 : 5}-s-Zeitstrafe`;
+      this.emit('rc', `${u.id} kann ${u.places} Startplätze nicht abbauen – dafür ${what} im Rennen.`, { cars: [u.id] });
+    }
   }
 
   // ---------- Vorbereitung ----------
@@ -100,10 +109,26 @@ export class Race {
     let quali = this.cars
       .map(c => ({ c, t: c.basePenalty + r.gauss(0.12) }))
       .sort((a, b) => a.t - b.t);
-    // Startplatzstrafen (aus dem vorherigen Rennen) anwenden
+    // Startaufstellung aus dem Qualifying, falls gefahren
+    if (this.gridOrder) {
+      const idx = id => { const i = this.gridOrder.indexOf(id); return i < 0 ? 99 : i; };
+      quali.sort((a, b) => idx(a.c.id) - idx(b.c.id));
+    }
+    // Startplatzstrafen anwenden; was nicht abgebaut werden kann, wird zur Zeitstrafe
+    const n = quali.length;
     if (Object.keys(this.gridPenalties).length) {
-      quali = quali.map((q, i) => ({ ...q, slot: i + (this.gridPenalties[q.c.id] || 0) + (this.gridPenalties[q.c.id] ? 0.5 : 0) }))
-        .sort((a, b) => a.slot - b.slot);
+      quali.forEach((q, i) => {
+        const p = this.gridPenalties[q.c.id] || 0;
+        q.slot = i + p + (p ? 0.5 : 0);
+        const unserved = Math.max(0, i + p - (n - 1));
+        if (unserved > 0) {
+          if (unserved > 10) q.c.serve.push({ type: 'dt', issuedLap: 0, caseId: null });
+          else q.c.timePens.push({ secs: unserved > 5 ? 10 : 5, served: false, caseId: null, note: 'Rest-Startplatzstrafe' });
+          q.unserved = unserved;
+        }
+      });
+      quali.sort((a, b) => a.slot - b.slot);
+      this.unservedGrid = quali.filter(q => q.unserved).map(q => ({ id: q.c.id, places: q.unserved }));
     }
     quali.forEach(({ c }, i) => {
       c.gridPos = i + 1;
@@ -123,6 +148,12 @@ export class Race {
 
   planStrategy(car, gridIdx) {
     const r = this.rng;
+    if (this.kind === 'sprint') {
+      // Sprint: kein Pflichtstopp
+      car.compound = r.chance(0.3) ? 'S' : 'M';
+      car.plan = [];
+      return;
+    }
     const roll = r.next();
     if (gridIdx >= 12 && roll < 0.35) {
       car.compound = 'H';
@@ -241,15 +272,20 @@ export class Race {
           if (car.damage === 'puncture') vt *= 0.55;           // Reifenschaden: langsam zur Box
           if (this.time < car.slowUntil) vt *= 0.7;            // nach Ausritt
           if (car.giveBack) {
-            if (this.time > car.giveBack.until) {
-              if (!car.giveBack.voluntary) this.emit('rc', `${car.id} hat die Position nicht zurückgegeben.`, { cars: [car.id] });
+            const gb = car.giveBack;
+            const victim = this.carById[gb.target];
+            if (!victim || victim.retired || victim.finished) {
               car.giveBack = null;
-            } else vt *= 0.96;                                 // wartet auf den Gegner
+            } else if (this.time > gb.until) {
+              car.giveBack = null;
+              if (!gb.voluntary) createIgnoredOrderCase(this, car, victim, gb);
+            } else if (!gb.ignore) vt *= 0.93;                 // wartet auf den Gegner
           }
           // Überholverbot unter Gelb bzw. bis zur Linie nach einem Neustart
           if (car.pass && !car.pass.slow && !car.pass.violation && (isYellow(flag) || passingBanned(this, car))) car.pass = null;
           if (car.pass && this.time < car.pass.until) vt *= car.pass.blue ? 1.02 : 1.06;
           if (car.defendUntil > this.time) vt *= 0.985;
+          vt *= this.programFactor(car);                       // Sessions: Aufwärm-/Auslaufrunde
         }
       }
       if (this.time < car.reaction) vt = 0;
@@ -303,9 +339,11 @@ export class Race {
     afterMove(this, DT);
     updateWeather(this, DT);
     // Massenunfall: neue Führungsrunde → würfeln, dann an einer Gruppe auslösen
-    const leadLap = Math.max(0, ...this.cars.filter(c => !c.retired).map(c => c.lap));
-    if (leadLap > this.maxLeaderLap) { this.maxLeaderLap = leadLap; rollPileup(this, leadLap); }
-    checkPileup(this);
+    if (!this.isSession) {
+      const leadLap = Math.max(0, ...this.cars.filter(c => !c.retired).map(c => c.lap));
+      if (leadLap > this.maxLeaderLap) { this.maxLeaderLap = leadLap; rollPileup(this, leadLap); }
+      checkPileup(this);
+    }
     rollVscDelta(this, DT);
     updateHazards(this, DT);
     trackNeutralUse(this, DT);
@@ -344,7 +382,11 @@ export class Race {
       const banned = passingBanned(this, B);
 
       if (!A.isSC && gapNew < minGap * 1.8) {
-        if (!banned && A.giveBack && A.giveBack.target === B.id) {
+        if (this.yieldsTo(B, A)) {
+          this.startPass(B, A, { slow: true });
+          continue;
+        }
+        if (!banned && A.giveBack && A.giveBack.target === B.id && !A.giveBack.ignore) {
           this.startPass(B, A, { slow: true, giveback: true });
           continue;
         }
@@ -380,7 +422,7 @@ export class Race {
               }
             } else {
               const ok = this.rng.chance(this.overtakeChance(B, A, zone));
-              rollBattleIncident(this, B, A, zone.corner, ok);
+              if (!this.isSession) rollBattleIncident(this, B, A, zone.corner, ok);
               if (ok && !B.retired && !B.offTrack) {
                 this.startPass(B, A, { zone: zoneName });
                 continue;
@@ -450,6 +492,11 @@ export class Race {
     return Math.max(0.02, Math.min(0.85, p));
   }
 
+  // Hooks für Sessions (Training/Qualifying)
+  programFactor() { return 1; }
+  yieldsTo() { return false; }
+  get isSession() { return false; }
+
   startPass(B, A, { blue = false, zone = null, slow = false, violation = false, giveback = false }) {
     B.pass = { target: A.id, until: this.time + (blue ? 8 : 6), blue, zone, slow, violation, giveback };
     if (!blue) A.defendUntil = this.time + 4;
@@ -462,7 +509,14 @@ export class Race {
     // Boxengasse
     if (!car.inPit && this.phase === 'running' && crossed(tr, prev, car.d, tr.pit.entry)) {
       const next = car.plan[car.planIdx];
-      let decision = pitDecision(this, car, next);
+      let decision = this.isSession ? this.sessionPitDecision(car) : pitDecision(this, car, next);
+      if (decision === 'garage') {
+        car.inPit = true;
+        car.pass = null;
+        car.toGarage = true;
+        car.stoppedThisVisit = false;
+        decision = null;
+      }
       const neutralNow = this.neutral && this.neutral.type !== 'red';
       if (decision !== 'red' && car.serve.length && !neutralNow) decision = 'serve';
       else if (decision !== 'red' && car.damage) decision = 'damage';
@@ -500,7 +554,9 @@ export class Race {
       }
     }
     if (car.inPit) {
-      if (!car.stoppedThisVisit && crossed(tr, prev, car.d, tr.pit.box)) {
+      if (!car.stoppedThisVisit && car.toGarage && crossed(tr, prev, car.d, tr.pit.box)) {
+        this.enterGarage(car);
+      } else if (!car.stoppedThisVisit && crossed(tr, prev, car.d, tr.pit.box)) {
         car.stoppedThisVisit = true;
         const crew = car.team.pitCrew;
         let t = 2.0 + (100 - crew) * 0.03 + Math.abs(this.rng.gauss(0.25));
@@ -553,6 +609,7 @@ export class Race {
       car.lastLap = lapTime;
       car.tyreAge++;
       car.lapNoise = this.newLapNoise(car);
+      if (this.isSession) { this.onSessionLap(car, lapTime, prev); return; }
       if (car.bestLap === null || lapTime < car.bestLap) car.bestLap = lapTime;
       if (car.lap >= 2 && (!this.fastest || lapTime < this.fastest.time)) {
         this.fastest = { carId: car.id, time: lapTime, lap: car.lap };

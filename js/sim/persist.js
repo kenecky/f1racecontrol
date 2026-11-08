@@ -1,7 +1,8 @@
 // Rennen speichern und wiederherstellen (Spielstand).
 import { Race } from './race.js';
+import { Session } from './session.js';
 
-const VERSION = 2;   // 2: mit Wetter
+const VERSION = 3;   // 3: mit Sessions
 // Laufzeit-Strukturen, die beim Laden neu aufgebaut werden
 const SKIP = new Set(['track', 'rng', 'cars', 'carById', 'physGap', 'behindSC']);
 
@@ -22,7 +23,8 @@ export function serializeRace(race) {
 
 export function restoreRace({ track, teams, drivers, data }) {
   if (!data || data.version !== VERSION || data.trackId !== track.def.id) return null;
-  const race = new Race({ track, teams, drivers, seed: data.seed });
+  const Cls = ['fp', 'quali', 'sq'].includes(data.kind) ? Session : Race;
+  const race = new Cls({ track, teams, drivers, seed: data.seed, kind: data.kind || 'race', laps: data.laps });
   const { cars, rngState, version, trackId, ...rest } = data;
   Object.assign(race, rest);
   race.rng.setState(rngState);

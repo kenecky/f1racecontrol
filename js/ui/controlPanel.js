@@ -74,7 +74,10 @@ export class ControlPanel {
     const running = race.phase === 'running';
     const since = n ? mmss(race.time - (n.start ?? race.time)) : '';
 
-    if (kind === 'vsc') {
+    if (race.isSession && kind !== 'red') {
+      sub = 'Nicht verfügbar';
+      html = '<p class="ctl-text">Im Training und Qualifying gibt es kein VSC und kein Safety Car. Bei größerer Gefahr wird die Session mit der roten Flagge unterbrochen – die Uhr hält dann an.</p>';
+    } else if (kind === 'vsc') {
       sub = 'Delta-Tempo für alle, Überholverbot – Marshals können sicherer arbeiten';
       if (!n) {
         html = `<p class="ctl-text">Alle Autos fahren rund 40 % langsamer. Gut für Bergungen, die nur kurz dauern.</p>
@@ -122,12 +125,17 @@ export class ControlPanel {
     if (kind === 'red') {
       sub = 'Rennunterbrechung';
       if (!n || n.type !== 'red') {
-        html = `<p class="ctl-text">Alle Autos fahren langsam in die Boxengasse und stellen sich an. Freier Reifenwechsel. Nur bei großer Gefahr, z. B. beschädigter Barriere.</p>
+        html = `<p class="ctl-text">${race.isSession ? 'Die Session wird unterbrochen, alle Autos fahren in die Box, die Uhr hält an.' : 'Alle Autos fahren langsam in die Boxengasse und stellen sich an. Freier Reifenwechsel. Nur bei großer Gefahr, z. B. beschädigter Barriere.'}</p>
           <button class="ctl-btn ctl-red" data-action="red-on" ${running ? '' : 'disabled'}>Rote Flagge zeigen</button>`;
       } else if (n.phase === 'stopping') {
         const racing = race.cars.filter(c => !c.retired && !c.finished).length;
         const q = race.cars.filter(c => c.redQueued).length;
         html = `<div class="ctl-status">Rote Flagge seit ${since} – ${q}/${racing} Autos in der Boxengasse</div>`;
+      } else if (n.phase === 'stopped' && race.isSession) {
+        const ok = canRestart(race);
+        html = `<div class="ctl-status">Session unterbrochen seit ${since} – die Uhr steht (noch ${Math.ceil(race.remaining / 60)} Min.)</div>
+          <button class="ctl-btn ctl-green" data-action="session-resume" ${ok ? '' : 'disabled'}>Session fortsetzen</button>
+          ${ok ? '' : '<p class="ctl-small">Fortsetzen erst möglich, wenn die Strecke geräumt ist.</p>'}`;
       } else if (n.phase === 'stopped') {
         const ok = canRestart(race);
         html = `<div class="ctl-status">Rennen unterbrochen seit ${since}</div>

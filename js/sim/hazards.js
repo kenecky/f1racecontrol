@@ -97,6 +97,8 @@ export function checkPendingIncident(race, car, prev) {
 }
 
 export function createHazard(race, props) {
+  // In Training/Qualifying gibt es kein SC/VSC – dort ist Rot die passende Maßnahme
+  if (race.isSession && (props.need === 'vsc' || props.need === 'sc')) props = { ...props, need: 'red' };
   const h = {
     id: ++race.hazardSeq,
     start: race.time,

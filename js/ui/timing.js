@@ -20,6 +20,13 @@ export function tyreBadge(compound, age) {
   return `<span class="tyre tyre-${c.id}" title="${c.name}">${c.id}</span><span class="tyre-age">${age}</span>`;
 }
 
+// Qualifying: Autos in der Ausscheidungszone hervorheben
+function danger(race, car, i) {
+  if (!race.isSession || race.phase !== 'running' || race.segState !== 'run') return false;
+  const keep = race.segment.keep;
+  return keep && car.elimSeg === null && i >= keep;
+}
+
 export function renderTiming(el, race, { gapMode, selected }) {
   const st = race.standings();
   const leader = st[0];
@@ -27,12 +34,18 @@ export function renderTiming(el, race, { gapMode, selected }) {
   const rows = st.map((car, i) => {
     const pos = i + 1;
     let gapText;
-    if (!started) gapText = `Startplatz ${car.gridPos}`;
+    if (race.isSession) {
+      // Training/Qualifying: Bestzeit des Ersten, sonst Rückstand
+      const t = race.rankTime(car);
+      if (!started || t === null) gapText = '–';
+      else if (i === 0) gapText = formatLap(t);
+      else gapText = formatGap(race.gap(car, gapMode === 'interval' ? st[i - 1] : leader), false);
+    } else if (!started) gapText = `Startplatz ${car.gridPos}`;
     else if (car.retired) gapText = car.dsq ? 'DSQ' : 'Ausfall';
     else if (gapMode === 'interval') gapText = i === 0 ? (car.finished ? '🏁' : 'Intervall') : formatGap(race.gap(car, st[i - 1]), false);
     else gapText = i === 0 ? (car.finished ? '🏁' : 'Führung') : formatGap(race.gap(car, leader), false);
 
-    const delta = car.gridPos - pos;
+    const delta = race.isSession ? 0 : car.gridPos - pos;
     const deltaHtml = !started || delta === 0 ? '<span class="delta"></span>'
       : `<span class="delta ${delta > 0 ? 'up' : 'down'}">${delta > 0 ? '▲' : '▼'}${Math.abs(delta)}</span>`;
 
@@ -43,6 +56,11 @@ export function renderTiming(el, race, { gapMode, selected }) {
     else if (car.finished) status = '<span class="badge badge-fin">🏁</span>';
     else if (car.redQueued) status = '<span class="badge badge-red">ROT</span>';
     else if (car.unlap) status = '<span class="badge badge-unlap">+1 RD</span>';
+    else if (race.isSession && car.elimSeg !== null && car.elimSeg !== undefined) status = `<span class="badge badge-elim">${race.info.segments[car.elimSeg].id}</span>`;
+    else if (race.isSession && car.inGarage) status = '<span class="badge badge-garage">BOX</span>';
+    else if (race.isSession && car.prog && car.prog.phase === 'push') status = '<span class="badge badge-push">⏱</span>';
+    else if (race.isSession && car.prog && car.prog.phase === 'out') status = '<span class="badge badge-pit">OUT</span>';
+    else if (race.isSession && car.prog && car.prog.phase === 'cool') status = '<span class="badge badge-pit">IN</span>';
     else if (car.stopTimer > 0) status = '<span class="badge badge-pit">STOPP</span>';
     else if (car.inPit) status = '<span class="badge badge-pit">BOX</span>';
 
@@ -64,7 +82,7 @@ export function renderTiming(el, race, { gapMode, selected }) {
       + (car.giveBack ? '<span class="pen">↩</span>' : '');
 
     return `
-      <div class="row${sel ? ' selected' : ''}${car.retired ? ' retired' : ''}" data-id="${car.id}">
+      <div class="row${sel ? ' selected' : ''}${car.retired ? ' retired' : ''}${danger(race, car, i) ? ' danger' : ''}" data-id="${car.id}">
         <span class="pos">${pos}</span>
         <span class="teambar" style="background:${car.team.color}"></span>
         <span class="code">${car.id}${fl}${penHtml}</span>

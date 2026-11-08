@@ -4,8 +4,10 @@ import { DRIVERS } from './data/drivers.js';
 import { TRACKS } from './data/tracks/index.js';
 import { SEASON_2026 } from './data/season2026.js';
 import {
-  newSeason, currentRound, raceSetup, applyRace, driverStandings, teamStandings, BAN_POINTS,
+  newSeason, migrateSeason, currentRound, currentWeekend, sessionSetup, finishSession, roundDate,
+  activePoints, driverStandings, teamStandings, BAN_POINTS, KIND_NAME, KIND_SHORT, SPRINT_TRACKS,
 } from './season/season.js';
+import { Session } from './sim/session.js';
 import { buildTrack } from './sim/trackModel.js';
 import { Race, DT, formatLap } from './sim/race.js';
 import { randomSeed } from './util/rng.js';
@@ -69,7 +71,8 @@ const controlPanel = new ControlPanel({
       'sc-on': () => deploySC(race),
       'sc-unlap': () => allowUnlap(race),
       'sc-in': () => scInThisLap(race),
-      'red-on': () => redFlag(race),
+      'red-on': () => (race.isSession ? race.sessionRedFlag() : redFlag(race)),
+      'session-resume': () => race.sessionResume(),
       'restart-sc': () => restartRace(race, 'sc'),
       'restart-standing': () => restartRace(race, 'standing'),
     };
@@ -118,25 +121,37 @@ map.onZoomChange = z => $('zoomResetBtn').classList.toggle('hidden', z <= 1.01);
 
 // ---------- Rennen ----------
 
+function getSeason() {
+  return migrateSeason(loadSeason());
+}
+
 function newRace(seed = randomSeed()) {
-  let gridPenalties = {}, drivers = DRIVERS, roundNo = null;
+  let gridPenalties = {}, drivers = DRIVERS, roundNo = null, gridOrder = null, laps = null;
+  let kind = settings.singleKind || 'race';
   if (settings.mode === 'season') {
-    season = loadSeason();
-    if (!season) { season = newSeason(); saveSeason(season); }
+    season = getSeason();
+    if (!season) season = newSeason();
     const entry = currentRound(season);
     if (entry) {
+      currentWeekend(season);
+      const setup = sessionSetup(season);
       track = getTrack(entry.track);
-      const setup = raceSetup(season);
+      kind = setup.kind;
       gridPenalties = setup.gridPenalties;
+      gridOrder = setup.gridOrder;
+      laps = setup.laps;
       drivers = DRIVERS.filter(d => !setup.excluded.includes(d.id));
       roundNo = season.round;
     }
+    saveSeason(season);
   } else {
     track = getTrack(settings.trackId);
+    if (kind === 'sprint') laps = Math.ceil(100000 / track.def.lengthM);
   }
   map.setTrack(track);
-  race = new Race({ track, teams: TEAMS, drivers, seed, weather: settings.weatherMode, gridPenalties });
-  if (roundNo !== null) race.seasonRound = roundNo;
+  const opts = { track, teams: TEAMS, drivers, seed, weather: settings.weatherMode, gridPenalties, gridOrder, laps, kind };
+  race = ['fp', 'quali', 'sq'].includes(kind) ? new Session(opts) : new Race(opts);
+  if (roundNo !== null) { race.seasonRound = roundNo; race.weekendIdx = season.weekend.idx; }
   renderForecast();
   renderEventCard();
   paused = true;
@@ -172,21 +187,26 @@ function renderEventCard() {
   $('modeSeason').classList.toggle('active', isSeason);
   $('trackLabel').classList.toggle('hidden', isSeason);
   $('seasonBtn').classList.toggle('hidden', !isSeason);
+  $('kindLabel').classList.toggle('hidden', isSeason);
   const entry = isSeason && season ? currentRound(season) : null;
+  const wk = entry ? season.weekend : null;
   if (isSeason && !entry) {
-    $('evRound').textContent = 'Saison 2026 beendet';
-    $('evGp').textContent = 'Alle 24 Rennen gefahren';
+    $('evRound').textContent = `Saison ${season.year} beendet`;
+    $('evGp').textContent = 'Alle Rennen gefahren';
     $('evTrack').textContent = 'Öffne die Saison-Übersicht für die Endwertung.';
+    $('weekendSteps').innerHTML = '';
     $('startBtn').disabled = true;
   } else {
     $('evRound').textContent = entry
-      ? `Saison 2026 · Rennen ${entry.round}/${SEASON_2026.length} · ${new Date(entry.date).toLocaleDateString('de-DE')}`
-      : 'Einzelrennen';
+      ? `Saison ${season.year} · Rennen ${entry.round}/${SEASON_2026.length} · ${new Date(roundDate(season, entry)).toLocaleDateString('de-DE')}`
+      : `Einzelrennen · ${KIND_NAME[race.kind]}`;
     $('evGp').textContent = def.grandPrix;
     $('evTrack').textContent = `${def.name} · ${def.country}`;
+    $('weekendSteps').innerHTML = wk ? wk.sessions.map((k, i) => `<span class="wstep${i < wk.idx ? ' done' : i === wk.idx ? ' now' : ''}">${i < wk.idx ? '✓ ' : ''}${KIND_SHORT[k]}</span>`).join('<span class="wsep">›</span>') : '';
     $('startBtn').disabled = false;
   }
-  $('evLaps').textContent = def.laps;
+  if (!savedRace) $('startBtn').textContent = `${KIND_NAME[race.kind]} starten`;
+  $('evLaps').textContent = race.isSession ? '–' : race.laps;
   $('evKm').textContent = (def.lengthM / 1000).toFixed(3).replace('.', ',');
   $('evDrivers').textContent = race ? race.cars.length : 22;
 }
@@ -210,7 +230,9 @@ function fillTrackSelect() {
 
 let seasonTab = 'drivers';
 function showSeason(notes = []) {
-  season = loadSeason() || newSeason();
+  season = getSeason() || newSeason();
+  $('seasonScreen').querySelector('.sheet-title').textContent = `🏆 Saison ${season.year}`;
+  $('seasonResetBtn').textContent = currentRound(season) ? 'Saison neu starten' : `Neue Saison ${season.year + 1}`;
   $('seasonNotes').innerHTML = notes.map(n => `<div class="season-note">${n}</div>`).join('');
   renderSeasonTab();
   $('seasonScreen').classList.remove('hidden');
@@ -235,21 +257,35 @@ function renderSeasonTab() {
       const res = season.results.find(r => r.round === e.round);
       const winner = res && res.classification.find(c => c.pos === 1);
       const right = res ? `🏁 ${winner ? winner.id : '–'}${res.stars ? ` · ${'★'.repeat(res.stars)}` : ''}` : i === season.round ? '▶ als Nächstes' : '';
+      const sprint = SPRINT_TRACKS.includes(e.track) ? ' · Sprint' : '';
       return `<div class="cal-row${i === season.round ? ' next' : ''}"><span>${e.round}</span>
-        <span>${t.grandPrix}<div class="sub">${t.name} · ${new Date(e.date).toLocaleDateString('de-DE')}</div></span><span>${right}</span></div>`;
+        <span>${t.grandPrix}<div class="sub">${t.name} · ${new Date(roundDate(season, e)).toLocaleDateString('de-DE')}${sprint}</div></span><span>${right}</span></div>`;
     }).join('');
   } else {
-    const ids = DRIVERS.map(d => d.id).filter(id => season.penaltyPoints[id] || season.warnings[id] || season.gridPenalties[id] || season.bans[id] !== undefined);
-    el.innerHTML = `<p class="ctl-small">${BAN_POINTS} Strafpunkte → Sperre für ein Rennen · 5 Verwarnungen → 10 Startplätze Strafe</p>`
+    const entryNow = currentRound(season) || SEASON_2026[SEASON_2026.length - 1];
+    const ref = roundDate(season, entryNow);
+    const pts = id => activePoints(season, id, ref);
+    const ids = DRIVERS.map(d => d.id).filter(id => pts(id) || season.warnings[id] || season.gridPenalties[id] || season.bans[id] !== undefined);
+    el.innerHTML = `<p class="ctl-small">${BAN_POINTS} Strafpunkte innerhalb von 12 Monaten → Sperre für ein Rennwochenende · 5 Verwarnungen → 10 Startplätze Strafe</p>`
       + (ids.length ? ids.map(id => {
         const parts = [];
-        if (season.penaltyPoints[id]) parts.push(`${season.penaltyPoints[id]} Strafpunkte`);
+        if (pts(id)) parts.push(`${pts(id)} Strafpunkte (12 Monate)`);
         if (season.warnings[id]) parts.push(`${season.warnings[id]} Verwarnung${season.warnings[id] > 1 ? 'en' : ''}`);
         if (season.gridPenalties[id]) parts.push(`nächstes Rennen −${season.gridPenalties[id]} Startplätze`);
         if (season.bans[id] !== undefined && season.bans[id] >= season.round) parts.push(`gesperrt für Rennen ${season.bans[id] + 1}`);
         return `<div class="srow"><span></span><span class="teambar" style="background:${teamOf(id).color}"></span><span>${id}<div class="sub">${parts.join(' · ')}</div></span><b></b></div>`;
       }).join('') : '<p class="ctl-text">Noch keine Strafen in dieser Saison.</p>');
   }
+}
+
+// Zeit/Abstand in der Ergebnisliste von Training und Qualifying
+function sessionTime(c, i, first) {
+  const t = race.rankTime(c);
+  if (t === null) return c.retired ? 'DNF' : 'keine Zeit';
+  if (i === 0) return formatLap(t);
+  const ref = race.rankTime(first);
+  const seg = c.elimSeg !== null && c.elimSeg !== undefined ? ` (${race.info.segments[c.elimSeg].id})` : '';
+  return seg ? `${formatLap(t)}${seg}` : `+${(t - ref).toFixed(3).replace('.', ',')}`;
 }
 
 function renderForecast() {
@@ -298,7 +334,7 @@ function renderResume() {
   const open = openCases(r).length;
   const label = r.phase === 'finished'
     ? `Zum Rennergebnis${open ? ` – ${open} Entscheidung${open > 1 ? 'en' : ''} offen` : ''}`
-    : `Rennen fortsetzen – Runde ${r.leaderLap}/${r.laps}`;
+    : r.isSession ? `${r.info.name} fortsetzen` : `${r.kind === 'sprint' ? 'Sprint' : 'Rennen'} fortsetzen – Runde ${r.leaderLap}/${r.laps}`;
   box.innerHTML = `<button id="resumeBtn" class="primary-btn resume-btn">▶ ${label}</button>
     <div class="resume-info">Rennen #${r.seed} · gespeichert auf diesem Gerät</div>`;
   $('startBtn').textContent = 'Neues Rennen starten';
@@ -442,7 +478,10 @@ function refreshUi() {
   if (race.cases.length > seenCases) {
     const c = race.cases[race.cases.length - 1];
     seenCases = race.cases.length;
-    if (activeTab !== 'cases') toast(`Neue Entscheidung #${c.id}: ${c.typeName}`);
+    if (settings.slowOnIncident && settings.speed > 1) {
+      setSpeed(1);
+      toast(`Neue Entscheidung #${c.id}: ${c.typeName} – Tempo auf 1×`);
+    } else if (activeTab !== 'cases') toast(`Neue Entscheidung #${c.id}: ${c.typeName}`);
   }
   if (!touching) {
     renderTiming($('timing'), race, timingOpts());
@@ -452,8 +491,17 @@ function refreshUi() {
 
 function updateStatus() {
   const lapEl = $('lap');
-  if (race.phase === 'pre' || race.phase === 'lights') lapEl.textContent = `Start · ${race.laps} Rd`;
-  else lapEl.textContent = `${race.leaderLap}/${race.laps}`;
+  if (race.isSession) {
+    $('lapLabel').textContent = race.info.name;
+    const rem = race.segState === 'break' ? race.breakLeft : race.remaining;
+    const mm = `${Math.floor(rem / 60)}:${String(Math.floor(rem % 60)).padStart(2, '0')}`;
+    lapEl.textContent = race.phase === 'pre' ? 'Start' : race.phase === 'finished' ? 'Ende'
+      : race.segState === 'break' ? `Pause ${mm}` : `${race.segment.id} · ${mm}`;
+  } else {
+    $('lapLabel').textContent = race.kind === 'sprint' ? 'Sprint · Runde' : 'Runde';
+    if (race.phase === 'pre' || race.phase === 'lights') lapEl.textContent = `Start · ${race.laps} Rd`;
+    else lapEl.textContent = `${race.leaderLap}/${race.laps}`;
+  }
   const running = race.phase === 'running' || race.phase === 'chequered' || race.phase === 'finished';
   $('clock').textContent = formatClock(running ? race.time : 0);
   const wl = weatherLabel(race.weather);
@@ -614,8 +662,8 @@ function showResults() {
     <tr>
       <td class="r-pos">${c.retired ? '–' : i + 1}</td>
       <td><span class="teambar" style="background:${c.team.color}"></span>${c.driver.first[0]}. ${c.driver.last}${unservedSecs(c) ? `<span class="pen">+${unservedSecs(c)} s</span>` : ''}</td>
-      <td class="r-gap">${c.dsq ? 'DSQ' : c.retired ? 'DNF' : i === 0 ? formatClock(race.adjustedFinish(c)) : formatGap(race.gap(c, winner), false)}</td>
-      <td class="r-stops">${c.stops}</td>
+      <td class="r-gap">${race.isSession ? sessionTime(c, i, winner) : c.dsq ? 'DSQ' : c.retired ? 'DNF' : i === 0 ? formatClock(race.adjustedFinish(c)) : formatGap(race.gap(c, winner), false)}</td>
+      <td class="r-stops">${race.isSession ? c.sLaps.length : c.stops}</td>
     </tr>`).join('');
   const fl = race.fastest ? `${race.carById[race.fastest.carId].driver.last} – ${formatLap(race.fastest.time)} (Runde ${race.fastest.lap})` : '–';
   const overtakes = race.events.filter(e => e.type === 'overtake').length;
@@ -664,14 +712,19 @@ function showResults() {
   const parts = [];
   if (hearings) parts.push(`${hearings} ${hearings > 1 ? 'Anhörungen' : 'Anhörung'}`);
   if (open - hearings > 0) parts.push(`${open - hearings} ${open - hearings > 1 ? 'Entscheidungen' : 'Entscheidung'}`);
-  $('resultTitle').textContent = open ? `⏳ Vorläufiges Ergebnis – ${parts.join(' und ')} offen` : '🏁 Rennergebnis';
+  const what = race.isSession ? race.info.name : race.kind === 'sprint' ? 'Sprint' : 'Rennen';
+  $('resultTitle').textContent = open ? `⏳ Vorläufiges Ergebnis – ${parts.join(' und ')} offen` : `🏁 Ergebnis ${what}`;
   $('openCasesBtn').classList.toggle('hidden', open === 0);
   const sBtn = $('applySeasonBtn');
-  const seasonNow = loadSeason();
-  const canApply = race.seasonRound !== undefined && !race.seasonApplied && seasonNow && seasonNow.round === race.seasonRound;
+  const seasonNow = getSeason();
+  const wkNow = seasonNow && seasonNow.weekend;
+  const canApply = race.seasonRound !== undefined && !race.seasonApplied && seasonNow && seasonNow.round === race.seasonRound
+    && wkNow && wkNow.idx === race.weekendIdx;
   sBtn.classList.toggle('hidden', !canApply);
   sBtn.disabled = open > 0;
-  sBtn.textContent = open > 0 ? 'Erst alle Entscheidungen treffen' : 'In die Saison übernehmen';
+  const nextKind = wkNow ? wkNow.sessions[wkNow.idx + 1] : null;
+  sBtn.textContent = open > 0 ? 'Erst alle Entscheidungen treffen'
+    : race.kind === 'race' ? 'In die Saison übernehmen' : `Weiter: ${KIND_NAME[nextKind] || 'Rennen'}`;
   // Gesamtbewertung
   const rating = rateRace(race);
   const stars = '★'.repeat(rating.stars) + '☆'.repeat(5 - rating.stars);
@@ -697,7 +750,7 @@ function showResults() {
       <div class="axes">${bars}</div>
     </div>
     ${voices ? `<div class="report"><h3>Stimmen zum Rennen</h3><div class="voices">${voices}</div></div>` : ''}`;
-  saveHistoryEntry({
+  if (race.kind === 'race') saveHistoryEntry({
     key: `${race.seed}-${race.startedAt}`,
     date: new Date().toISOString(),
     gp: race.track.def.grandPrix,
@@ -718,12 +771,12 @@ function showResults() {
     ${ratingHtml}
     <h3 class="section-title">Ergebnis</h3>
     <table class="results">
-      <thead><tr><th>Pos</th><th>Fahrer</th><th>Zeit/Abstand</th><th>Stopps</th></tr></thead>
+      <thead><tr><th>Pos</th><th>Fahrer</th><th>Zeit/Abstand</th><th>${race.isSession ? 'Runden' : 'Stopps'}</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <div class="result-facts">
-      <div><span>Schnellste Runde</span>${fl}</div>
-      <div><span>Überholmanöver</span>${overtakes}</div>
+      ${race.isSession ? '' : `<div><span>Schnellste Runde</span>${fl}</div>`}
+      ${race.isSession ? '' : `<div><span>Überholmanöver</span>${overtakes}</div>`}
     </div>
     <details class="report-details" open>
       <summary>Details zur Bewertung</summary>
@@ -812,7 +865,7 @@ $('labelsBtn').addEventListener('click', () => {
 $('zoomResetBtn').addEventListener('click', () => map.resetView());
 
 // Ranking-Tower
-const TOWER_PAD = 142;
+const TOWER_PAD = 164;
 function applyTower() {
   $('tower').classList.toggle('hidden', !settings.showTower);
   $('towerBtn').classList.toggle('active', settings.showTower);
@@ -960,27 +1013,45 @@ $('trackSel').addEventListener('change', e => {
   saveSettings(settings);
   newRace();
 });
+$('kindSel').addEventListener('change', e => {
+  settings.singleKind = e.target.value;
+  saveSettings(settings);
+  newRace();
+});
 $('seasonBtn').addEventListener('click', () => showSeason());
 $('seasonCloseBtn').addEventListener('click', () => $('seasonScreen').classList.add('hidden'));
 document.querySelectorAll('.stab').forEach(b => b.addEventListener('click', () => { seasonTab = b.dataset.stab; renderSeasonTab(); }));
 $('seasonResetBtn').addEventListener('click', () => {
-  if (!confirm('Die Saison 2026 komplett neu beginnen? Alle Punkte und Strafen werden gelöscht.')) return;
-  saveSeason(newSeason());
+  const cur = getSeason();
+  const finished = cur && !currentRound(cur);
+  if (finished) {
+    if (!confirm(`Neue Saison ${cur.year + 1} starten? Strafpunkte gelten wie in echt 12 Monate weiter.`)) return;
+    saveSeason(newSeason(cur));
+  } else {
+    if (!confirm('Die Saison komplett neu beginnen? Alle Punkte und Strafen werden gelöscht.')) return;
+    saveSeason(newSeason());
+  }
   newRace();
   showSeason();
 });
 $('applySeasonBtn').addEventListener('click', () => {
-  season = loadSeason() || newSeason();
-  if (race.seasonApplied || race.seasonRound !== season.round || openCases(race).length) return;
-  const notes = applyRace(season, race, rateRace(race));
+  season = getSeason();
+  if (!season || race.seasonApplied || race.seasonRound !== season.round || openCases(race).length) return;
+  if (!season.weekend || season.weekend.idx !== race.weekendIdx) return;
+  const wasRace = race.kind === 'race';
+  const notes = finishSession(season, race, rateRace(race));
   race.seasonApplied = true;
   saveSeason(season);
   clearRaceState();
   savedRace = null;
   $('resultScreen').classList.add('hidden');
   newRace();
-  seasonTab = 'drivers';
-  showSeason(notes);
+  if (wasRace) {
+    seasonTab = 'drivers';
+    showSeason(notes);
+  } else if (notes.length) {
+    showSeason(notes);
+  }
 });
 $('statsCloseBtn').addEventListener('click', () => $('statsScreen').classList.add('hidden'));
 $('statsResetBtn').addEventListener('click', () => {
@@ -1009,6 +1080,7 @@ document.addEventListener('touchmove', e => {
 $('speedBtn').textContent = `${settings.speed}×`;
 $('weatherSel').value = settings.weatherMode;
 fillTrackSelect();
+$('kindSel').value = settings.singleKind || 'race';
 $('startSel').value = settings.startMode;
 appEl.classList.toggle('collapsed', settings.panelCollapsed);
 applyTower();

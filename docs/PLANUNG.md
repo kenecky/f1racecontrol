@@ -291,7 +291,13 @@ docs/
       mit `tools/gen_tracks.py`), Fahrer- und Teamwertung (25-18-15-12-10-8-6-4-2-1),
       Strafpunkte über die Saison (12 → Rennsperre), Verwarnungen (5 → 10 Startplätze),
       Startplatzstrafen fürs nächste Rennen, Einzelrennen auf jeder Strecke
-- [ ] **Training & Qualifying** (in Planung, siehe Abschnitt 13)
+- [x] **Rennwochenende**: Freies Training (20 Min.), Qualifying Q1–Q3 (10/8/7 Min., je 6 scheiden aus),
+      Sprint-Wochenenden (FP, Sprint-Quali SQ1–SQ3, Sprint ~100 km mit Punkten 8–1, Quali, Rennen);
+      Autos aus der Garage mit Aufwärm-/schnellen/Auslaufrunden, Session-Uhr steht bei Rot,
+      Entscheidungen „Rundenzeit streichen“ und „Behinderung“; im Saisonmodus alles Pflicht
+- [x] **Platz zurückgeben ignoriert**: wird zur neuen Entscheidung (Verwarnung bis DSQ)
+- [x] **Strafpunkte wie in echt** (12 Monate gültig, über Saisons hinweg; nach Sperre −12) und
+      nicht abbaubare Startplatzstrafen als Zeitstrafe (1–5 Plätze: 5 s, 6–10: 10 s, mehr: Durchfahrt)
 - [ ] **Später**: Wetter, Track Limits im Detail, Unsafe Release, blaue Flaggen,
       Boxengassen-Speeding, Replay-Animationen, Training/Qualifying, Desktop-Layout
 

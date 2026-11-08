@@ -26,7 +26,7 @@ export class Feed {
     this.lastId = fresh[fresh.length - 1].id;
     const html = fresh.reverse().map(e => `
       <li class="msg msg-${e.type}">
-        <span class="msg-lap">${e.lap ? 'R' + e.lap : '–'}</span>
+        <span class="msg-lap">${e.seg ? e.seg : e.lap ? 'R' + e.lap : '–'}</span>
         <span class="msg-icon">${ICONS[e.type] || '•'}</span>
         <span class="msg-text">${escapeHtml(e.text)}</span>
       </li>`).join('');
