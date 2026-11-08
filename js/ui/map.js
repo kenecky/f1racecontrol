@@ -1,20 +1,11 @@
 // Streckenkarte (Canvas): Strecke, Boxengasse, Marshal-Sektoren, Flaggen,
 // Gefahrenstellen, Autos. Zoom (Zwei-Finger / Mausrad) und Verschieben nur hier.
 import { pointAt, wrapD, sectorIndexAt } from '../sim/trackModel.js';
+import { drawTrackArt } from './trackArt.js';
 
 const PIT_OFFSET_PX = 9;
 const MAX_ZOOM = 6;
 const FLAG_COLORS = { yellow: '#ffd12e', double: '#ffd12e' };
-const COLORS = {
-  grass: '#1d3b25',
-  grassLight: '#24482d',
-  gravel: '#a38d5d',
-  runoff: '#4b525d',
-  pitLane: '#3c424c',
-  building: '#5d6574',
-  edge: 'rgba(255,255,255,0.8)',
-  asphalt: '#2c3038',
-};
 
 export class TrackMap {
   constructor(canvas, track) {
@@ -235,117 +226,10 @@ export class TrackMap {
   }
 
   drawBackground() {
-    const tr = this.track;
     const ctx = this.bg.getContext('2d');
-    const ws = this.widthScale();
-    const pxPerM = this.scale * this.zoom / tr.mPerUnit;
-    const trackW = 8 * ws;                       // Asphaltbreite in px (überzeichnet)
-    const half = trackW / 2;
-    const mToPx = m => Math.max(3, m * pxPerM * 2.2); // Auslaufzonen leicht überzeichnet
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, this.w, this.h);
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    // 1) Gras: Innenfeld + Grünstreifen rund um die Strecke
-    this.tracePath(ctx, 0, tr.L);
-    ctx.closePath();
-    ctx.fillStyle = COLORS.grass;
-    ctx.fill();
-    ctx.strokeStyle = COLORS.grass;
-    ctx.lineWidth = 46 * ws;
-    ctx.stroke();
-    ctx.strokeStyle = COLORS.grassLight;
-    ctx.lineWidth = 22 * ws;
-    ctx.stroke();
-
-    // 2) Auslaufzonen (Asphalt zuerst, Kies darüber/dahinter)
-    for (const type of ['asphalt', 'gravel']) {
-      for (const r of tr.runoffs) {
-        if (r.type !== type) continue;
-        const w = mToPx(r.width);
-        const lat = r.side * (half + mToPx(r.offset) * (r.offset ? 1 : 0) + w / 2);
-        this.tracePath(ctx, r.from, r.to, lat);
-        ctx.strokeStyle = type === 'gravel' ? COLORS.gravel : COLORS.runoff;
-        ctx.lineWidth = w;
-        ctx.stroke();
-      }
-    }
-
-    // 3) Boxengasse und Boxengebäude
-    const pitLat = tr.pit.side * PIT_OFFSET_PX * ws;
-    this.tracePath(ctx, tr.pit.entry, tr.pit.exit + tr.L, pitLat);
-    ctx.strokeStyle = COLORS.pitLane;
-    ctx.lineWidth = 4.5 * ws;
-    ctx.stroke();
-    this.tracePath(ctx, tr.L - 260, tr.L + 260, tr.pit.side * (PIT_OFFSET_PX + 6) * ws);
-    ctx.strokeStyle = COLORS.building;
-    ctx.lineWidth = 6 * ws;
-    ctx.lineCap = 'butt';
-    ctx.stroke();
-    ctx.lineCap = 'round';
-
-    // 4) Strecke: weiße Begrenzung, Asphalt
-    this.tracePath(ctx, 0, tr.L);
-    ctx.closePath();
-    ctx.strokeStyle = COLORS.edge;
-    ctx.lineWidth = trackW + 2;
-    ctx.stroke();
-    ctx.strokeStyle = COLORS.asphalt;
-    ctx.lineWidth = trackW;
-    ctx.stroke();
-
-    // 5) Randsteine rot-weiß
-    ctx.lineCap = 'butt';
-    for (const k of tr.kerbs) {
-      const lat = k.side * (half + 0.2);
-      this.tracePath(ctx, k.from, k.to, lat);
-      ctx.strokeStyle = '#f2f2f2';
-      ctx.lineWidth = 2.6 * ws;
-      ctx.setLineDash([]);
-      ctx.stroke();
-      ctx.strokeStyle = '#d7262b';
-      ctx.setLineDash([3 * ws, 3 * ws]);
-      ctx.stroke();
-    }
-    ctx.setLineDash([]);
-
-    // 6) Sektorgrenzen (kleine Striche)
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-    ctx.lineWidth = 1.2;
-    for (const sec of tr.sectors) {
-      if (sec.start === 0) continue;
-      const [ax, ay] = this.pos(sec.start, -half - 3);
-      const [bx, by] = this.pos(sec.start, half + 3);
-      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
-    }
-
-    // 7) Start/Ziel kariert
-    const cells = 4;
-    for (let i = 0; i < cells; i++) {
-      for (let j = 0; j < 2; j++) {
-        const l0 = -half + (trackW / cells) * i, l1 = l0 + trackW / cells;
-        const d0 = j * 4 / pxPerM, d1 = (j + 1) * 4 / pxPerM;
-        const p = [this.pos(d0, l0), this.pos(d0, l1), this.pos(d1, l1), this.pos(d1, l0)];
-        ctx.beginPath();
-        p.forEach(([x, y], n) => (n ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-        ctx.closePath();
-        ctx.fillStyle = (i + j) % 2 ? '#111' : '#fff';
-        ctx.fill();
-      }
-    }
-
-    // 8) Kurvennummern (außen)
-    ctx.font = '700 10px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    for (const c of tr.corners) {
-      const [x, y] = this.pos(c.d, -c.turn * (half + 16 * ws));
-      ctx.fillStyle = 'rgba(11,15,23,0.75)';
-      ctx.beginPath(); ctx.arc(x, y, 7.5, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#c9d1de';
-      ctx.fillText(c.id.replace('T', ''), x, y + 0.5);
-    }
+    drawTrackArt(this, ctx, { pitOffsetPx: PIT_OFFSET_PX });
     this.bgDirty = false;
   }
 
@@ -414,7 +298,7 @@ export class TrackMap {
   drawHazards(ctx, race) {
     const t = performance.now() / 1000;
     for (const h of race.hazards) {
-      if (h.ended) continue;
+      if (h.ended || h.global) continue;
       const [x, y] = this.pos(h.d, 0);
       const s = 9 + Math.sin(t * 5) * 1.2;
       const ty = y - 14;
@@ -466,6 +350,7 @@ export class TrackMap {
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this.drawSectorOverlay(ctx, race);
     if (!race) return;
+    this.drawWeather(ctx, race);
     this.drawNeutral(ctx, race);
 
     // Liegengebliebene Autos
@@ -516,6 +401,37 @@ export class TrackMap {
       }
     }
     this.drawSafetyCar(ctx, race);
+  }
+
+  // Nasse Strecke (Glanz) und Regen
+  drawWeather(ctx, race) {
+    const wx = race.weather;
+    if (!wx || (wx.wetness < 0.05 && wx.rain < 0.03)) return;
+    const ws = this.widthScale();
+    if (wx.wetness >= 0.05) {
+      this.tracePath(ctx, 0, this.track.L);
+      ctx.closePath();
+      ctx.strokeStyle = `rgba(120, 165, 225, ${0.28 * wx.wetness})`;
+      ctx.lineWidth = 7 * ws;
+      ctx.lineCap = 'butt';
+      ctx.stroke();
+    }
+    if (wx.rain >= 0.03) {
+      const n = Math.round(160 * wx.rain);
+      const t = this.anim;
+      ctx.strokeStyle = `rgba(190, 210, 240, ${0.18 + 0.25 * wx.rain})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let i = 0; i < n; i++) {
+        const sx = (i * 137.5) % this.w;
+        const speed = 220 + (i % 7) * 30;
+        const y = ((i * 89.3) + t * speed) % (this.h + 20) - 10;
+        const x = (sx + y * 0.25) % this.w;
+        ctx.moveTo(x, y);
+        ctx.lineTo(x - 2.5, y - 9);
+      }
+      ctx.stroke();
+    }
   }
 
   // VSC / SC: gelb gestrichelte Strecke, Rot: rote Strecke

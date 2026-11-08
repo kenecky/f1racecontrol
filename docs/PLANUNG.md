@@ -277,8 +277,12 @@ docs/
       Zoom wird beim Ein-/Ausklappen zurückgesetzt; keine Team-Beschwerden gegen eigene Fahrer
 - [x] **Anhörungen**: „Nach dem Rennen“ verschobene Entscheidungen zählen erst nach der Anhörung
       (Schilderungen der Fahrer + zusätzliche Onboard-/Teamdaten); Tab heißt „Entscheidungen“
-- [ ] **Wetter / Regenrennen**: Regen (leicht/stark), Intermediates/Regenreifen, Aquaplaning,
-      mehr Dreher und Massenunfälle, Rennstart hinter SC, rote Flagge bei zu viel Wasser
+- [x] **Wetter / Regenrennen**: Wetter Zufällig/Trocken/Regen/Wechselhaft, Streckennässe,
+      Intermediates/Regenreifen mit Wechselstrategie der Teams, mehr Dreher/Unfälle/Massenunfälle
+      bei Nässe, Wetterdienst-Meldungen, „zu viel Wasser“ (SC bzw. Rot), Start hinter dem SC,
+      Regen und nasse Strecke auf der Karte
+- [x] **Streckengrafik**: Luftbild-Stil mit Texturen, Auslaufzonen mit verjüngten Enden,
+      Leitplanken/Reifenstapel, feine Randsteine, Boxenmauer und Garagen
 - [x] **M6 – Speichern/Laden**: laufendes Rennen wird automatisch gespeichert (IndexedDB,
       alle 10 s, bei Pause und beim Verlassen der App) und lässt sich exakt fortsetzen – auch nach
       Rennende für offene Entscheidungen/Anhörungen; Statistik über alle Rennen (bis 100)

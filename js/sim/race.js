@@ -12,18 +12,19 @@ import {
 } from './incidents.js';
 import { unservedSecs } from '../control/stewards.js';
 import {
-  neutralSpeedFactor, passingBanned, moveSafetyCar, afterMove, onLineCrossed,
+  neutralSpeedFactor, passingBanned, moveSafetyCar, afterMove, onLineCrossed, startBehindSC,
   pitDecision, enterPitUnderRed, arriveInQueue, trackNeutralUse,
 } from './neutral.js';
 
 export const DT = 0.05;          // Simulationsschritt in Sekunden
 const MS_LEN = 100;              // Mini-Sektor-Länge (m) für Abstandsberechnung
 
-import { COMPOUNDS } from './tyres.js';
+import { COMPOUNDS, wetLoss, bestCompound } from './tyres.js';
+import { createWeather, updateWeather } from './weather.js';
 export { COMPOUNDS };
 
 export class Race {
-  constructor({ track, teams, drivers, seed }) {
+  constructor({ track, teams, drivers, seed, weather = 'dry' }) {
     this.track = track;
     this.seed = seed;
     this.rng = createRng(seed);
@@ -48,7 +49,7 @@ export class Race {
     this.sc = null;           // Safety Car auf der Strecke
     this.physGap = new Map();
     this.behindSC = new Set();
-    this.weather = { wet: false };   // Regen folgt in einem späteren Meilenstein
+    this.weather = createWeather(seed, weather, track.laps * track.baseLap * 1.05);
     this.pendingPileup = null;
     this.maxLeaderLap = -1;
     this.cases = [];          // Fälle für die Rennkommissare
@@ -100,6 +101,11 @@ export class Race {
       c.reaction = r.range(0.18, 0.36) + (r.chance(0.08) ? r.range(0.2, 0.5) : 0);
       c.launch = r.range(0.92, 1.06);
       this.planStrategy(c, i);
+      // Nasser Start: alle auf Intermediates bzw. Regenreifen
+      if (this.weather.wetness > 0.2) {
+        c.compound = this.weather.wetness > 0.76 ? 'W' : 'I';
+        c.plan = [];
+      }
       c.usedCompounds.add(c.compound);
       c.lapNoise = this.newLapNoise(c);
     });
@@ -126,11 +132,18 @@ export class Race {
 
   // ---------- Ablauf ----------
 
-  start() {
-    if (this.phase === 'pre') {
-      this.phase = 'lights';
-      this.emit('info', 'Formationsrunde beendet – Autos in der Startaufstellung.');
+  // mode: 'standing' (Startampel) oder 'sc' (Start hinter dem Safety Car)
+  start(mode = 'standing') {
+    if (this.phase !== 'pre') return;
+    if (mode === 'sc') {
+      this.phase = 'running';
+      this.time = 0;
+      this.emit('start', 'Start hinter dem Safety Car – das Rennen ist freigegeben.');
+      startBehindSC(this);
+      return;
     }
+    this.phase = 'lights';
+    this.emit('info', 'Formationsrunde beendet – Autos in der Startaufstellung.');
   }
 
   get lightsOn() {
@@ -158,10 +171,12 @@ export class Race {
     const tr = this.track;
     const progress = Math.min(1, Math.max(0, car.d / (this.laps * tr.L)));
     const C = COMPOUNDS[car.compound];
-    let deg = car.tyreAge * C.deg;
+    const w = this.weather.wetness;
+    let deg = car.tyreAge * C.deg * (C.wet && w < 0.3 ? 3 : 1); // Regenreifen überhitzen auf trockener Strecke
     if (car.tyreAge > C.cliff) deg += (car.tyreAge - C.cliff) * 0.22;
     const dmg = car.damage === 'wing' ? 1.2 : 0;
-    return tr.baseLap + car.basePenalty + C.offset + deg + 2.2 * (1 - progress) + car.lapNoise + dmg;
+    const wet = wetLoss(car.compound, w) + w * (100 - car.driver.wet) * 0.025;
+    return tr.baseLap + car.basePenalty + (C.wet ? 0 : C.offset) + wet + deg + 2.2 * (1 - progress) + car.lapNoise + dmg;
   }
 
   step() {
@@ -276,6 +291,7 @@ export class Race {
     }
 
     afterMove(this, DT);
+    updateWeather(this, DT);
     // Massenunfall: neue Führungsrunde → würfeln, dann an einer Gruppe auslösen
     const leadLap = Math.max(0, ...this.cars.filter(c => !c.retired).map(c => c.lap));
     if (leadLap > this.maxLeaderLap) { this.maxLeaderLap = leadLap; rollPileup(this, leadLap); }
@@ -374,6 +390,21 @@ export class Race {
     }
   }
 
+  // Teams entscheiden je Runde, ob sie wegen der Bedingungen die Reifen wechseln
+  weatherTyreDecision(car) {
+    const wx = this.weather;
+    if (!wx.showers.length || car.weatherStop || car.finished || car.retired) return;
+    const lapsLeft = this.laps - car.lap;
+    if (lapsLeft < 2) return;
+    const w = wx.wetness;
+    const wf = Math.min(1, Math.max(0, w + (wx.rain - w) * 0.6));  // Trend der nächsten Runden
+    const loss = id => wetLoss(id, wf) + (COMPOUNDS[id].wet ? 0 : COMPOUNDS[id].offset);
+    const best = bestCompound(wf, lapsLeft);
+    if (best === car.compound || (!COMPOUNDS[best].wet && !COMPOUNDS[car.compound].wet)) return;
+    if (car.tyreCall === undefined) car.tyreCall = 0.8 + this.rng.next() * 2.6;   // wie mutig das Team ist
+    if (loss(car.compound) - loss(best) > car.tyreCall) car.weatherStop = best;
+  }
+
   onTrackCars() {
     return this.cars.filter(c => !c.retired && !c.finished && !c.inPit && !c.offTrack && !c.redQueued && c.stopTimer <= 0);
   }
@@ -405,6 +436,7 @@ export class Race {
     p -= (A.driver.aggression - 65) / 400;
     if (B.lap === 0) p += 0.12;   // Startrunde: mehr Bewegung im Feld
     p *= zone.factor;
+    p *= 1 - 0.35 * this.weather.wetness;   // Gischt und wenig Grip bei Nässe
     return Math.max(0.02, Math.min(0.85, p));
   }
 
@@ -424,12 +456,19 @@ export class Race {
       const neutralNow = this.neutral && this.neutral.type !== 'red';
       if (decision !== 'red' && car.serve.length && !neutralNow) decision = 'serve';
       else if (decision !== 'red' && car.damage) decision = 'damage';
+      else if (decision !== 'red' && car.weatherStop && car.lap < this.laps - 1) decision = 'weather';
       if (decision === 'serve') {
         car.inPit = true;
         car.pass = null;
         car.unlap = null;
         car.serving = car.serve.shift();
         car.stoppedThisVisit = car.serving.type === 'dt'; // Durchfahrt: kein Halt
+      } else if (decision === 'weather') {
+        car.inPit = true;
+        car.pass = null;
+        car.unlap = null;
+        car.stoppedThisVisit = false;
+        car.weatherPit = true;
       } else if (decision === 'damage') {
         car.inPit = true;
         car.pass = null;
@@ -524,6 +563,7 @@ export class Race {
       } else {
         rollLapIncidents(this, car);
         rollTrackLimits(this, car);
+        this.weatherTyreDecision(car);
       }
     }
   }
@@ -542,6 +582,26 @@ export class Race {
       car.sgStop = false;
       car.serving = null;
       this.emit('rc', `${car.id} hat die Stop-and-Go-Strafe abgesessen.`, { cars: [car.id] });
+      return;
+    }
+    if (car.weatherPit) {
+      // Reifenwechsel wegen Wetter
+      car.weatherPit = false;
+      const from = COMPOUNDS[car.compound].name;
+      car.compound = car.weatherStop;
+      car.weatherStop = null;
+      car.damage = null;
+      car.damageStop = false;
+      car.tyreAge = 0;
+      car.stops++;
+      car.usedCompounds.add(car.compound);
+      car.plan = [];
+      car.planIdx = 0;
+      const C = COMPOUNDS[car.compound];
+      const left = this.laps - car.lap;
+      if (!C.wet && left > C.cliff + 3) car.plan = [{ lap: car.lap + C.cliff - 4, compound: 'H' }];
+      this.emit('pit', `Boxenstopp ${car.id}: ${from} → ${C.name} (${car.lastStopTime.toFixed(1).replace('.', ',')} s)`, { cars: [car.id] });
+      rollUnsafeRelease(this, car);
       return;
     }
     if (car.damageStop) {

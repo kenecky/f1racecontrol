@@ -13,7 +13,8 @@ import { FlagPanel } from './ui/flagPanel.js';
 import { ControlPanel } from './ui/controlPanel.js';
 import { CasesPanel } from './ui/casesPanel.js';
 import { renderTower } from './ui/tower.js';
-import { hazardProgress } from './sim/hazards.js';
+import { hazardProgress, hazardWhere } from './sim/hazards.js';
+import { weatherLabel } from './sim/weather.js';
 import {
   investigate, postpone, noFurtherAction, decide, openCases, stewardReport, unservedSecs, startHearing,
 } from './control/stewards.js';
@@ -108,7 +109,8 @@ map.onZoomChange = z => $('zoomResetBtn').classList.toggle('hidden', z <= 1.01);
 // ---------- Rennen ----------
 
 function newRace(seed = randomSeed()) {
-  race = new Race({ track, teams: TEAMS, drivers: DRIVERS, seed });
+  race = new Race({ track, teams: TEAMS, drivers: DRIVERS, seed, weather: settings.weatherMode });
+  renderForecast();
   paused = true;
   acc = 0;
   resultShown = false;
@@ -131,6 +133,16 @@ function newRace(seed = randomSeed()) {
   $('startScreen').classList.remove('hidden');
   refreshUi();
   updatePauseBtn();
+}
+
+function renderForecast() {
+  const wx = race.weather;
+  const el = $('forecast');
+  let text;
+  if (!wx.showers.length) text = '☀️ Vorhersage: trocken';
+  else if (wx.wetness > 0.2) text = `🌧 Vorhersage: Regen zum Start${wx.showers.length > 1 ? ', später weitere Schauer' : ''}`;
+  else text = '🌦 Vorhersage: wechselhaft – Regenschauer im Rennen möglich';
+  el.textContent = text;
 }
 
 function renderHistory() {
@@ -235,7 +247,7 @@ function startRace() {
   savedRace = null;
   renderResume();
   $('startScreen').classList.add('hidden');
-  race.start();
+  race.start(settings.startMode);
   paused = false;
   updatePauseBtn();
   requestWakeLock();
@@ -325,6 +337,8 @@ function updateStatus() {
   else lapEl.textContent = `${race.leaderLap}/${race.laps}`;
   const running = race.phase === 'running' || race.phase === 'chequered' || race.phase === 'finished';
   $('clock').textContent = formatClock(running ? race.time : 0);
+  const wl = weatherLabel(race.weather);
+  $('wx').textContent = `${wl.icon} ${wl.track}`;
 
   const flag = $('flag');
   const status = trackStatus(race);
@@ -359,12 +373,12 @@ function updateAlert() {
   const open = race.hazards.filter(h => !h.ended && h.adequateAt === null);
   const h = open[open.length - 1];
   if (h) {
-    el.dataset.kind = 'flags';
+    el.dataset.kind = h.global ? 'sc' : 'flags';
     el.dataset.sector = h.sector;
     // orange: es wurde reagiert, aber (noch) nicht ausreichend
     el.className = `alert${h.maxResponse > 0 ? ' alert-double' : ''}`;
     const prog = h.workTotal ? ` · Bergung ${Math.round(hazardProgress(h) * 100)} %` : '';
-    el.innerHTML = `<span class="alert-text">⚠ Sektor ${h.sector + 1}: ${h.desc}${prog}</span><span class="alert-go">Flaggen ›</span>`;
+    el.innerHTML = `<span class="alert-text">⚠ ${hazardWhere(h)}: ${h.desc}${prog}</span><span class="alert-go">${h.global ? 'Maßnahmen' : 'Flaggen'} ›</span>`;
     return;
   }
   const n = race.neutral;
@@ -491,7 +505,7 @@ function showResults() {
   const icon = { ok: '✅', late: '⏱', missed: '❌' };
   const items = rep.items.map(i => `
     <div class="report-item"><span class="v">${icon[i.verdict]}</span>
-      <div>Sektor ${i.h.sector + 1}: ${i.h.desc}<br><span class="n">${i.note}</span></div></div>`).join('');
+      <div>${hazardWhere(i.h)}: ${i.h.desc}<br><span class="n">${i.note}</span></div></div>`).join('');
   const report = `
     <div class="report">
       <h3>Rennleitung · Bilanz</h3>
@@ -805,6 +819,15 @@ $('menuBtn').addEventListener('click', () => {
     newRace();
   }
 });
+$('weatherSel').addEventListener('change', e => {
+  settings.weatherMode = e.target.value;
+  saveSettings(settings);
+  if (race && race.phase === 'pre') newRace(race.seed);
+});
+$('startSel').addEventListener('change', e => {
+  settings.startMode = e.target.value;
+  saveSettings(settings);
+});
 $('statsCloseBtn').addEventListener('click', () => $('statsScreen').classList.add('hidden'));
 $('statsResetBtn').addEventListener('click', () => {
   if (!confirm('Den gesamten Verlauf und die Statistik löschen?')) return;
@@ -830,6 +853,8 @@ document.addEventListener('touchmove', e => {
 // ---------- Start ----------
 
 $('speedBtn').textContent = `${settings.speed}×`;
+$('weatherSel').value = settings.weatherMode;
+$('startSel').value = settings.startMode;
 appEl.classList.toggle('collapsed', settings.panelCollapsed);
 applyTower();
 $('labelsBtn').classList.toggle('active', settings.showLabels);

@@ -3,6 +3,7 @@
 // VSC, Safety Car oder roter Flagge – davon hängt ab, wie schnell geborgen werden kann.
 import { sectorIndexAt, wrapD } from './trackModel.js';
 import { neutralLevel } from './neutral.js';
+import { wetLoss, bestCompound } from './tyres.js';
 
 export const FLAG_FACTOR = { clear: 1, slippery: 0.97, yellow: 0.92, double: 0.8 };
 
@@ -33,6 +34,11 @@ export function responseLevel(race, h) {
   return Math.max(flagLevel(h, race.flags[h.sector]), neutralLevel(race));
 }
 
+// Ort einer Gefahr für Texte
+export function hazardWhere(h) {
+  return h.global ? 'Gesamte Strecke' : `Sektor ${h.sector + 1}`;
+}
+
 export function isYellow(flag) {
   return flag === 'yellow' || flag === 'double';
 }
@@ -57,7 +63,15 @@ export function rollLapIncidents(race, car) {
   const r = race.rng;
   const L = race.track.L;
   const failP = (100 - car.team.reliability) * 0.000038;
-  const spinP = 0.0019 * (car.driver.errors / 28);
+  let spinP = 0.0019 * (car.driver.errors / 28);
+  // Nässe und falsche Reifen erhöhen das Risiko stark
+  const w = race.weather.wetness;
+  if (w > 0.05) {
+    const best = bestCompound(w, race.laps - car.lap);
+    const mismatch = Math.min(3, Math.max(0, (wetLoss(car.compound, w) - wetLoss(best, w)) / 4));
+    spinP *= 1 + 5 * w + 4 * mismatch;
+    spinP *= 1.5 - car.driver.wet / 200;
+  }
   if (r.chance(failP)) {
     car.pendingIncident = { type: 'failure', at: car.lap * L + r.range(150, L - 300) };
   } else if (r.chance(spinP)) {
@@ -76,7 +90,7 @@ export function checkPendingIncident(race, car, prev) {
     if (p.type === 'failure') startFailure(race, car);
     else {
       const corner = cornerNear(race.track, car.d);
-      if ((corner.vmax || 0) >= 170 && race.rng.chance(0.35)) startCrash(race, car, corner);
+      if ((corner.vmax || 0) >= 170 && race.rng.chance(0.35 + 0.25 * race.weather.wetness)) startCrash(race, car, corner);
       else startSpin(race, car);
     }
   }
@@ -244,7 +258,9 @@ export function updateHazards(race, dt) {
         .filter(c => !c.retired && !c.finished && !c.inPit && !c.offTrack && !involved.includes(c.id))
         .sort((a, b) => wrapD(race.track, h.d - a.d) - wrapD(race.track, h.d - b.d))[0];
       if (witness) {
-        const text = h.type === 'debris'
+        const text = h.type === 'weather'
+          ? `Funk ${witness.id}: „Ich sehe gar nichts mehr, hier steht überall Wasser!“`
+          : h.type === 'debris'
           ? `Funk ${witness.id}: „Da liegen überall Teile in ${h.corner.id}!“`
           : h.type === 'crash'
             ? `Funk ${witness.id}: „Riesiger Unfall in ${h.corner.id}! Da liegt alles voll!“`
@@ -253,7 +269,7 @@ export function updateHazards(race, dt) {
       }
     }
     // Marshals melden, wenn die Bergung so nicht vorankommt
-    if (!h.hinted && resp > 0 && resp < need && t - h.start > 25) {
+    if (!h.hinted && h.type !== 'weather' && resp > 0 && resp < need && t - h.start > 25) {
       h.hinted = true;
       const text = need >= 4
         ? 'Bergung unter laufendem Rennen nicht möglich – die Marshals können nicht auf die Strecke.'
@@ -274,9 +290,10 @@ export function updateHazards(race, dt) {
       let text;
       if (h.type === 'spin' && h.rejoined) text = `${h.carId} ist zurück auf der Strecke. Gefahr beseitigt.`;
       else if (h.type === 'stopped') text = `Auto von ${h.carId} ist geborgen. Strecke frei.`;
+      else if (h.type === 'weather') text = 'Das Wasser ist weitgehend abgeflossen – die Strecke ist wieder befahrbar.';
       else if (h.type === 'crash') text = h.need === 'red' ? 'Unfallstelle geräumt, Barriere repariert. Strecke frei.' : 'Unfallstelle geräumt. Strecke frei.';
       else text = 'Trümmerteile sind beseitigt. Strecke frei.';
-      race.emit('marshal', `Sektor ${h.sector + 1}: ${text}`, { sector: h.sector, cleared: h.id });
+      race.emit('marshal', `${hazardWhere(h)}: ${text}`, { sector: h.sector, cleared: h.id });
     }
   }
 

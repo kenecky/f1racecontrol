@@ -372,7 +372,7 @@ export function rollVscDelta(race, dt) {
 // Wahrscheinlichkeit pro Runde; Startrunde deutlich höher. Regen erhöht das Risiko.
 export function rollPileup(race, leaderLap) {
   if (race.neutral || race.phase !== 'running' || race.pendingPileup) return;
-  const wet = race.weather && race.weather.wet ? 4 : 1;
+  const wet = 1 + 4 * race.weather.wetness;   // Regen: deutlich häufiger
   const p = (leaderLap === 0 ? 0.03 : 0.0008) * wet;
   if (!race.rng.chance(p)) return;
   const corners = leaderLap === 0

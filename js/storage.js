@@ -9,6 +9,8 @@ const DEFAULTS = {
   slowOnIncident: true,  // bei neuen Vorfällen auf 1× abbremsen
   panelCollapsed: false, // Zeiten/Meldungen/Entscheidungen eingeklappt
   showTower: true,       // Ranking-Tower in der Karte
+  weatherMode: 'random', // Wetter: random | dry | rain | changeable
+  startMode: 'standing', // Start: standing | sc (hinter dem Safety Car)
 };
 
 const HISTORY_KEY = 'f1rc.history.v1';

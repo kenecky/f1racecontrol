@@ -50,7 +50,7 @@ export class FlagPanel {
 
     this.list.innerHTML = this.track.sectors.map((sec, i) => {
       const flag = race.flags[i];
-      const active = race.hazards.filter(h => h.sector === i && !h.ended);
+      const active = race.hazards.filter(h => h.sector === i && !h.ended && !h.global);
       const recentlyCleared = race.hazards.filter(h => h.sector === i && h.ended && t - h.endTime < 30);
       let notes = active.map(h => `<div class="hazard-note">${WARN_ICON} ${h.desc}${h.workTotal ? `<div class="progress"><span style="width:${Math.round(hazardProgress(h) * 100)}%"></span></div><div class="ctl-small">Bergung ${Math.round(hazardProgress(h) * 100)} %</div>` : ''}</div>`).join('');
       if (!active.length && recentlyCleared.length && flag !== 'clear') {

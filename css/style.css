@@ -68,10 +68,23 @@ button {
 #lap { font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums; }
 .status-clock {
   margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.15;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
   font-size: 13px;
 }
+.wx { font-size: 11px; color: #9fb4d1; white-space: nowrap; }
+.forecast { margin-top: 10px; font-size: 13px; color: #c9d4e4; }
+.options select {
+  display: block; width: 100%; margin-top: 6px; padding: 10px;
+  border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit;
+}
+.tyre-I { border-color: #43b02a; color: #43b02a; }
+.tyre-W { border-color: #2f86ff; color: #2f86ff; }
+.tw-tyre.I { color: #43b02a; } .tw-tyre.W { color: #2f86ff; }
 .flag-chip {
   padding: 4px 10px;
   border-radius: 6px;

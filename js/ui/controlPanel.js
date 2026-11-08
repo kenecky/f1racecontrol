@@ -2,7 +2,7 @@
 import { canRestart, scInPossibleThisLap, scInLastSector } from '../sim/neutral.js';
 import { sectorIndexAt } from '../sim/trackModel.js';
 import { WARN_ICON } from './feed.js';
-import { hazardProgress } from '../sim/hazards.js';
+import { hazardProgress, hazardWhere } from '../sim/hazards.js';
 
 const TITLES = { vsc: 'Virtual Safety Car', sc: 'Safety Car', red: 'Rote Flagge' };
 
@@ -48,7 +48,7 @@ export class ControlPanel {
       const p = Math.round(hazardProgress(h) * 100);
       return `
         <div class="ctl-hazard">
-          <div>${WARN_ICON} Sektor ${h.sector + 1}: ${h.desc}</div>
+          <div>${WARN_ICON} ${hazardWhere(h)}: ${h.desc}</div>
           <div class="progress"><span style="width:${p}%"></span></div>
           <div class="ctl-small">Bergung ${p} %</div>
         </div>`;

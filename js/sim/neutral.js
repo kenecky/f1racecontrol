@@ -1,6 +1,6 @@
 // Neutralisierungen: Virtual Safety Car, Safety Car, rote Flagge (inkl. Neustart).
 import { speedAt, wrapD, crossed, sectorIndexAt } from './trackModel.js';
-import { COMPOUNDS } from './tyres.js';
+import { COMPOUNDS, bestCompound } from './tyres.js';
 
 export const VSC_FACTOR = 0.62;   // Delta-Tempo unter VSC (Anteil der Renngeschwindigkeit)
 const SC_SPEED = 0.6;             // Tempo des Safety Cars
@@ -58,6 +58,15 @@ export function deploySC(race) {
   abortPasses(race);
   race.emit('rc', 'SAFETY CAR – Safety Car auf der Strecke, Überholverbot');
   return true;
+}
+
+// Rennstart hinter dem Safety Car (z. B. bei starkem Regen)
+export function startBehindSC(race) {
+  const pole = race.cars.reduce((a, b) => (b.d > a.d ? b : a));
+  race.sc = { d: wrapD(race.track, pole.d + 60), v: 0, move: 0, inPit: false };
+  race.neutral = { type: 'sc', phase: 'out', start: 0, unlap: false, startLap: 0, fromStart: true };
+  race.neutralStats.sc++;
+  for (const c of race.cars) c.reaction = race.rng.range(0.3, 1.2);
 }
 
 export function allowUnlap(race) {
@@ -351,7 +360,9 @@ export function arriveInQueue(race, car) {
   car.v = 0;
   const remaining = race.laps - car.lap;
   const used = car.usedCompounds;
-  let choice = remaining > 34 ? 'H' : remaining > 16 ? 'M' : 'S';
+  let choice = race.weather.wetness > 0.15
+    ? bestCompound(race.weather.wetness, remaining)
+    : remaining > 34 ? 'H' : remaining > 16 ? 'M' : 'S';
   if (used.size < 2 && used.has(choice) && car.planIdx >= car.plan.length) {
     choice = choice === 'H' ? 'M' : 'H';
   }

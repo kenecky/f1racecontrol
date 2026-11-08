@@ -1,7 +1,7 @@
 // Rennen speichern und wiederherstellen (Spielstand).
 import { Race } from './race.js';
 
-const VERSION = 1;
+const VERSION = 2;   // 2: mit Wetter
 // Laufzeit-Strukturen, die beim Laden neu aufgebaut werden
 const SKIP = new Set(['track', 'rng', 'cars', 'carById', 'physGap', 'behindSC']);
 

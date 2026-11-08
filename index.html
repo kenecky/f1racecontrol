@@ -23,7 +23,10 @@
         <span id="lap">–</span>
       </div>
       <div id="flag" class="flag-chip flag-start">START</div>
-      <div id="clock" class="status-clock">0:00:00</div>
+      <div class="status-clock">
+        <span id="clock">0:00:00</span>
+        <span id="wx" class="wx"></span>
+      </div>
       <button id="speedBtn" class="pill-btn" aria-label="Tempo" aria-haspopup="true">4×</button>
       <button id="pauseBtn" class="pill-btn pause-btn" aria-label="Pause">▶</button>
     </header>
@@ -129,6 +132,7 @@
           <div><b>4,318</b><span>km</span></div>
           <div><b>22</b><span>Fahrer</span></div>
         </div>
+        <div id="forecast" class="forecast"></div>
       </div>
       <p class="intro">Du bist der Rennleiter. Beobachte das Rennen und greif ein, wenn es nötig ist. Fahrer und Teams agieren selbstständig.</p>
       <div id="resumeBox"></div>
@@ -140,6 +144,20 @@
           <input id="seedInput" type="number" inputmode="numeric" placeholder="zufällig">
         </label>
         <div id="seedInfo" class="seed-info"></div>
+        <label>Wetter
+          <select id="weatherSel">
+            <option value="random">Zufällig</option>
+            <option value="dry">Trocken</option>
+            <option value="rain">Regen</option>
+            <option value="changeable">Wechselhaft (Schauer möglich)</option>
+          </select>
+        </label>
+        <label>Startart
+          <select id="startSel">
+            <option value="standing">Stehender Start (Startampel)</option>
+            <option value="sc">Start hinter dem Safety Car</option>
+          </select>
+        </label>
       </details>
     </div>
   </div>
