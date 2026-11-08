@@ -124,22 +124,31 @@
           <div class="brand-sub">Rennleitung · Formel 1</div>
         </div>
       </div>
+      <div class="mode-switch">
+        <button id="modeSingle" class="mode-btn">Einzelrennen</button>
+        <button id="modeSeason" class="mode-btn">Saison 2026</button>
+      </div>
       <div class="event-card">
-        <div class="event-gp">Großer Preis von Österreich</div>
-        <div class="event-track">Red Bull Ring · Spielberg</div>
+        <div id="evRound" class="event-round"></div>
+        <div id="evGp" class="event-gp"></div>
+        <div id="evTrack" class="event-track"></div>
         <div class="event-facts">
-          <div><b>71</b><span>Runden</span></div>
-          <div><b>4,318</b><span>km</span></div>
-          <div><b>22</b><span>Fahrer</span></div>
+          <div><b id="evLaps"></b><span>Runden</span></div>
+          <div><b id="evKm"></b><span>km</span></div>
+          <div><b id="evDrivers"></b><span>Fahrer</span></div>
         </div>
         <div id="forecast" class="forecast"></div>
       </div>
       <p class="intro">Du bist der Rennleiter. Beobachte das Rennen und greif ein, wenn es nötig ist. Fahrer und Teams agieren selbstständig.</p>
       <div id="resumeBox"></div>
       <button id="startBtn" class="primary-btn">Rennen starten</button>
+      <button id="seasonBtn" class="secondary-btn season-btn hidden">🏆 Saison-Übersicht</button>
       <div id="history" class="history"></div>
       <details class="options">
         <summary>Optionen</summary>
+        <label id="trackLabel">Strecke (Einzelrennen)
+          <select id="trackSel"></select>
+        </label>
         <label>Rennen-Nr. (gleiche Nr. = gleiches Rennen)
           <input id="seedInput" type="number" inputmode="numeric" placeholder="zufällig">
         </label>
@@ -162,6 +171,24 @@
     </div>
   </div>
 
+  <div id="seasonScreen" class="overlay hidden">
+    <div class="sheet">
+      <h2 class="sheet-title">🏆 Saison 2026</h2>
+      <div id="seasonNotes"></div>
+      <div class="season-tabs">
+        <button class="stab active" data-stab="drivers">Fahrer</button>
+        <button class="stab" data-stab="teams">Teams</button>
+        <button class="stab" data-stab="calendar">Kalender</button>
+        <button class="stab" data-stab="penalties">Strafen</button>
+      </div>
+      <div id="seasonBody"></div>
+      <div class="sheet-actions">
+        <button id="seasonResetBtn" class="secondary-btn">Saison neu starten</button>
+        <button id="seasonCloseBtn" class="primary-btn">Schließen</button>
+      </div>
+    </div>
+  </div>
+
   <div id="statsScreen" class="overlay hidden">
     <div class="sheet">
       <h2 class="sheet-title">📊 Statistik</h2>
@@ -179,6 +206,7 @@
       <div id="resultBody"></div>
       <div class="sheet-actions">
         <button id="openCasesBtn" class="secondary-btn hidden">Zu den offenen Entscheidungen</button>
+        <button id="applySeasonBtn" class="primary-btn hidden">In die Saison übernehmen</button>
         <button id="closeResultBtn" class="secondary-btn">Schließen</button>
         <button id="newRaceBtn" class="primary-btn">Neues Rennen</button>
       </div>

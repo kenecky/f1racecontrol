@@ -81,6 +81,16 @@ export class TrackMap {
     this.bgDirty = true;
   }
 
+  setTrack(track) {
+    if (this.track === track) return;
+    this.track = track;
+    this.w = 0;           // erzwingt Neuberechnung
+    this.zoom = 1;
+    this.panX = 0;
+    this.panY = 0;
+    this.resize();
+  }
+
   setPadLeft(px) {
     if (this.padLeft === px) return;
     this.padLeft = px;

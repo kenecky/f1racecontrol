@@ -11,12 +11,13 @@ export const WEATHER_MODES = {
 
 // Regenverlauf wird beim Erstellen vollständig festgelegt (eigener Zufallsgenerator,
 // damit trockene Rennen mit gleicher Rennen-Nr. unverändert bleiben).
-export function createWeather(seed, mode, raceSec) {
+export function createWeather(seed, mode, raceSec, rainChance = 0.38) {
   const r = createRng((seed ^ 0x9e3779b9) >>> 0);
   let m = mode;
   if (m === 'random') {
+    // Regenwahrscheinlichkeit je Strecke (z. B. Spa hoch, Bahrain fast null)
     const x = r.next();
-    m = x < 0.62 ? 'dry' : x < 0.77 ? 'rain' : 'changeable';
+    m = x >= rainChance ? 'dry' : x < rainChance * 0.4 ? 'rain' : 'changeable';
   }
   const showers = [];
   if (m === 'rain') {

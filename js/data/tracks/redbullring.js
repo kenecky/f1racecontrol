@@ -13,6 +13,8 @@ export const RED_BULL_RING = {
   baseLap: 66.4,        // theoretisch schnellste Runde (s) des besten Autos ohne Sprit
   pitLaneSpeed: 80,     // km/h
   pitLaneSide: 1,       // 1 = rechts der Fahrtrichtung (innen)
+  street: false,
+  rainChance: 0.32,     // Regenwahrscheinlichkeit bei Wetter 'Zufällig'
 
   // Echte Streckenführung (Meter, Norden oben), umgerechnet aus bacinger/f1-circuits (MIT-Lizenz)
   controlPoints: [

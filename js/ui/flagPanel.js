@@ -48,7 +48,7 @@ export class FlagPanel {
     if (sig === this.sig) return;
     this.sig = sig;
 
-    this.list.innerHTML = this.track.sectors.map((sec, i) => {
+    this.list.innerHTML = race.track.sectors.map((sec, i) => {
       const flag = race.flags[i];
       const active = race.hazards.filter(h => h.sector === i && !h.ended && !h.global);
       const recentlyCleared = race.hazards.filter(h => h.sector === i && h.ended && t - h.endTime < 30);

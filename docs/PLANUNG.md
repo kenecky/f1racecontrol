@@ -286,7 +286,12 @@ docs/
 - [x] **M6 – Speichern/Laden**: laufendes Rennen wird automatisch gespeichert (IndexedDB,
       alle 10 s, bei Pause und beim Verlassen der App) und lässt sich exakt fortsetzen – auch nach
       Rennende für offene Entscheidungen/Anhörungen; Statistik über alle Rennen (bis 100)
-- [ ] **M7 – Saison**: weitere Strecken, Meisterschaftstabelle, Strafpunkte über die Saison
+- [x] **M7 – Saison**: Kalender 2026 mit allen 24 Strecken (echte Streckenführungen aus
+      bacinger/f1-circuits; Kurven, Zonen, Sektoren, Boxengasse, Auslaufzonen automatisch erzeugt
+      mit `tools/gen_tracks.py`), Fahrer- und Teamwertung (25-18-15-12-10-8-6-4-2-1),
+      Strafpunkte über die Saison (12 → Rennsperre), Verwarnungen (5 → 10 Startplätze),
+      Startplatzstrafen fürs nächste Rennen, Einzelrennen auf jeder Strecke
+- [ ] **Training & Qualifying** (in Planung, siehe Abschnitt 13)
 - [ ] **Später**: Wetter, Track Limits im Detail, Unsafe Release, blaue Flaggen,
       Boxengassen-Speeding, Replay-Animationen, Training/Qualifying, Desktop-Layout
 
@@ -372,3 +377,26 @@ zusätzlich wird „unnötig gelb“ gemessen (Flagge ohne Gefahr, 10 s Kulanz n
 - Konkrete Stärkewerte für Teams/Fahrer
 - Reifenstrategien der CPU-Teams (Detailtiefe)
 - Gewichtung der Bewertungsachsen
+
+
+## 13. Offene Planung
+
+### Strafen für ausgeschiedene Fahrer (umgesetzt als Vorschlag, anpassbar)
+Kann eine Strafe im Rennen nicht mehr wirken, weil der Fahrer ausgeschieden ist,
+wird sie in eine Startplatzstrafe für das nächste Rennen umgewandelt:
+
+| Strafe | Umwandlung |
+|---|---|
+| 5-s-Zeitstrafe / Platz zurückgeben | 3 Startplätze |
+| 10-s-Zeitstrafe | 5 Startplätze |
+| Durchfahrtsstrafe | 5 Startplätze |
+| 10-s-Stop-and-Go | 10 Startplätze |
+| Disqualifikation | keine Umwandlung (Ergebnis gestrichen) |
+
+Zusätzlich direkt wählbar: Startplatzstrafe 3 / 5 / 10 Plätze. Strafpunkte bleiben die Saison
+über bestehen; 12 Punkte → Sperre für ein Rennen (danach −12). 5 Verwarnungen → 10 Startplätze.
+
+### Training & Qualifying (noch zu besprechen)
+Siehe Gespräch – Ideen: Rennwochenende mit FP1–FP3 (Track Limits, Unsafe Release,
+Behinderung, rote Flaggen ohne Neustart-Druck), Qualifying Q1–Q3 mit Ausscheiden,
+gestrichenen Rundenzeiten, Behinderungen (Blocking), gelben Flaggen, die Runden zerstören.

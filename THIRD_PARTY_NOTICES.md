@@ -2,7 +2,7 @@
 
 ## Streckenverläufe – bacinger/f1-circuits
 
-Die Streckengeometrie (z. B. `js/data/tracks/redbullring.js`) basiert auf
+Die Streckengeometrie aller Strecken in `js/data/tracks/` basiert auf
 <https://github.com/bacinger/f1-circuits>.
 
 Copyright (c) 2019-2025 Tomislav Bacinger – veröffentlicht unter der MIT-Lizenz

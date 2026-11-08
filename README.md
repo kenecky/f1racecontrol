@@ -38,5 +38,5 @@ sw.js                 Offline-Betrieb (PWA)
 
 ## Datenquellen
 
-- Streckenverlauf: [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits) (MIT-Lizenz),
-  siehe `THIRD_PARTY_NOTICES.md`
+- Streckenverläufe aller 24 Strecken: [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits)
+  (MIT-Lizenz), siehe `THIRD_PARTY_NOTICES.md`. Erzeugt mit `tools/gen_tracks.py`.

@@ -24,7 +24,8 @@ import { createWeather, updateWeather } from './weather.js';
 export { COMPOUNDS };
 
 export class Race {
-  constructor({ track, teams, drivers, seed, weather = 'dry' }) {
+  constructor({ track, teams, drivers, seed, weather = 'dry', gridPenalties = {} }) {
+    this.gridPenalties = gridPenalties;
     this.track = track;
     this.seed = seed;
     this.rng = createRng(seed);
@@ -49,7 +50,7 @@ export class Race {
     this.sc = null;           // Safety Car auf der Strecke
     this.physGap = new Map();
     this.behindSC = new Set();
-    this.weather = createWeather(seed, weather, track.laps * track.baseLap * 1.05);
+    this.weather = createWeather(seed, weather, track.laps * track.baseLap * 1.05, track.def.rainChance ?? 0.38);
     this.pendingPileup = null;
     this.maxLeaderLap = -1;
     this.cases = [];          // Fälle für die Rennkommissare
@@ -85,16 +86,25 @@ export class Race {
       };
     });
     this.carById = Object.fromEntries(this.cars.map(c => [c.id, c]));
+    this.carryOver = [];       // Startplatzstrafen für das nächste Rennen
     this.setupGrid();
+    for (const [id, places] of Object.entries(gridPenalties)) {
+      if (this.carById[id]) this.emit('rc', `${id} startet mit einer Startplatzstrafe von ${places} Plätzen von Platz ${this.carById[id].gridPos}.`, { cars: [id] });
+    }
   }
 
   // ---------- Vorbereitung ----------
 
   setupGrid() {
     const r = this.rng;
-    const quali = this.cars
+    let quali = this.cars
       .map(c => ({ c, t: c.basePenalty + r.gauss(0.12) }))
       .sort((a, b) => a.t - b.t);
+    // Startplatzstrafen (aus dem vorherigen Rennen) anwenden
+    if (Object.keys(this.gridPenalties).length) {
+      quali = quali.map((q, i) => ({ ...q, slot: i + (this.gridPenalties[q.c.id] || 0) + (this.gridPenalties[q.c.id] ? 0.5 : 0) }))
+        .sort((a, b) => a.slot - b.slot);
+    }
     quali.forEach(({ c }, i) => {
       c.gridPos = i + 1;
       c.d = -(6 + i * 8);

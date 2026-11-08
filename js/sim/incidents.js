@@ -5,15 +5,15 @@ import { startSpin, stopCarAfterIncident, createDebris, cornerNear, cornerLabel,
 import { sectorIndexAt, wrapD } from './trackModel.js';
 
 export const CASE_TYPES = {
-  collision:     { name: 'Kollision',                     options: ['warning', '5s', '10s', 'dt', 'sg', 'dsq'] },
-  pileup:        { name: 'Massenunfall',                  options: ['warning', '5s', '10s', 'dt', 'sg', 'dsq'] },
-  forcedOff:     { name: 'Abdrängen von der Strecke',     options: ['warning', '5s', '10s', 'dt'] },
+  collision:     { name: 'Kollision',                     options: ['warning', '5s', '10s', 'dt', 'sg', 'grid3', 'grid5', 'grid10', 'dsq'] },
+  pileup:        { name: 'Massenunfall',                  options: ['warning', '5s', '10s', 'dt', 'sg', 'grid3', 'grid5', 'grid10', 'dsq'] },
+  forcedOff:     { name: 'Abdrängen von der Strecke',     options: ['warning', '5s', '10s', 'dt', 'grid3', 'grid5'] },
   offTrackPass:  { name: 'Überholen neben der Strecke',   options: ['warning', 'giveback', '5s', '10s'] },
   complaint:     { name: 'Beschwerde eines Teams',        options: ['warning', '5s', '10s', 'dt'] },
   trackLimits:   { name: 'Track Limits',                  options: ['warning', 'bw', '5s', '10s'] },
   pitSpeeding:   { name: 'Zu schnell in der Boxengasse',  options: ['warning', '5s', '10s', 'dt'] },
   unsafeRelease: { name: 'Unsichere Boxenfreigabe',       options: ['warning', '5s', '10s'] },
-  yellowPass:    { name: 'Überholen unter Gelb',          options: ['warning', '5s', '10s', 'dt', 'sg'] },
+  yellowPass:    { name: 'Überholen unter Gelb',          options: ['warning', '5s', '10s', 'dt', 'sg', 'grid3', 'grid5'] },
   vscDelta:      { name: 'VSC-Delta unterschritten',      options: ['warning', '5s', '10s', 'dt'] },
 };
 

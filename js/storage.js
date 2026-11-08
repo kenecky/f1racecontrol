@@ -10,6 +10,8 @@ const DEFAULTS = {
   panelCollapsed: false, // Zeiten/Meldungen/Entscheidungen eingeklappt
   showTower: true,       // Ranking-Tower in der Karte
   weatherMode: 'random', // Wetter: random | dry | rain | changeable
+  mode: 'single',        // single | season
+  trackId: 'redbullring', // Strecke im Einzelrennen
   startMode: 'standing', // Start: standing | sc (hinter dem Safety Car)
 };
 
@@ -32,6 +34,21 @@ export function saveHistoryEntry(entry) {
   } catch {
     // Speicher nicht verfügbar – ignorieren
   }
+}
+
+const SEASON_KEY = 'f1rc.season.v1';
+
+export function loadSeason() {
+  try {
+    const raw = localStorage.getItem(SEASON_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveSeason(season) {
+  try { localStorage.setItem(SEASON_KEY, JSON.stringify(season)); } catch { /* egal */ }
 }
 
 export function clearHistory() {

@@ -162,16 +162,18 @@ export function buildTrack(def) {
     track.kerbs.push({ from: c.d + (k.inFrom ?? -35), to: c.d + (k.inTo ?? 25), side: c.turn });
     if (k.out !== false) track.kerbs.push({ from: c.d + (k.outFrom ?? 10), to: c.d + (k.outTo ?? 70), side: -c.turn });
   }
-  track.sectorEnds = def.timingSectors.map(s => wrap(cornerD(s.corner) + s.offset));
-  const starts = def.marshalSectors.map(m => (m.line ? 0 : wrap(cornerD(m.corner) + m.offset)));
+  // Positionen: entweder absolut ({ d }) oder relativ zu einer Kurve ({ corner, offset })
+  const at = p => (p.d !== undefined ? wrap(p.d) : wrap(cornerD(p.corner) + (p.offset || 0)));
+  track.sectorEnds = def.timingSectors.map(at);
+  const starts = def.marshalSectors.map(m => (m.line ? 0 : at(m)));
   track.sectors = starts.map((start, i) => {
     const end = i + 1 < starts.length ? starts[i + 1] : L;
     const corners = track.corners.filter(c => c.d >= start && c.d < end).map(c => c.id);
     return { id: i + 1, start, end, corners };
   });
   track.pit = {
-    entry: wrap(cornerD(def.pit.entry.corner) + def.pit.entry.offset),
-    exit: wrap(cornerD(def.pit.exit.corner) + def.pit.exit.offset),
+    entry: at(def.pit.entry),
+    exit: at(def.pit.exit),
     box: def.pit.boxOffsetAfterLine,
     side: def.pitLaneSide,
   };

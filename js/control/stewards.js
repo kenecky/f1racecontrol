@@ -9,6 +9,9 @@ export const PENALTIES = {
   dt:       { name: 'Durchfahrtsstrafe',    short: 'DT',   sev: 4 },
   sg:       { name: '10-s-Stop-and-Go',     short: 'SG',   sev: 5 },
   dsq:      { name: 'Disqualifikation',     short: 'DSQ',  sev: 7 },
+  grid3:    { name: 'Startplatzstrafe 3 Plätze (nächstes Rennen)',  short: '−3 SP',  sev: 2, places: 3 },
+  grid5:    { name: 'Startplatzstrafe 5 Plätze (nächstes Rennen)',  short: '−5 SP',  sev: 3, places: 5 },
+  grid10:   { name: 'Startplatzstrafe 10 Plätze (nächstes Rennen)', short: '−10 SP', sev: 4, places: 10 },
 };
 
 import { hearingEvidence } from '../sim/incidents.js';
@@ -88,7 +91,24 @@ export function decide(race, c, { carId, penalty, points }) {
   reactToVerdict(race, c);
 }
 
+// Ausgeschiedene Fahrer: Strafen wirken als Startplatzstrafe im nächsten Rennen
+export const CARRY_OVER = { '5s': 3, '10s': 5, giveback: 3, dt: 5, sg: 10 };
+
+function carryOver(race, car, places, why) {
+  race.carryOver = race.carryOver || [];
+  race.carryOver.push({ carId: car.id, places, why });
+  race.emit('rc', `${car.id}: Startplatzstrafe von ${places} Plätzen für das nächste Rennen (${why}).`, { cars: [car.id] });
+}
+
 function applyPenalty(race, car, penalty, c) {
+  if (PENALTIES[penalty].places) {
+    carryOver(race, car, PENALTIES[penalty].places, c.typeName);
+    return;
+  }
+  if (car.retired && !car.dsq && CARRY_OVER[penalty]) {
+    carryOver(race, car, CARRY_OVER[penalty], `${PENALTIES[penalty].name} umgewandelt – Fahrer ausgeschieden`);
+    return;
+  }
   const running = race.phase === 'running' && !car.finished && !car.retired;
   const lapsLeft = race.laps - car.lap;
   switch (penalty) {
