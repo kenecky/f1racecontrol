@@ -47,6 +47,41 @@ function racingLine(turn, s, early = 0) {
   return outside;
 }
 
+// Autos dürfen nicht durcheinander hindurchfahren: seitlich auseinanderschieben
+// (außer in den Bildern der Berührung selbst), danach die Linie glätten.
+const CAR_W = 2.05;
+function separate(fA, fB, keep = []) {
+  const n = fA.length, need = new Array(n).fill(0), sgn = new Array(n).fill(1);
+  for (let i = 0; i < n; i++) {
+    const a = fA[i], b = fB[i];
+    const d = a[1] - b[1];
+    sgn[i] = d === 0 ? 1 : Math.sign(d);
+    if (keep.includes(i) || Math.abs(a[0] - b[0]) >= CAR_LEN * 1.05) continue;
+    need[i] = d;   // vorläufig: Abstand merken
+  }
+  // Eine Seite für die ganze Szene (wer außen ist, bleibt außen)
+  let sum = 0;
+  for (let i = 0; i < n; i++) if (!keep.includes(i) && Math.abs(fA[i][0] - fB[i][0]) < CAR_LEN * 1.05) sum += fA[i][1] - fB[i][1];
+  const side = sum >= 0 ? 1 : -1;
+  sgn.fill(side);
+  for (let i = 0; i < n; i++) {
+    if (keep.includes(i) || Math.abs(fA[i][0] - fB[i][0]) >= CAR_LEN * 1.05) { need[i] = 0; continue; }
+    need[i] = Math.max(0, CAR_W + 0.2 - side * (fA[i][1] - fB[i][1])) / 2;
+  }
+  // Ausweichen weich ein- und ausblenden (kein Springen zur Seite)
+  const R = 8;
+  for (let i = 0; i < n; i++) {
+    if (keep.includes(i)) continue;
+    let p = 0, sg = sgn[i];
+    for (let j = Math.max(0, i - R); j <= Math.min(n - 1, i + R); j++) {
+      const v = need[j] * (1 - Math.abs(i - j) / (R + 1));
+      if (v > p) { p = v; sg = sgn[j]; }
+    }
+    fA[i][1] += sg * p;
+    fB[i][1] -= sg * p;
+  }
+}
+
 function finish(type, corner, cars, extra = {}) {
   return { type, d0: corner.d, turn: corner.turn, corner: corner.id, dt: DT, dur: (cars[0].f.length - 1) * DT, cars, ...extra };
 }
@@ -100,9 +135,17 @@ export function sceneCollision(race, { A, B, corner, blame, overlap, consequence
     fA.push([s + off, latA, 0]);
   });
   const ci = findContact(fA, fB);
+  if (ci >= 0) {
+    // Berührung: genau Seite an Seite, Räder berühren sich
+    const d = fA[ci][1] - fB[ci][1];
+    const mid = (fA[ci][1] + fB[ci][1]) / 2, sg = d === 0 ? turn : Math.sign(d);
+    fA[ci][1] = mid + sg * CAR_W / 2; fB[ci][1] = mid - sg * CAR_W / 2;
+  }
+  separate(fA, fB, ci >= 0 ? [ci] : []);
   const vf = victim === A ? fA : fB;
   afterContact(vf, ci, consequence, turn, victim === A ? turn : -turn);
   if (ci >= 0) afterContact(victim === A ? fB : fA, ci, 'minor', turn, victim === A ? -turn : turn);
+  if (ci >= 0) separate(fA, fB, [ci, ci + 1]);
   const iTurn = Math.max(0, tTurn);
   return finish('collision', corner, [{ ...teamLook(A), f: fA }, { ...teamLook(B), f: fB }], {
     contact: ci >= 0 ? ci * DT : null,
@@ -133,6 +176,7 @@ export function sceneForcedOff(race, { A, B, corner, fault, overlap }) {
     fB.push([s, latB, 0]);
     fA.push([sa, latA, 0]);
   });
+  separate(fA, fB);
   return finish('forcedOff', corner, [{ ...teamLook(A), f: fA }, { ...teamLook(B), f: fB }], {
     contact: null,
     overlay: { kind: 'overlap', t: Math.max(0, apexI) * DT, a: 0, b: 1, label: 'Überlappung am Scheitelpunkt' },
@@ -154,6 +198,7 @@ export function sceneOffTrackPass(race, { A, B, corner, wheels }) {
     if (sa > -10 && sa < 70) latA = lerp(-turn * 4.6, -turn * out, smooth((sa + 10) / 25) * (1 - smooth((sa - 40) / 30)));
     fA.push([sa, latA, 0]);
   });
+  separate(fA, fB);
   return finish('offTrackPass', corner, [{ ...teamLook(A), f: fA }, { ...teamLook(B), f: fB }], {
     contact: null,
     overlay: { kind: 'edge', a: 0, label: 'Streckenbegrenzung' },

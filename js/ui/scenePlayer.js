@@ -84,6 +84,8 @@ export class ScenePlayer {
       else if (a === 'map' && this.onMap) this.onMap();
       this.sync();
     });
+    this.range.addEventListener('pointerdown', () => { this.dragging = true; });
+    window.addEventListener('pointerup', () => { this.dragging = false; });
     this.range.addEventListener('input', () => {
       this.t = (this.range.value / 1000) * this.scene.dur;
       this.playing = false;
@@ -97,11 +99,20 @@ export class ScenePlayer {
       if (!this.el.isConnected) { this.alive = false; return; }
       const dt = Math.min(0.1, (now - this.last) / 1000);
       this.last = now;
-      if (this.playing) {
+      if (this.hold > 0) this.hold -= dt;           // Standbild am Messzeitpunkt
+      else if (this.playing) {
+        const ovT = this.sharp && this.scene.overlay && this.scene.overlay.kind === 'overlap' ? this.scene.overlay.t : null;
+        const before = this.t;
         this.t += dt * this.rate;
+        if (ovT !== null && before < ovT && this.t >= ovT) { this.t = ovT; this.hold = 1.6; }
         if (this.t >= this.scene.dur + 0.8) this.t = 0;     // Endlosschleife mit kurzer Pause am Ende
       }
       this.draw();
+      // Fortschrittsbalken mitlaufen lassen (nicht während man selbst zieht)
+      if (!this.dragging) {
+        const v = String(Math.round(Math.min(1, this.t / this.scene.dur) * 1000));
+        if (this.range.value !== v) this.range.value = v;
+      }
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
@@ -236,10 +247,10 @@ export class ScenePlayer {
       }
     }
     // Berührung
-    if (scene.contact !== null && Math.abs(t - scene.contact) < 0.35) {
-      const [a, bb] = scene.cars.map(c => carPose(track, scene, c, scene.contact));
+    if (scene.contact !== null && t >= scene.contact && t - scene.contact < 0.4) {
+      const [a, bb] = scene.cars.map(c => carPose(track, scene, c, t));
       const [x, y] = P((a.s + bb.s) / 2, (a.lat + bb.lat) / 2);
-      ctx.fillStyle = `rgba(255,220,60,${0.9 - Math.abs(t - scene.contact) * 2})`;
+      ctx.fillStyle = `rgba(255,220,60,${0.85 - (t - scene.contact) * 2})`;
       ctx.beginPath(); ctx.arc(x, y, 2.2 * k, 0, Math.PI * 2); ctx.fill();
     }
   }
@@ -252,9 +263,9 @@ export class ScenePlayer {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.font = `600 ${12 * dpr}px system-ui, sans-serif`;
     if (ov.kind === 'overlap') {
-      const near = Math.abs(this.t - ov.t) < 0.5;
+      const near = Math.abs(this.t - ov.t) < 0.25;
       if (!near) return;
-      const A = carPose(track, scene, scene.cars[ov.a], ov.t), B = carPose(track, scene, scene.cars[ov.b], ov.t);
+      const A = carPose(track, scene, scene.cars[ov.a], this.t), B = carPose(track, scene, scene.cars[ov.b], this.t);
       const pct = Math.round(((A.s + CAR_LEN / 2) - (B.s - CAR_LEN / 2)) / CAR_LEN * 100);
       const line = (s, col, dash) => {
         const [x1, y1] = P(s, -HALF_W), [x2, y2] = P(s, HALF_W);
