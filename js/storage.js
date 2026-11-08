@@ -1,5 +1,5 @@
 // Lokale Speicherung auf dem Gerät.
-// Einstellungen: localStorage. Spielstände/Saison folgen später in IndexedDB.
+// Einstellungen und Verlauf: localStorage · laufendes Rennen: IndexedDB (Fallback localStorage).
 const KEY = 'f1rc.settings.v1';
 
 const DEFAULTS = {
@@ -13,7 +13,7 @@ const DEFAULTS = {
 
 const HISTORY_KEY = 'f1rc.history.v1';
 
-// Bewertungen der letzten Rennen (neueste zuerst, max. 20)
+// Bewertungen der letzten Rennen (neueste zuerst, max. 100)
 export function loadHistory() {
   try {
     return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
@@ -26,10 +26,14 @@ export function saveHistoryEntry(entry) {
   try {
     const list = loadHistory().filter(e => e.key !== entry.key);
     list.unshift(entry);
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, 20)));
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, 100)));
   } catch {
     // Speicher nicht verfügbar – ignorieren
   }
+}
+
+export function clearHistory() {
+  try { localStorage.removeItem(HISTORY_KEY); } catch { /* egal */ }
 }
 
 export function loadSettings() {
@@ -47,4 +51,56 @@ export function saveSettings(settings) {
   } catch {
     // Speicher nicht verfügbar (z. B. privater Modus) – ignorieren
   }
+}
+
+// ---------- Spielstand (laufendes Rennen) ----------
+
+const DB_NAME = 'f1rc';
+const STORE = 'saves';
+const SAVE_KEY = 'current';
+const LS_SAVE = 'f1rc.save.v1';
+
+function openDb() {
+  return new Promise((resolve, reject) => {
+    if (!('indexedDB' in window)) { reject(new Error('kein IndexedDB')); return; }
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function idb(mode, fn) {
+  return openDb().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, mode);
+    const req = fn(tx.objectStore(STORE));
+    tx.oncomplete = () => { db.close(); resolve(req && req.result); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  }));
+}
+
+export async function saveRaceState(data) {
+  try {
+    await idb('readwrite', st => st.put(data, SAVE_KEY));
+  } catch {
+    try { localStorage.setItem(LS_SAVE, JSON.stringify(data)); } catch { /* voll/gesperrt */ }
+  }
+}
+
+export async function loadRaceState() {
+  try {
+    const d = await idb('readonly', st => st.get(SAVE_KEY));
+    if (d) return d;
+  } catch { /* weiter mit Fallback */ }
+  try {
+    const raw = localStorage.getItem(LS_SAVE);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function clearRaceState() {
+  try { await idb('readwrite', st => st.delete(SAVE_KEY)); } catch { /* egal */ }
+  try { localStorage.removeItem(LS_SAVE); } catch { /* egal */ }
 }

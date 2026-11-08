@@ -10,6 +10,8 @@ export function createRng(seed) {
   };
   return {
     next,
+    getState: () => a,                 // für Speichern/Laden
+    setState: st => { a = st >>> 0; },
     range: (min, max) => min + (max - min) * next(),
     int: (min, max) => Math.floor(min + (max - min + 1) * next()),
     chance: p => next() < p,

@@ -131,6 +131,7 @@
         </div>
       </div>
       <p class="intro">Du bist der Rennleiter. Beobachte das Rennen und greif ein, wenn es nötig ist. Fahrer und Teams agieren selbstständig.</p>
+      <div id="resumeBox"></div>
       <button id="startBtn" class="primary-btn">Rennen starten</button>
       <div id="history" class="history"></div>
       <details class="options">
@@ -140,6 +141,17 @@
         </label>
         <div id="seedInfo" class="seed-info"></div>
       </details>
+    </div>
+  </div>
+
+  <div id="statsScreen" class="overlay hidden">
+    <div class="sheet">
+      <h2 class="sheet-title">📊 Statistik</h2>
+      <div id="statsBody"></div>
+      <div class="sheet-actions">
+        <button id="statsResetBtn" class="secondary-btn">Verlauf löschen</button>
+        <button id="statsCloseBtn" class="primary-btn">Schließen</button>
+      </div>
     </div>
   </div>
 

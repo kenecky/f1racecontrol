@@ -279,7 +279,9 @@ docs/
       (Schilderungen der Fahrer + zusätzliche Onboard-/Teamdaten); Tab heißt „Entscheidungen“
 - [ ] **Wetter / Regenrennen**: Regen (leicht/stark), Intermediates/Regenreifen, Aquaplaning,
       mehr Dreher und Massenunfälle, Rennstart hinter SC, rote Flagge bei zu viel Wasser
-- [ ] **M6 – Speichern/Laden**: Rennen fortsetzen, Statistik
+- [x] **M6 – Speichern/Laden**: laufendes Rennen wird automatisch gespeichert (IndexedDB,
+      alle 10 s, bei Pause und beim Verlassen der App) und lässt sich exakt fortsetzen – auch nach
+      Rennende für offene Entscheidungen/Anhörungen; Statistik über alle Rennen (bis 100)
 - [ ] **M7 – Saison**: weitere Strecken, Meisterschaftstabelle, Strafpunkte über die Saison
 - [ ] **Später**: Wetter, Track Limits im Detail, Unsafe Release, blaue Flaggen,
       Boxengassen-Speeding, Replay-Animationen, Training/Qualifying, Desktop-Layout

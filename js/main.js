@@ -20,7 +20,11 @@ import {
 import {
   deployVSC, endVSC, deploySC, allowUnlap, scInThisLap, redFlag, restartRace, canRestart,
 } from './sim/neutral.js';
-import { loadSettings, saveSettings, loadHistory, saveHistoryEntry } from './storage.js';
+import {
+  loadSettings, saveSettings, loadHistory, saveHistoryEntry, clearHistory,
+  saveRaceState, loadRaceState, clearRaceState,
+} from './storage.js';
+import { serializeRace, restoreRace } from './sim/persist.js';
 import { rateRace, AXES } from './control/rating.js';
 
 const SPEEDS = [1, 2, 4, 8, 16, 32];
@@ -76,11 +80,13 @@ const casesPanel = new CasesPanel($('cases'), {
     else if (act === 'results') { showResults(); return; }
     casesPanel.render(race);
     updateCasesBadge();
-    if (act !== 'render') renderTiming($('timing'), race, timingOpts());
+    if (act !== 'render') { renderTiming($('timing'), race, timingOpts()); autosave(); }
   },
 });
 
 let race = null;
+let savedRace = null;   // gespeichertes Rennen, das fortgesetzt werden kann
+let lastSave = 0;
 let paused = true;
 let seenCases = 0;
 let acc = 0;
@@ -133,17 +139,101 @@ function renderHistory() {
   if (!list.length) { el.innerHTML = ''; return; }
   const best = Math.max(...list.map(e => e.total));
   el.innerHTML = `
-    <div class="history-title">Deine letzten Rennen <span>Bestwert ${best}/100</span></div>
+    <div class="history-title">Deine letzten Rennen <button id="statsBtn" class="link-btn">Statistik ›</button></div>
+    <div class="history-best">Bestwert ${best}/100</div>
     ${list.slice(0, 5).map(e => `
       <div class="history-row">
         <span>${new Date(e.date).toLocaleDateString('de-DE')} · #${e.seed}</span>
         <span class="history-stars">${'★'.repeat(e.stars)}${'☆'.repeat(5 - e.stars)}</span>
         <b>${e.total}${e.provisional ? '*' : ''}</b>
       </div>`).join('')}`;
+  $('statsBtn').addEventListener('click', () => { renderStats(); $('statsScreen').classList.remove('hidden'); });
+}
+
+// ---------- Speichern / Fortsetzen ----------
+
+function autosave() {
+  if (!race || race.phase === 'pre' || race.phase === 'lights') return;
+  saveRaceState(serializeRace(race));
+}
+
+function renderResume() {
+  const box = $('resumeBox');
+  if (!savedRace) {
+    box.innerHTML = '';
+    $('startBtn').textContent = 'Rennen starten';
+    $('startBtn').className = 'primary-btn';
+    return;
+  }
+  const r = savedRace;
+  const open = openCases(r).length;
+  const label = r.phase === 'finished'
+    ? `Zum Rennergebnis${open ? ` – ${open} Entscheidung${open > 1 ? 'en' : ''} offen` : ''}`
+    : `Rennen fortsetzen – Runde ${r.leaderLap}/${r.laps}`;
+  box.innerHTML = `<button id="resumeBtn" class="primary-btn resume-btn">▶ ${label}</button>
+    <div class="resume-info">Rennen #${r.seed} · gespeichert auf diesem Gerät</div>`;
+  $('startBtn').textContent = 'Neues Rennen starten';
+  $('startBtn').className = 'secondary-btn';
+  $('resumeBtn').addEventListener('click', resumeRace);
+}
+
+function resumeRace() {
+  race = savedRace;
+  savedRace = null;
+  paused = true;
+  acc = 0;
+  resultShown = false;
+  seenHazards = race.hazards.length;
+  seenCases = race.cases.length;
+  casesPanel.open.clear();
+  casesPanel.forms = {};
+  casesPanel.sig = '';
+  prevD.clear();
+  feed.reset();
+  feed.update(race.events);
+  unread = 0;
+  updateBadge();
+  map.selected = null;
+  $('startScreen').classList.add('hidden');
+  refreshUi();
+  updatePauseBtn();
+  if (race.phase !== 'finished') toast('Rennen geladen – mit ▶ geht es weiter');
+}
+
+// ---------- Statistik ----------
+
+function renderStats() {
+  const list = loadHistory();
+  const el = $('statsBody');
+  if (!list.length) { el.innerHTML = '<p class="ctl-text">Noch keine Rennen gespielt.</p>'; return; }
+  const avg = arr => (arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null);
+  const withScores = list.filter(e => e.scores);
+  const axis = id => avg(withScores.map(e => e.scores[id]).filter(v => v !== null && v !== undefined));
+  const sum = f => list.reduce((s, e) => s + (f(e) || 0), 0);
+  const pct = (a, b) => (b ? `${Math.round((a / b) * 100)} %` : '–');
+  const tile = (v, l) => `<div><b>${v ?? '–'}</b><span>${l}</span></div>`;
+  el.innerHTML = `
+    <div class="report-stats">${tile(list.length, 'Rennen')}${tile(avg(list.map(e => e.total)), 'Ø Punkte')}${tile(Math.max(...list.map(e => e.total)), 'Bestwert')}</div>
+    <h3 class="section-title">Ø Bewertung</h3>
+    <div class="report-stats">${tile(axis('safety'), 'Sicherheit')}${tile(axis('fairness'), 'Fairness')}${tile(axis('flow'), 'Rennfluss')}</div>
+    <div class="report-stats">${tile(axis('consistency'), 'Konsistenz')}${tile(pct(sum(e => e.hazards && e.hazards.ok), sum(e => e.hazards && e.hazards.total)), 'Gefahren rechtzeitig')}${tile(pct(sum(e => e.cases && e.cases.ok), sum(e => e.cases && e.cases.total)), 'Urteile angemessen')}</div>
+    <h3 class="section-title">Gesamt</h3>
+    <div class="report-stats">${tile(sum(e => e.neutral && e.neutral.vsc), 'VSC')}${tile(sum(e => e.neutral && e.neutral.sc), 'Safety Cars')}${tile(sum(e => e.neutral && e.neutral.red), 'Rote Flaggen')}</div>
+    <div class="report-stats">${tile(sum(e => e.cases && e.cases.total), 'Entscheidungen')}${tile(sum(e => e.penalties), 'Strafen')}${tile(list.filter(e => e.stars === 5).length, '5-Sterne-Rennen')}</div>
+    <h3 class="section-title">Letzte Rennen</h3>
+    ${list.slice(0, 15).map(e => `
+      <div class="history-row">
+        <span>${new Date(e.date).toLocaleDateString('de-DE')} · #${e.seed}</span>
+        <span class="history-stars">${'★'.repeat(e.stars)}${'☆'.repeat(5 - e.stars)}</span>
+        <b>${e.total}${e.provisional ? '*' : ''}</b>
+      </div>`).join('')}
+    <p class="ctl-small" style="margin-top:8px">* vorläufig (Entscheidungen offen)</p>`;
 }
 
 function startRace() {
   race.startedAt = Date.now();
+  savedRace = null;
+  renderResume();
   $('startScreen').classList.add('hidden');
   race.start();
   paused = false;
@@ -181,6 +271,8 @@ function frame(now) {
     }
     map.paused = paused;
     map.draw(race, renderD);
+
+    if (!paused && now - lastSave > 10000) { lastSave = now; autosave(); }
 
     if (now - lastUi > 300) {
       lastUi = now;
@@ -475,7 +567,13 @@ function showResults() {
     grade: rating.grade,
     stars: rating.stars,
     provisional: rating.provisional,
+    scores: rating.scores,
+    hazards: { total: rating.fr.total, ok: rating.fr.ok },
+    cases: { total: rating.sr.total, ok: rating.sr.ok },
+    neutral: { vsc: rating.fr.neutral.vsc, sc: rating.fr.neutral.sc, red: rating.fr.neutral.red },
+    penalties: race.cases.filter(c => c.verdict && c.verdict.carId).length,
   });
+  autosave();
 
   $('resultBody').innerHTML = `
     ${ratingHtml}
@@ -544,6 +642,7 @@ $('pauseBtn').addEventListener('click', () => {
   if (!race || race.phase === 'pre') return;
   paused = !paused;
   updatePauseBtn();
+  if (paused) autosave();
 });
 
 $('speedBtn').addEventListener('click', e => {
@@ -700,12 +799,25 @@ $('menuBtn').addEventListener('click', () => {
   if (!race || race.phase === 'pre') return;
   paused = true;
   updatePauseBtn();
-  if (confirm('Aktuelles Rennen abbrechen und ein neues Rennen vorbereiten?')) newRace();
+  if (confirm('Aktuelles Rennen abbrechen und ein neues Rennen vorbereiten?')) {
+    clearRaceState();
+    savedRace = null;
+    newRace();
+  }
+});
+$('statsCloseBtn').addEventListener('click', () => $('statsScreen').classList.add('hidden'));
+$('statsResetBtn').addEventListener('click', () => {
+  if (!confirm('Den gesamten Verlauf und die Statistik löschen?')) return;
+  clearHistory();
+  renderStats();
+  renderHistory();
 });
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && !paused) requestWakeLock();
+  if (document.visibilityState === 'hidden') autosave();
 });
+window.addEventListener('pagehide', autosave);
 
 // Seiten-Zoom verhindern (iOS ignoriert user-scalable=no)
 for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) {
@@ -723,6 +835,15 @@ applyTower();
 $('labelsBtn').classList.toggle('active', settings.showLabels);
 newRace();
 requestAnimationFrame(frame);
+
+// Gespeichertes Rennen vorhanden? → auf dem Startbildschirm zum Fortsetzen anbieten
+loadRaceState().then(data => {
+  const r = data && restoreRace({ track, teams: TEAMS, drivers: DRIVERS, data });
+  if (r && r.phase !== 'pre') {
+    savedRace = r;
+    renderResume();
+  }
+}).catch(() => {});
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
