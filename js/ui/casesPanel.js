@@ -1,5 +1,6 @@
 // Tab "Entscheidungen": Vorfälle untersuchen und Urteile fällen.
 import { PENALTIES } from '../control/stewards.js';
+import { ScenePlayer } from './scenePlayer.js';
 
 const STATUS = {
   new: ['NEU', 'st-new'],
@@ -18,6 +19,7 @@ export class CasesPanel {
     this.open = new Set();
     this.forms = {};
     this.sig = '';
+    this.players = new Map();   // Rennszenen je Fall (Wiedergabezeit bleibt beim Neuzeichnen erhalten)
     el.addEventListener('click', e => {
       const b = e.target.closest('[data-act]');
       if (!b || b.disabled) return;
@@ -57,7 +59,26 @@ export class CasesPanel {
       ? '<div class="cases-bar"><span>Rennen beendet</span><button class="pill-btn" data-act="results">Ergebnis anzeigen</button></div>'
       : '';
     const list = [...race.cases].reverse().map(c => this.card(race, c, finished)).join('');
+    const times = new Map([...this.players].map(([id, p]) => [id, { t: p.t, playing: p.playing }]));
+    for (const p of this.players.values()) p.destroy();
+    this.players.clear();
     this.el.innerHTML = head + list;
+    this.mountScenes(race, times);
+  }
+
+  mountScenes(race, times) {
+    for (const box of this.el.querySelectorAll('.scene-box')) {
+      const id = Number(box.dataset.scene);
+      const c = race.cases.find(x => x.id === id);
+      if (!c || !c.scene) continue;
+      const prev = times.get(id);
+      const p = new ScenePlayer(box, {
+        track: race.track, scene: c.scene, sharp: c.status !== 'new', t: prev ? prev.t : 0, autoplay: prev ? prev.playing : true,
+        onFull: t => this.onAction('scene-full', id, { t }),
+        onMap: () => this.onAction('scene-map', id, {}),
+      });
+      this.players.set(id, p);
+    }
   }
 
   card(race, c, finished) {
@@ -78,9 +99,12 @@ export class CasesPanel {
             <div><div class="ev-label">${e.label}</div><div>${e.text}</div></div></div>`).join('')}` : '';
       const more = !showAll && c.evidence.length > evs.length
         ? `<div class="ev-more">Weitere Beweise (Telemetrie, Positionen, Funk) nach Untersuchungsbeginn.</div>` : '';
+      const scene = c.scene ? `
+          <div class="scene-box" data-scene="${c.id}"></div>
+          <div class="scene-hint">${c.status === 'new' ? '🎥 TV-Bild – genauere Übersicht mit Hilfslinien nach „Untersuchen“' : '🎥 Nachstellung aus Daten und Kameras – Hilfslinien zur Bewertung'}</div>` : '';
       body = `
         <div class="case-body">
-          <p class="case-summary">${c.summary}</p>
+          <p class="case-summary">${c.summary}</p>${scene}
           <div class="evidence">${evHtml}${more}${hearing}</div>
           ${this.actions(race, c, finished)}
         </div>`;

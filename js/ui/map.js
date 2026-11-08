@@ -2,6 +2,8 @@
 // Gefahrenstellen, Autos. Zoom (Zwei-Finger / Mausrad) und Verschieben nur hier.
 import { pointAt, wrapD, sectorIndexAt } from '../sim/trackModel.js';
 import { drawTrackArt } from './trackArt.js';
+import { sceneCarAt, HALF_W } from '../sim/scenes.js';
+import { drawCar } from './scenePlayer.js';
 
 const PIT_OFFSET_PX = 9;
 const MAX_ZOOM = 6;
@@ -275,6 +277,52 @@ export class TrackMap {
     if (this.onZoomChange) this.onZoomChange(this.zoom);
   }
 
+  // Wiederholung einer Rennszene auf der Karte
+  startReplay(scene, sharp, onEnd) {
+    this.replay = { scene, sharp, t: -0.6, onEnd };
+    this.zoom = 4.5;
+    if (this.onZoomChange) this.onZoomChange(this.zoom);
+  }
+
+  drawReplay(ctx, dt) {
+    const rp = this.replay;
+    rp.t += dt;
+    const sc = rp.scene;
+    if (rp.t > sc.dur + 1) {
+      this.replay = null;
+      this.resetView();
+      if (rp.onEnd) rp.onEnd();
+      return;
+    }
+    const t = Math.max(0, rp.t);
+    const half = 3.75 * this.widthScale();
+    const at = (s, lat) => this.pos(sc.d0 + s, (lat / HALF_W) * half);
+    ctx.fillStyle = 'rgba(11,15,23,0.35)';
+    ctx.fillRect(0, 0, this.w, this.h);
+    for (const car of sc.cars) {
+      const [s, lat, rot] = sceneCarAt(sc, car, t);
+      const [s2, lat2] = sceneCarAt(sc, car, Math.min(sc.dur, t + 0.15));
+      const [x, y] = at(s, lat);
+      let [x2, y2] = at(s2 + 0.01, lat2);
+      if (Math.hypot(x2 - x, y2 - y) < 0.2) [x2, y2] = at(s + 2, lat);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(Math.atan2(y2 - y, x2 - x) + Math.PI / 2 + rot);
+      const k = (half * 2 * 1.1) / 63;
+      ctx.scale(k, k);
+      drawCar(ctx, car.c1, car.c2, car.num, { numbers: false });
+      ctx.restore();
+      if (rp.sharp) this.drawLabel(ctx, x, y, car.id, false);
+    }
+    ctx.fillStyle = 'rgba(0,0,0,.7)';
+    ctx.fillRect(this.w / 2 - 70, 8, 140, 22);
+    ctx.fillStyle = '#ffd12e';
+    ctx.font = '700 12px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`WIEDERHOLUNG · ${sc.corner}`, this.w / 2, 19);
+  }
+
   stopFollow() {
     if (!this.follow) return;
     this.follow = null;
@@ -400,7 +448,10 @@ export class TrackMap {
     this.lastDraw = now;
     this.lastRace = race;
     this.lastRenderD = renderD;
-    if (this.follow && race && race.carById[this.follow]) {
+    const realDt = this.lastRealDraw ? Math.min(0.1, (now - this.lastRealDraw) / 1000) : 0;
+    this.lastRealDraw = now;
+    if (this.replay) this.centerOn(this.replay.scene.d0, 0);
+    else if (this.follow && race && race.carById[this.follow]) {
       const car = race.carById[this.follow];
       if (car.retired && car.wreck && !car.wreck.removed) this.centerOn(car.wreck.d, car.wreck.lateral * this.widthScale());
       else if (!car.retired) this.centerOn(renderD.get(car) ?? car.d, this.carLateral(race, car));
@@ -435,6 +486,7 @@ export class TrackMap {
       ctx.stroke();
     }
     this.drawHazards(ctx, race);
+    if (this.replay) { this.drawReplay(ctx, realDt); return; }
 
     const standings = race.standings();
     const posOf = new Map(standings.map((c, i) => [c, i + 1]));

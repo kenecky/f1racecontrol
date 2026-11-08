@@ -813,3 +813,16 @@ button {
 .dc-grid div { display: flex; flex-direction: column; min-width: 0; }
 .dc-grid span { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .dc-grid b { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Rennszenen */
+.scene-box { margin: 8px 0 4px; }
+.scene-view { position: relative; border-radius: 8px; overflow: hidden; background: #1f4a2a; }
+.scene-view canvas { display: block; width: 100%; height: 190px; }
+.scene-big .scene-view canvas { height: min(62dvh, 520px); }
+.scene-tag { position: absolute; left: 6px; top: 6px; font: 700 10px system-ui, sans-serif; letter-spacing: .06em;
+  background: rgba(0,0,0,.6); color: #fff; padding: 2px 6px; border-radius: 4px; }
+.scene-ctl { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.scene-ctl button { flex: none; min-width: 36px; height: 30px; border: 0; border-radius: 6px; background: var(--bg-3); color: var(--text); font-size: 13px; }
+.scene-ctl input { flex: 1; min-width: 0; accent-color: var(--yellow); }
+.scene-hint { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+.scene-sheet { max-width: 600px; }

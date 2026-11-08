@@ -19,6 +19,7 @@ import { FlagPanel } from './ui/flagPanel.js';
 import { ControlPanel } from './ui/controlPanel.js';
 import { CasesPanel } from './ui/casesPanel.js';
 import { renderTower } from './ui/tower.js';
+import { ScenePlayer } from './ui/scenePlayer.js';
 import { hazardProgress, hazardWhere } from './sim/hazards.js';
 import { weatherLabel } from './sim/weather.js';
 import {
@@ -91,6 +92,8 @@ const controlPanel = new ControlPanel({
 const casesPanel = new CasesPanel($('cases'), {
   onAction: (act, id, form) => {
     const c = id ? race.cases.find(x => x.id === id) : null;
+    if (act === 'scene-full') { openSceneFull(c, form.t); return; }
+    if (act === 'scene-map') { startMapReplay(c); return; }
     if (act === 'investigate') investigate(race, c);
     else if (act === 'investigate-now') { c.status = 'investigating'; race.emit('rc', `Entscheidung #${c.id} wird untersucht: ${c.title}`); }
     else if (act === 'hearing') startHearing(race, c);
@@ -478,6 +481,35 @@ function frame(now) {
     }
   }
   requestAnimationFrame(frame);
+}
+
+// ---------- Rennszenen: Vollbild und Wiederholung auf der Karte ----------
+
+let fullPlayer = null;
+function openSceneFull(c, t = 0) {
+  if (!c || !c.scene) return;
+  if (fullPlayer) fullPlayer.destroy();
+  $('sceneFullTitle').textContent = `🎥 #${c.id} ${c.title}`;
+  $('sceneFull').classList.remove('hidden');
+  fullPlayer = new ScenePlayer($('sceneFullBody'), { track: race.track, scene: c.scene, sharp: c.status !== 'new', t, big: true });
+}
+$('sceneFullClose').addEventListener('click', () => {
+  $('sceneFull').classList.add('hidden');
+  if (fullPlayer) { fullPlayer.destroy(); fullPlayer = null; }
+});
+
+let replayResume = false;
+function startMapReplay(c) {
+  if (!c || !c.scene) return;
+  if (map.follow) stopFollow();
+  replayResume = !paused && race.phase !== 'finished';
+  paused = true;
+  updatePauseBtn();
+  map.startReplay(c.scene, c.status !== 'new', () => {
+    if (replayResume) { paused = false; updatePauseBtn(); }
+    replayResume = false;
+  });
+  toast(`Wiederholung #${c.id} auf der Karte – das Rennen ist so lange angehalten`);
 }
 
 // ---------- Startablauf: Formationsrunde, Ampel, Lichter aus ----------

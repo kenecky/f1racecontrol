@@ -4,6 +4,7 @@
 import { startSpin, stopCarAfterIncident, createDebris, cornerNear, cornerLabel, createHazard, retireCar } from './hazards.js';
 import { sectorIndexAt, wrapD } from './trackModel.js';
 import { aggressionOf, errorsOf } from './race.js';
+import { sceneCollision, sceneForcedOff, sceneOffTrackPass } from './scenes.js';
 
 export const CASE_TYPES = {
   collision:     { name: 'Kollision',                     options: ['warning', '5s', '10s', 'dt', 'sg', 'grid3', 'grid5', 'grid10', 'dsq'] },
@@ -160,13 +161,16 @@ function collision(race, A, B, cornerId) {
     ev('radio', `Funk ${B.id}`, blame === 'defender' && r.chance(0.1) ? radio(race, 'admitDef') : radio(race, 'hitBy', A.id)),
     ev('data', 'Leitlinie', RULE_INSIDE),
   ];
-  createCase(race, {
+  const cc = createCase(race, {
     type: 'collision', cars: [A.id, B.id], corner: corner.id,
     title: `Kollision ${A.id} / ${B.id} – ${corner.id}`,
     summary: `${A.id} und ${B.id} berühren sich in ${cornerLabel(corner)}. ${consText}`,
     evidence,
     truth: { offender: offender ? offender.id : null, expected, points, victim: victim.id },
   });
+  // Szene: tatsächliche Überlappung (die Messung oben streut stärker)
+  const mean = { attacker: 34, defender: 70, racing: 55 }[blame];
+  cc.scene = sceneCollision(race, { A, B, corner, blame, overlap: mean + (overlap - mean) * 0.3, consequence, victim });
 }
 
 function applyConsequence(race, victim, consequence, A, B) {
@@ -206,13 +210,15 @@ function forcedOff(race, A, B, cornerId) {
     ev('radio', `Funk ${B.id}`, radio(race, 'myCorner', A.id)),
     ev('data', 'Leitlinie', RULE_OUTSIDE),
   ];
-  createCase(race, {
+  const cc = createCase(race, {
     type: 'forcedOff', cars: [B.id, A.id], corner: corner.id,
     title: `${B.id} drängt ${A.id} ab? – ${corner.id}`,
     summary: `${A.id} muss beim Überholversuch gegen ${B.id} in ${cornerLabel(corner)} neben die Strecke.`,
     evidence,
     truth: { offender: fault ? B.id : null, expected: fault ? ['5s'] : ['none'], points: fault ? [1, 2] : [0, 0], victim: A.id },
   });
+  const mean = fault ? 70 : 42;
+  cc.scene = sceneForcedOff(race, { A, B, corner, fault, overlap: mean + (overlap - mean) * 0.3 });
 }
 
 function offTrackPass(race, A, B, cornerId) {
@@ -239,6 +245,7 @@ function offTrackPass(race, A, B, cornerId) {
       ? { offender: null, expected: ['none'], points: [0, 0], victim: B.id }
       : { offender: A.id, expected: ['giveback', '5s'], points: [0, 1], victim: B.id },
   });
+  c.scene = sceneOffTrackPass(race, { A, B, corner, wheels });
   if (voluntary) {
     A.giveBack = { target: B.id, until: race.time + 70, voluntary: true, caseId: c.id };
   }

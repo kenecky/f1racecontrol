@@ -449,7 +449,10 @@ und Verwarnungen): weniger riskante Manöver und Fehler, aber bis zu 0,3 s pro R
 Klick auf einen Fahrer im Tower: Karte zoomt auf ihn und folgt ihm, oberhalb der Karte erscheinen
 seine Details, der Bereich unten wird eingeklappt. ✕ oder erneuter Klick beendet das Verfolgen.
 
-### Rennszenen (in Planung – noch nicht gebaut)
-Kurze 2D-Draufsicht eines Vorfalls in der Entscheidungskarte (+ Vollbild-Button), zuerst als unklarer
-„TV-Blick“, nach „Untersuchen“ genauer mit Hilfslinien; zusätzlich Wiederholung auf der großen Karte.
-Start mit Kollision, Abdrängen, Überholen neben der Strecke. Fahrzeug-Varianten: docs/fahrzeug_varianten.png.
+### Rennszenen (umgesetzt, erste Stufe)
+Kollision, Abdrängen und Überholen neben der Strecke werden als kurze Draufsicht nachgestellt
+(Fahrzeug-Variante C, siehe docs/fahrzeug_varianten.png). Die Szene entsteht aus dem tatsächlichen
+Ablauf des Vorfalls. In der Entscheidungskarte zuerst unscharfes TV-Bild, nach „Untersuchen“ scharfe
+Übersicht mit Hilfslinien (Überlappung/Spiegel-Linie, Streckenbegrenzung). Dazu Vollbild, Zeitlupe,
+Zeitleiste und „🗺“ = Wiederholung auf der großen Karte (Rennen pausiert so lange).
+Später: Massenunfall, Überholen unter Gelb, unsichere Freigabe, Fehlstart.
