@@ -456,3 +456,13 @@ Ablauf des Vorfalls. In der Entscheidungskarte zuerst unscharfes TV-Bild, nach �
 Übersicht mit Hilfslinien (Überlappung/Spiegel-Linie, Streckenbegrenzung). Dazu Vollbild, Zeitlupe,
 Zeitleiste und „🗺“ = Wiederholung auf der großen Karte (Rennen pausiert so lange).
 Später: Massenunfall, Überholen unter Gelb, unsichere Freigabe, Fehlstart.
+
+### Meldungen und Funk (umgesetzt)
+Filter in „Meldungen“: Alle (ohne Funk) · Rennleitung · Strecke · Funk. Funksprüche als Blasen in Teamfarbe,
+Helm = Fahrer, Kopfhörer = Team.
+
+### Ton (umgesetzt, erste Stufe)
+Alle Geräusche werden im Browser erzeugt (Web Audio, keine Dateien): Motoren des Feldes (Leerlauf in der
+Startaufstellung, Formationsrunde, Aufheulen beim Start, leiser unter SC/VSC), Startampel-Töne, Funk-Knacken,
+Hinweise für neue Vorfälle/Entscheidungen, VSC/SC/Rot, Zielflagge. Schalter „Ton“ im Tempo-Menü.
+Option für später: echte Aufnahmen (z. B. CC0-Lizenz von freesound.org) für realistischere Motoren.

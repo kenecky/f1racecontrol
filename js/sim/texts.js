@@ -165,7 +165,16 @@ export function ambientRadio(race, dt, rand) {
   const car = running[Math.floor(rand() * running.length)];
   const leader = race.standings()[0];
   const left = race.laps - leader.lap;
-  const pick = key => { const p = T[key]; return p[Math.floor(rand() * p.length)]; };
+  // keine Wiederholung der letzten Sprüche
+  race.recentChat = race.recentChat || [];
+  const pick = key => {
+    const p = T[key];
+    let x = p[Math.floor(rand() * p.length)];
+    for (let k = 0; k < 6 && race.recentChat.includes(x); k++) x = p[Math.floor(rand() * p.length)];
+    race.recentChat.push(x);
+    if (race.recentChat.length > 10) race.recentChat.shift();
+    return x;
+  };
   const n = race.neutral;
   let text, who = `Funk ${car.id}`;
   if (n && n.type === 'sc') { text = pick('scRadio'); who = `Teamfunk ${car.team.name} an ${car.id}`; }

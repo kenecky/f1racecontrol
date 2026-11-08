@@ -68,7 +68,8 @@
         <div id="timing"></div>
       </div>
       <div id="panel-feed" class="panel">
-        <ul id="feed" class="feed"></ul>
+        <div id="feedFilter" class="fk-chips"></div>
+        <ul id="feed" class="feed" data-filter="all"></ul>
       </div>
       <div id="panel-cases" class="panel">
         <div id="cases"></div>
@@ -86,6 +87,10 @@
   <div id="speedMenu" class="popover hidden" role="menu">
     <div class="popover-title">Tempo</div>
     <div class="speed-grid"></div>
+    <label class="switch-row">
+      <input id="soundToggle" type="checkbox">
+      <span>Ton (Motoren, Startampel, Funk, Hinweise)</span>
+    </label>
     <label class="switch-row">
       <input id="slowToggle" type="checkbox">
       <span>Bei neuen Vorfällen und Entscheidungen auf 1× abbremsen</span>

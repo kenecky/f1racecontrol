@@ -826,3 +826,22 @@ button {
 .scene-ctl input { flex: 1; min-width: 0; accent-color: var(--yellow); }
 .scene-hint { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
 .scene-sheet { max-width: 600px; }
+
+/* Meldungen: Filter und Funk */
+.fk-chips { display: flex; gap: 6px; padding: 8px 10px; position: sticky; top: 0; background: var(--bg); z-index: 2; overflow-x: auto; }
+.fk-chip { display: inline-flex; align-items: center; gap: 4px; padding: 5px 11px; border-radius: 14px; background: var(--bg-3); color: var(--muted); font-size: 12px; border: 0; white-space: nowrap; }
+.fk-chip.on { background: var(--text); color: var(--bg); font-weight: 700; }
+.fk-chip .fk-icon { width: 14px; height: 14px; }
+.feed[data-filter="all"] > li[data-cat="radio"],
+.feed[data-filter="rc"] > li:not([data-cat="rc"]),
+.feed[data-filter="track"] > li:not([data-cat="track"]),
+.feed[data-filter="radio"] > li:not([data-cat="radio"]) { display: none; }
+.msg-fk { display: flex; gap: 8px; margin: 6px 10px; align-items: stretch; list-style: none; }
+.fk-bar { width: 4px; border-radius: 2px; flex: none; }
+.fk-body { background: var(--bg-3); border-radius: 10px; padding: 7px 10px; flex: 1; min-width: 0; }
+.msg-fk.team .fk-body { background: #12233a; }
+.fk-who { font-size: 11px; color: var(--muted); margin-bottom: 2px; display: flex; justify-content: space-between; gap: 8px; }
+.fk-who b { color: var(--text); display: inline-flex; align-items: center; gap: 5px; }
+.fk-icon { color: var(--text); flex: none; }
+.fk-txt { font-size: 14px; }
+.fk-chip.on .fk-icon path + path { fill: var(--text); }

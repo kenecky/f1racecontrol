@@ -14,12 +14,13 @@ import { randomSeed } from './util/rng.js';
 import { setSectorFlag, clearAllFlags, trackStatus, flagReport } from './control/flags.js';
 import { TrackMap } from './ui/map.js';
 import { renderTiming, formatClock, formatGap } from './ui/timing.js';
-import { Feed } from './ui/feed.js';
+import { Feed, FEED_FILTERS, HELMET_ICON } from './ui/feed.js';
 import { FlagPanel } from './ui/flagPanel.js';
 import { ControlPanel } from './ui/controlPanel.js';
 import { CasesPanel } from './ui/casesPanel.js';
 import { renderTower } from './ui/tower.js';
 import { ScenePlayer } from './ui/scenePlayer.js';
+import { Sound } from './ui/sound.js';
 import { hazardProgress, hazardWhere } from './sim/hazards.js';
 import { weatherLabel } from './sim/weather.js';
 import {
@@ -50,7 +51,65 @@ function getTrack(id) {
 let track = getTrack(settings.trackId);
 let season = null;
 const map = new TrackMap($('map'), track);
-const feed = new Feed($('feed'));
+// ---------- Ton ----------
+const sound = new Sound();
+sound.enabled = settings.sound !== false;
+document.addEventListener('pointerdown', () => { sound.unlock(); sound.setEnabled(settings.sound !== false); }, true);
+const snd = { lights: 0, phase: null, neutral: null, evId: 0, lastRadio: 0 };
+function updateSound(now) {
+  if (!sound.ctx || !race) return;
+  let level = 0, rpm = 0;
+  const n = race.neutral;
+  if (!paused && settings.sound !== false) {
+    const onTrack = race.cars.filter(c => !c.retired && !c.finished && !c.inPit && !c.inGarage).length;
+    const crowd = Math.min(1, 0.25 + onTrack / 16);
+    if (race.phase === 'formation') { level = 0.55; rpm = 0.3; }
+    else if (race.phase === 'grid') { level = 0.35; rpm = 0.12; }
+    else if (race.phase === 'lights') { level = 0.55; rpm = race.lightsOn ? 0.35 + 0.25 * Math.abs(Math.sin(now / 230)) : 0.15; }
+    else if (race.phase === 'running' || race.phase === 'chequered') {
+      level = 0.75 * crowd;
+      rpm = n && n.type === 'red' ? 0.1 : n ? 0.42 : 0.66 + 0.06 * Math.sin(now / 900);
+      if (n && n.type === 'red') level = 0.15;
+    }
+    if (sound.launchUntil && sound.ctx.currentTime < sound.launchUntil) { level = 1; rpm = 0.95; }
+  }
+  sound.setEngine(level, rpm);
+  // Startampel
+  const lo = race.lightsOn || 0;
+  if (lo > snd.lights) sound.light();
+  snd.lights = lo;
+  if (snd.phase === 'lights' && race.phase === 'running') sound.lightsOut();
+  snd.phase = race.phase;
+  // Neutralisierungen
+  const nt = n ? n.type : null;
+  if (nt && nt !== snd.neutral) sound.neutral(nt);
+  snd.neutral = nt;
+  // Ereignisse
+  for (let i = race.events.length - 1; i >= 0 && race.events[i].id > snd.evId; i--) {
+    const e = race.events[i];
+    if (e.type === 'radio' && now - snd.lastRadio > 1500) { snd.lastRadio = now; sound.radio(); }
+    if (e.type === 'chequered') sound.chequered();
+  }
+  if (race.events.length) snd.evId = race.events[race.events.length - 1].id;
+}
+
+const feed = new Feed($('feed'), { colorOf: id => (race && race.carById[id] ? race.carById[id].team.color : null) });
+
+// Meldungen filtern: Alle (ohne Funk) · Rennleitung · Strecke · Funk
+function renderFeedFilter() {
+  const cur = settings.feedFilter || 'all';
+  $('feed').dataset.filter = cur;
+  $('feedFilter').innerHTML = FEED_FILTERS.map(f => `<button class="fk-chip${f.id === cur ? ' on' : ''}" data-filter="${f.id}">${f.id === 'radio' ? HELMET_ICON : ''}${f.label}</button>`).join('');
+}
+$('feedFilter').addEventListener('click', e => {
+  const b = e.target.closest('[data-filter]');
+  if (!b) return;
+  settings.feedFilter = b.dataset.filter;
+  saveSettings(settings);
+  renderFeedFilter();
+  $('panel-feed').scrollTop = 0;
+});
+renderFeedFilter();
 const flagPanel = new FlagPanel({
   root: $('flagSheet'),
   list: $('flagList'),
@@ -181,6 +240,8 @@ function newRace(seed = randomSeed()) {
   seenHazards = 0;
   seenCases = 0;
   seenStartIssue = 0;
+  snd.evId = race.events.length ? race.events[race.events.length - 1].id : 0;
+  snd.neutral = null;
   casesPanel.open.clear();
   casesPanel.forms = {};
   casesPanel.sig = '';
@@ -377,6 +438,9 @@ function resumeRace() {
   seenHazards = race.hazards.length;
   seenCases = race.cases.length;
   seenStartIssue = race.startIssueSeq || 0;
+  snd.evId = race.events.length ? race.events[race.events.length - 1].id : 0;
+  snd.neutral = race.neutral ? race.neutral.type : null;
+  snd.phase = race.phase;
   casesPanel.open.clear();
   casesPanel.forms = {};
   casesPanel.sig = '';
@@ -469,6 +533,7 @@ function frame(now) {
     map.paused = paused;
     map.draw(race, renderD);
     updateStartCtl();
+    updateSound(now);
 
     if (!paused && now - lastSave > 10000) { lastSave = now; autosave(); }
 
@@ -574,6 +639,7 @@ function onStartIssue() {
 
 function onNewHazard() {
   seenHazards = race.hazards.length;
+  sound.alert();
   acc = 0;
   if (settings.slowOnIncident && settings.speed > 1) {
     setSpeed(1);
@@ -598,6 +664,7 @@ function refreshUi() {
   if (race.cases.length > seenCases) {
     const c = race.cases[race.cases.length - 1];
     seenCases = race.cases.length;
+    sound.chime();
     if (settings.slowOnIncident && settings.speed > 1) {
       setSpeed(1);
       toast(`Neue Entscheidung #${c.id}: ${c.typeName} – Tempo auf 1×`);
@@ -1031,6 +1098,13 @@ $('speedMenu').addEventListener('click', e => {
     setSpeed(Number(b.dataset.speed));
     toggleSpeedMenu(false);
   }
+});
+$('soundToggle').checked = settings.sound !== false;
+$('soundToggle').addEventListener('change', e => {
+  settings.sound = e.target.checked;
+  saveSettings(settings);
+  sound.unlock();
+  sound.setEnabled(settings.sound);
 });
 $('slowToggle').addEventListener('change', e => {
   settings.slowOnIncident = e.target.checked;

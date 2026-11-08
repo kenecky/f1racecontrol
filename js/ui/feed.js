@@ -3,15 +3,56 @@ export const WARN_ICON = '<svg class="warn-icon" viewBox="0 0 24 24" width="16" 
   + '<path d="M12 2.5 23 21.5H1Z" fill="#ffd12e" stroke="#000" stroke-width="1.3" stroke-linejoin="round"/>'
   + '<rect x="11" y="8.5" width="2" height="7.2" rx="1" fill="#000"/><circle cx="12" cy="18.4" r="1.25" fill="#000"/></svg>';
 
+// Fahrerhelm (Funk vom Fahrer) und Kopfhörer (Funk vom Team)
+export const HELMET_ICON = '<svg class="fk-icon" viewBox="0 0 24 24" width="18" height="18" aria-label="Fahrer">'
+  + '<path d="M3 14.5C3 8.7 7.4 4 13 4c4.6 0 8 3.4 8 8v3.5c0 1.4-1.1 2.5-2.5 2.5H9.5L7 20H4.5C3.7 20 3 19.3 3 18.5Z" fill="currentColor"/>'
+  + '<path d="M11 9.5h8.6c.3.8.4 1.6.4 2.5v1.5h-7.5A1.5 1.5 0 0 1 11 12Z" fill="#0b0f17"/></svg>';
+export const HEADSET_ICON = '<svg class="fk-icon" viewBox="0 0 24 24" width="18" height="18" aria-label="Team">'
+  + '<path d="M4 14v-2a8 8 0 0 1 16 0v2" fill="none" stroke="currentColor" stroke-width="2.2"/>'
+  + '<rect x="2.5" y="13" width="5" height="7" rx="2" fill="currentColor"/><rect x="16.5" y="13" width="5" height="7" rx="2" fill="currentColor"/>'
+  + '<path d="M19 20c0 1.5-2 2.3-5 2.3" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="13.5" cy="22.2" r="1.3" fill="currentColor"/></svg>';
+
+// Kategorien für den Filter: Rennleitung, Strecke, Funk
+const CAT = {
+  rc: 'rc', case: 'rc', start: 'rc', info: 'rc', chequered: 'rc', finish: 'rc',
+  marshal: 'track', overtake: 'track', fastest: 'track', pit: 'track', weather: 'track', tl: 'track',
+  radio: 'radio',
+};
+export const FEED_FILTERS = [
+  { id: 'all', label: 'Alle' },
+  { id: 'rc', label: 'Rennleitung' },
+  { id: 'track', label: 'Strecke' },
+  { id: 'radio', label: 'Funk' },
+];
+
 const ICONS = {
   info: 'ℹ️', start: '🚦', overtake: '↗', fastest: '⏱', pit: '🔧', chequered: '🏁', finish: '🏁',
   marshal: WARN_ICON, radio: '📻', rc: '🚩', case: '⚖️', tl: '📏', weather: '🌦',
 };
 
 export class Feed {
-  constructor(el) {
+  constructor(el, { colorOf = () => null } = {}) {
     this.el = el;
     this.lastId = 0;
+    this.colorOf = colorOf;
+  }
+
+  // Funkspruch: „Funk VER: …“ oder „Teamfunk Red Bull Racing an VER: …“
+  radioHtml(e) {
+    const m = e.text.match(/^(?:Teamfunk (.+?)(?: an (\w+))?|Funk (\w+)): „([\s\S]*)“$/);
+    if (!m) return null;
+    const team = Boolean(m[1]);
+    const id = team ? m[2] : m[3];
+    const col = (id && this.colorOf(id)) || '#3d8bff';
+    const who = team ? `${escapeHtml(m[1])}${id ? ` → ${id}` : ''}` : id;
+    return `
+      <li class="msg-fk${team ? ' team' : ''}" data-cat="radio">
+        <span class="fk-bar" style="background:${col}"></span>
+        <div class="fk-body">
+          <div class="fk-who"><b>${team ? HEADSET_ICON : HELMET_ICON}${who}</b><span>${e.seg ? e.seg : e.lap ? 'R' + e.lap : ''}</span></div>
+          <div class="fk-txt">„${escapeHtml(m[4])}“</div>
+        </div>
+      </li>`;
   }
 
   reset() {
@@ -24,15 +65,17 @@ export class Feed {
     const fresh = events.filter(e => e.id > this.lastId);
     if (!fresh.length) return 0;
     this.lastId = fresh[fresh.length - 1].id;
-    const html = fresh.reverse().map(e => `
-      <li class="msg msg-${e.type}">
+    const html = fresh.reverse().map(e => (e.type === 'radio' && this.radioHtml(e)) || `
+      <li class="msg msg-${e.type}" data-cat="${CAT[e.type] || 'rc'}">
         <span class="msg-lap">${e.seg ? e.seg : e.lap ? 'R' + e.lap : '–'}</span>
         <span class="msg-icon">${ICONS[e.type] || '•'}</span>
         <span class="msg-text">${escapeHtml(e.text)}</span>
       </li>`).join('');
     this.el.insertAdjacentHTML('afterbegin', html);
     while (this.el.children.length > 300) this.el.lastElementChild.remove();
-    return fresh.length;
+    // Zähler: nur, was im aktuellen Filter sichtbar ist
+    const f = this.el.dataset.filter || 'all';
+    return fresh.filter(e => (f === 'all' ? e.type !== 'radio' : (CAT[e.type] || 'rc') === f)).length;
   }
 }
 
