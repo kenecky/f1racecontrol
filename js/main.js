@@ -1457,5 +1457,12 @@ loadRaceState().then(data => {
 }).catch(() => {});
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
+  // Neue Version aktiv: auf dem Startbildschirm direkt neu laden, sonst Hinweis
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloaded) return;
+    if (!race || race.phase === 'pre') { reloaded = true; location.reload(); }
+    else toast('Neue Version verfügbar – nach dem Rennen die App neu laden');
+  });
 }

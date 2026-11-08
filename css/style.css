@@ -845,3 +845,4 @@ button {
 .fk-icon { color: var(--text); flex: none; }
 .fk-txt { font-size: 14px; }
 .fk-chip.on .fk-icon path + path { fill: var(--text); }
+.app-version { text-align: center; color: var(--muted); font-size: 11px; margin: 14px 0 4px; opacity: .7; }
