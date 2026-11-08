@@ -12,6 +12,8 @@ import { Feed } from './ui/feed.js';
 import { FlagPanel } from './ui/flagPanel.js';
 import { ControlPanel } from './ui/controlPanel.js';
 import { CasesPanel } from './ui/casesPanel.js';
+import { renderTower } from './ui/tower.js';
+import { hazardProgress } from './sim/hazards.js';
 import {
   investigate, postpone, noFurtherAction, decide, openCases, stewardReport, unservedSecs,
 } from './control/stewards.js';
@@ -218,7 +220,10 @@ function refreshUi() {
     seenCases = race.cases.length;
     if (activeTab !== 'cases') toast(`Neuer Fall #${c.id}: ${c.typeName}`);
   }
-  if (!touching) renderTiming($('timing'), race, timingOpts());
+  if (!touching) {
+    renderTiming($('timing'), race, timingOpts());
+    if (settings.showTower) renderTower($('tower'), race, map.selected);
+  }
 }
 
 function updateStatus() {
@@ -264,7 +269,8 @@ function updateAlert() {
     el.dataset.sector = h.sector;
     // orange: es wurde reagiert, aber (noch) nicht ausreichend
     el.className = `alert${h.maxResponse > 0 ? ' alert-double' : ''}`;
-    el.innerHTML = `<span class="alert-text">⚠ Sektor ${h.sector + 1}: ${h.desc}</span><span class="alert-go">Flaggen ›</span>`;
+    const prog = h.workTotal ? ` · Bergung ${Math.round(hazardProgress(h) * 100)} %` : '';
+    el.innerHTML = `<span class="alert-text">⚠ Sektor ${h.sector + 1}: ${h.desc}${prog}</span><span class="alert-go">Flaggen ›</span>`;
     return;
   }
   const n = race.neutral;
@@ -314,6 +320,7 @@ function updateBadge() {
 function select(id) {
   map.selected = id === null || map.selected === id ? null : id;
   renderTiming($('timing'), race, timingOpts());
+  if (settings.showTower) renderTower($('tower'), race, map.selected);
 }
 
 function setSpeed(v) {
@@ -556,6 +563,25 @@ $('labelsBtn').addEventListener('click', () => {
 });
 $('zoomResetBtn').addEventListener('click', () => map.resetView());
 
+// Ranking-Tower
+const TOWER_PAD = 142;
+function applyTower() {
+  $('tower').classList.toggle('hidden', !settings.showTower);
+  $('towerBtn').classList.toggle('active', settings.showTower);
+  map.setPadLeft(settings.showTower ? TOWER_PAD : 0);
+  if (settings.showTower && race) renderTower($('tower'), race, map.selected);
+}
+$('towerBtn').addEventListener('click', () => {
+  settings.showTower = !settings.showTower;
+  saveSettings(settings);
+  applyTower();
+});
+$('tower').addEventListener('pointerdown', () => { touching = true; });
+$('tower').addEventListener('click', e => {
+  const row = e.target.closest('.tw-row');
+  if (row) select(row.dataset.id);
+});
+
 $('gapHead').addEventListener('click', () => {
   settings.gapMode = settings.gapMode === 'interval' ? 'leader' : 'interval';
   saveSettings(settings);
@@ -683,6 +709,7 @@ document.addEventListener('touchmove', e => {
 
 $('speedBtn').textContent = `${settings.speed}×`;
 appEl.classList.toggle('collapsed', settings.panelCollapsed);
+applyTower();
 $('labelsBtn').classList.toggle('active', settings.showLabels);
 newRace();
 requestAnimationFrame(frame);

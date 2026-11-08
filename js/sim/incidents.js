@@ -1,11 +1,12 @@
 // Vorfälle zwischen Fahrern und Regelverstöße → Fälle für die Rennleitung.
 // Jeder Fall hat eine interne "Wahrheit" (wer schuld ist, welche Strafe angemessen wäre)
 // und Beweise, die der Spieler auswerten muss. Beweise können unklar oder parteiisch sein.
-import { startSpin, stopCarAfterIncident, createDebris, cornerNear, cornerLabel } from './hazards.js';
-import { sectorIndexAt } from './trackModel.js';
+import { startSpin, stopCarAfterIncident, createDebris, cornerNear, cornerLabel, createHazard, retireCar } from './hazards.js';
+import { sectorIndexAt, wrapD } from './trackModel.js';
 
 export const CASE_TYPES = {
   collision:     { name: 'Kollision',                     options: ['warning', '5s', '10s', 'dt', 'sg', 'dsq'] },
+  pileup:        { name: 'Massenunfall',                  options: ['warning', '5s', '10s', 'dt', 'sg', 'dsq'] },
   forcedOff:     { name: 'Abdrängen von der Strecke',     options: ['warning', '5s', '10s', 'dt'] },
   offTrackPass:  { name: 'Überholen neben der Strecke',   options: ['warning', 'giveback', '5s', '10s'] },
   complaint:     { name: 'Beschwerde eines Teams',        options: ['warning', '5s', '10s', 'dt'] },
@@ -53,7 +54,7 @@ export function rollBattleIncident(race, attacker, defender, zoneCorner, success
     const roll = r.next();
     if (roll < 0.45) collision(race, attacker, defender, zoneCorner);
     else if (roll < 0.8) offTrackPass(race, attacker, defender, zoneCorner);
-    else complaint(race, attacker, defender, zoneCorner);
+    else if (attacker.team !== defender.team) complaint(race, attacker, defender, zoneCorner); // Teams beschweren sich nicht über eigene Fahrer
   } else {
     if (!r.chance(0.0015 * aggr)) return;
     if (r.chance(0.6)) forcedOff(race, attacker, defender, zoneCorner);
@@ -364,4 +365,97 @@ export function rollVscDelta(race, dt) {
       truth: { offender: car.id, expected: delta < 0.3 ? ['warning', '5s'] : ['5s'], points: [0, 1] },
     });
   }
+}
+
+// ---------- Massenunfall (3 oder mehr Autos) ----------
+
+// Wahrscheinlichkeit pro Runde; Startrunde deutlich höher. Regen erhöht das Risiko.
+export function rollPileup(race, leaderLap) {
+  if (race.neutral || race.phase !== 'running' || race.pendingPileup) return;
+  const wet = race.weather && race.weather.wet ? 4 : 1;
+  const p = (leaderLap === 0 ? 0.03 : 0.0008) * wet;
+  if (!race.rng.chance(p)) return;
+  const corners = leaderLap === 0
+    ? race.track.corners.filter(c => c.id === 'T1' || c.id === 'T3' || c.id === 'T4')
+    : race.track.corners;
+  const c = race.rng.pick(corners);
+  race.pendingPileup = { lap: leaderLap, at: leaderLap * race.track.L + c.d + race.rng.range(-20, 10) };
+}
+
+// Prüft nach jeder Bewegung, ob der geplante Massenunfall an einer Gruppe ausgelöst wird
+export function checkPileup(race) {
+  const pp = race.pendingPileup;
+  if (!pp) return;
+  if (race.neutral) { race.pendingPileup = null; return; }
+  const tr = race.track;
+  const onTrack = race.onTrackCars();
+  for (const A of onTrack) {
+    if (!(A.d - A.move < pp.at && A.d >= pp.at)) continue;
+    const behind = onTrack
+      .filter(c => c !== A && wrapD(tr, A.d - c.d) < 140)
+      .sort((a, b) => wrapD(tr, A.d - a.d) - wrapD(tr, A.d - b.d));
+    if (behind.length < 2) continue;
+    race.pendingPileup = null;
+    const r = race.rng;
+    const extra = r.chance(0.6) ? 2 : r.chance(0.6) ? 3 : 4;
+    startPileup(race, [A, ...behind.slice(0, extra)]);
+    return;
+  }
+  // Runde vorbei, keine Gruppe gefunden → verfällt
+  const leader = race.standings()[0];
+  if (leader.d > pp.at + tr.L) race.pendingPileup = null;
+}
+
+function startPileup(race, cars) {
+  const r = race.rng;
+  const [A, B] = cars;
+  const corner = cornerNear(race.track, A.d);
+  const blame = r.chance(0.6) ? 'follower' : 'chain';
+
+  // Folgen: mindestens zwei Ausfälle
+  const outcomes = cars.map((c, i) => (i < 2 ? 'dnf' : r.chance(0.45) ? 'dnf' : r.chance(0.6) ? 'damage' : 'spin'));
+  const out = [];
+  cars.forEach((c, i) => {
+    const o = outcomes[i];
+    if (o === 'dnf') {
+      retireCar(race, c, 'Massenunfall', (r.chance(0.5) ? 1 : -1) * r.range(8, 16));
+      c.wreck.d = c.d - i * r.range(4, 12);
+      out.push(c.id);
+    } else if (o === 'damage') {
+      c.damage = r.chance(0.6) ? 'wing' : 'puncture';
+    } else {
+      startSpin(race, c);
+    }
+  });
+  const barrier = r.chance(cars.length >= 4 ? 0.5 : 0.25);
+  const h = createHazard(race, {
+    type: 'crash', carId: A.id, carIds: out, d: A.d,
+    need: barrier ? 'red' : 'sc',
+    work: barrier ? r.range(420, 660) : r.range(200, 300),
+  });
+  const names = cars.map(c => c.id).join(', ');
+  h.desc = `Massenunfall mit ${cars.length} Autos (${names})${barrier ? ' – Barriere beschädigt' : ' – großes Trümmerfeld'}`;
+  race.emit('marshal', `Sektor ${h.sector + 1}: MASSENUNFALL in ${cornerLabel(corner)}! Beteiligt: ${names}. Ausgeschieden: ${out.join(', ')}.${barrier ? ' Die Barriere ist beschädigt.' : ' Trümmer auf der gesamten Fahrbahn.'}`, { hazard: h.id, sector: h.sector, cars: cars.map(c => c.id) });
+
+  // Fall für die Kommissare
+  const brake = measure(race, blame === 'follower' ? 14 : 6, 5, 0, 30);
+  const closing = measure(race, blame === 'follower' ? 38 : 22, 9, 5, 70);
+  createCase(race, {
+    type: 'pileup', cars: cars.map(c => c.id), corner: corner.id,
+    title: `Massenunfall ${cars.length} Autos – ${corner.id}`,
+    summary: `In ${cornerLabel(corner)} kommt es zu einem Unfall mit ${cars.length} Autos: ${names}.`,
+    evidence: [
+      ev('video', 'TV-Bilder', `${A.id} bremst vor ${cornerLabel(corner)}, ${B.id} fährt auf, dahinter kann das Feld nicht mehr ausweichen.${tvImpression(race,
+        blame === 'follower' ? `${B.id} scheint viel zu spät zu bremsen.` : `${A.id} scheint ungewöhnlich früh zu bremsen.`,
+        blame === 'follower' ? `${A.id} scheint ungewöhnlich früh zu bremsen.` : `${B.id} scheint viel zu spät zu bremsen.`)}`, true),
+      ev('telemetry', `Telemetrie ${B.id}`, r.chance(0.15) ? 'Bremsdaten unvollständig.' : `Bremspunkt ${f1(brake)} m später als im Schnitt der Vorrunden, Annäherung ${Math.round(closing)} km/h schneller als ${A.id}.`),
+      ev('telemetry', `Telemetrie ${A.id}`, `${A.id} bremst ${f1(measure(race, blame === 'chain' ? 9 : 3, 4, 0, 20))} m früher als in den Vorrunden.`),
+      ev('radio', `Funk ${B.id}`, `„${A.id} hat mitten auf der Geraden gebremst!“`),
+      ev('radio', `Funk ${A.id}`, '„Was war das denn?! Jemand ist mir voll hinten drauf!“'),
+      ev('data', 'Leitlinie', 'Wer auf ein vorausfahrendes Auto auffährt, ist in der Regel verantwortlich – es sei denn, der Vordermann bremst unerwartet oder es liegt eine Kettenreaktion ohne klaren Auslöser vor.'),
+    ],
+    truth: blame === 'follower'
+      ? { offender: B.id, expected: ['10s', 'dt'], points: [2, 3], victim: A.id }
+      : { offender: null, expected: ['none'], points: [0, 0], victim: A.id },
+  });
 }

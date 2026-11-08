@@ -35,3 +35,8 @@ js/data/              Teams, Fahrer, Strecken (Werte frei anpassbar)
 js/storage.js         Lokale Speicherung
 sw.js                 Offline-Betrieb (PWA)
 ```
+
+## Datenquellen
+
+- Streckenverlauf: [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits) (MIT-Lizenz),
+  siehe `THIRD_PARTY_NOTICES.md`

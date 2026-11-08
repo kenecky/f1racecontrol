@@ -270,6 +270,13 @@ docs/
       Live-Reaktionen der Teams auf Urteile; Verlauf der letzten Rennen auf dem Startbildschirm
 - [x] **Beweise mehrdeutig**: Messwerte aus überlappenden Verteilungen, Leitlinien als
       Bezugspunkt, unklare Kamerawinkel, täuschende TV-Eindrücke, Fälle ohne Vergehen
+- [x] **Extras (nach M5)**: echte Streckenführung des Red Bull Ring (bacinger/f1-circuits, MIT),
+      Gras, Asphalt-/Kies-Auslaufzonen (Näherung), rot-weiße Randsteine, Boxengebäude,
+      karierte Ziellinie; Ranking-Tower im TV-Stil; Massenunfälle (3–5 Autos, selten,
+      bei Regen häufiger); Bergungsfortschritt auch im Banner und Flaggen-Panel;
+      Zoom wird beim Ein-/Ausklappen zurückgesetzt; keine Team-Beschwerden gegen eigene Fahrer
+- [ ] **Wetter / Regenrennen**: Regen (leicht/stark), Intermediates/Regenreifen, Aquaplaning,
+      mehr Dreher und Massenunfälle, Rennstart hinter SC, rote Flagge bei zu viel Wasser
 - [ ] **M6 – Speichern/Laden**: Rennen fortsetzen, Statistik
 - [ ] **M7 – Saison**: weitere Strecken, Meisterschaftstabelle, Strafpunkte über die Saison
 - [ ] **Später**: Wetter, Track Limits im Detail, Unsafe Release, blaue Flaggen,
@@ -353,6 +360,7 @@ zusätzlich wird „unnötig gelb“ gemessen (Flagge ohne Gefahr, 10 s Kulanz n
 ## 12. Offene Punkte
 
 - Marshal-Sektoren: aktuell 12 (vereinfacht), ggf. an echte Einteilung anpassen
+- Auslaufzonen/Grasflächen genauer: OpenStreetMap-Daten (Server in der Cloud-Umgebung derzeit gesperrt)
 - Konkrete Stärkewerte für Teams/Fahrer
 - Reifenstrategien der CPU-Teams (Detailtiefe)
 - Gewichtung der Bewertungsachsen

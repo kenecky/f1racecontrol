@@ -5,6 +5,16 @@ import { pointAt, wrapD, sectorIndexAt } from '../sim/trackModel.js';
 const PIT_OFFSET_PX = 9;
 const MAX_ZOOM = 6;
 const FLAG_COLORS = { yellow: '#ffd12e', double: '#ffd12e' };
+const COLORS = {
+  grass: '#1d3b25',
+  grassLight: '#24482d',
+  gravel: '#a38d5d',
+  runoff: '#4b525d',
+  pitLane: '#3c424c',
+  building: '#5d6574',
+  edge: 'rgba(255,255,255,0.8)',
+  asphalt: '#2c3038',
+};
 
 export class TrackMap {
   constructor(canvas, track) {
@@ -37,6 +47,13 @@ export class TrackMap {
   resize() {
     const rect = this.canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
+    // Größe geändert (z. B. Bereich unten ein-/ausgeklappt): komplett herauszoomen
+    if (this.w && (Math.abs(rect.width - this.w) > 1 || Math.abs(rect.height - this.h) > 1)) {
+      this.zoom = 1;
+      this.panX = 0;
+      this.panY = 0;
+      if (this.onZoomChange) this.onZoomChange(1);
+    }
     const dpr = window.devicePixelRatio || 1;
     this.dpr = dpr;
     this.w = rect.width;
@@ -46,8 +63,9 @@ export class TrackMap {
       c.height = Math.round(rect.height * dpr);
     }
     const tr = this.track;
-    const pad = 22;
-    const padTop = 70; // Platz für Einblendungen (Vorfälle, VSC, SC …)
+    const pad = 34;    // Rand: Gras und Auslaufzonen ragen über die Mittellinie hinaus
+    const padTop = 76; // Platz für Einblendungen (Vorfälle, VSC, SC …)
+    const padL = this.padLeft ? this.padLeft + 40 : pad; // Platz für den Ranking-Tower
     const bounds = rot => {
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (let i = 0; i < tr.N; i++) {
@@ -55,7 +73,7 @@ export class TrackMap {
         minX = Math.min(minX, x); maxX = Math.max(maxX, x);
         minY = Math.min(minY, y); maxY = Math.max(maxY, y);
       }
-      const s = Math.min((this.w - 2 * pad) / (maxX - minX), (this.h - padTop - pad) / (maxY - minY));
+      const s = Math.min((this.w - padL - pad) / (maxX - minX), (this.h - padTop - pad) / (maxY - minY));
       return { minX, minY, maxX, maxY, s };
     };
     // Hohe, schmale Karte (z. B. eingeklappter Bereich): Strecke um 90° drehen, wenn sie dadurch deutlich größer wird
@@ -63,13 +81,23 @@ export class TrackMap {
     this.rot = rotated.s > normal.s * 1.2;
     const { minX, minY, maxX, maxY, s } = this.rot ? rotated : normal;
     this.scale = s;
-    this.ox = (this.w - (maxX - minX) * s) / 2 - minX * s;
+    this.ox = padL + (this.w - padL - pad - (maxX - minX) * s) / 2 - minX * s;
     this.oy = padTop + (this.h - padTop - pad - (maxY - minY) * s) / 2 - minY * s;
     // Mittelpunkt in Streckenkoordinaten (ungedreht)
     const mx = (minX + maxX) / 2, my = (minY + maxY) / 2;
     [this.cx, this.cy] = this.rot ? [-my, mx] : [mx, my];
     this.clampPan();
     this.bgDirty = true;
+  }
+
+  setPadLeft(px) {
+    if (this.padLeft === px) return;
+    this.padLeft = px;
+    this.zoom = 1;
+    this.panX = 0;
+    this.panY = 0;
+    if (this.onZoomChange) this.onZoomChange(1);
+    this.resize();
   }
 
   setView(zoom, panX, panY) {
@@ -210,58 +238,113 @@ export class TrackMap {
     const tr = this.track;
     const ctx = this.bg.getContext('2d');
     const ws = this.widthScale();
+    const pxPerM = this.scale * this.zoom / tr.mPerUnit;
+    const trackW = 8 * ws;                       // Asphaltbreite in px (überzeichnet)
+    const half = trackW / 2;
+    const mToPx = m => Math.max(3, m * pxPerM * 2.2); // Auslaufzonen leicht überzeichnet
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, this.w, this.h);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // Boxengasse
-    ctx.strokeStyle = '#2a3140';
-    ctx.lineWidth = 4 * ws;
-    this.tracePath(ctx, tr.pit.entry, tr.pit.exit + tr.L, tr.pit.side * PIT_OFFSET_PX * ws);
-    ctx.stroke();
-
-    // Strecke
+    // 1) Gras: Innenfeld + Grünstreifen rund um die Strecke
     this.tracePath(ctx, 0, tr.L);
     ctx.closePath();
-    ctx.strokeStyle = '#3a4252';
-    ctx.lineWidth = 11 * ws;
+    ctx.fillStyle = COLORS.grass;
+    ctx.fill();
+    ctx.strokeStyle = COLORS.grass;
+    ctx.lineWidth = 46 * ws;
     ctx.stroke();
-    ctx.strokeStyle = '#1b2029';
-    ctx.lineWidth = 7.5 * ws;
+    ctx.strokeStyle = COLORS.grassLight;
+    ctx.lineWidth = 22 * ws;
     ctx.stroke();
 
-    // Sektorgrenzen (kleine Striche)
-    ctx.strokeStyle = '#4b5568';
-    ctx.lineWidth = 1.5;
+    // 2) Auslaufzonen (Asphalt zuerst, Kies darüber/dahinter)
+    for (const type of ['asphalt', 'gravel']) {
+      for (const r of tr.runoffs) {
+        if (r.type !== type) continue;
+        const w = mToPx(r.width);
+        const lat = r.side * (half + mToPx(r.offset) * (r.offset ? 1 : 0) + w / 2);
+        this.tracePath(ctx, r.from, r.to, lat);
+        ctx.strokeStyle = type === 'gravel' ? COLORS.gravel : COLORS.runoff;
+        ctx.lineWidth = w;
+        ctx.stroke();
+      }
+    }
+
+    // 3) Boxengasse und Boxengebäude
+    const pitLat = tr.pit.side * PIT_OFFSET_PX * ws;
+    this.tracePath(ctx, tr.pit.entry, tr.pit.exit + tr.L, pitLat);
+    ctx.strokeStyle = COLORS.pitLane;
+    ctx.lineWidth = 4.5 * ws;
+    ctx.stroke();
+    this.tracePath(ctx, tr.L - 260, tr.L + 260, tr.pit.side * (PIT_OFFSET_PX + 6) * ws);
+    ctx.strokeStyle = COLORS.building;
+    ctx.lineWidth = 6 * ws;
     ctx.lineCap = 'butt';
+    ctx.stroke();
+    ctx.lineCap = 'round';
+
+    // 4) Strecke: weiße Begrenzung, Asphalt
+    this.tracePath(ctx, 0, tr.L);
+    ctx.closePath();
+    ctx.strokeStyle = COLORS.edge;
+    ctx.lineWidth = trackW + 2;
+    ctx.stroke();
+    ctx.strokeStyle = COLORS.asphalt;
+    ctx.lineWidth = trackW;
+    ctx.stroke();
+
+    // 5) Randsteine rot-weiß
+    ctx.lineCap = 'butt';
+    for (const k of tr.kerbs) {
+      const lat = k.side * (half + 0.2);
+      this.tracePath(ctx, k.from, k.to, lat);
+      ctx.strokeStyle = '#f2f2f2';
+      ctx.lineWidth = 2.6 * ws;
+      ctx.setLineDash([]);
+      ctx.stroke();
+      ctx.strokeStyle = '#d7262b';
+      ctx.setLineDash([3 * ws, 3 * ws]);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    // 6) Sektorgrenzen (kleine Striche)
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 1.2;
     for (const sec of tr.sectors) {
       if (sec.start === 0) continue;
-      const [ax, ay] = this.pos(sec.start, -8 * ws);
-      const [bx, by] = this.pos(sec.start, 8 * ws);
+      const [ax, ay] = this.pos(sec.start, -half - 3);
+      const [bx, by] = this.pos(sec.start, half + 3);
       ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
     }
 
-    // Start/Ziel
-    const [ax, ay] = this.pos(0, -7 * ws);
-    const [bx, by] = this.pos(0, 7 * ws);
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+    // 7) Start/Ziel kariert
+    const cells = 4;
+    for (let i = 0; i < cells; i++) {
+      for (let j = 0; j < 2; j++) {
+        const l0 = -half + (trackW / cells) * i, l1 = l0 + trackW / cells;
+        const d0 = j * 4 / pxPerM, d1 = (j + 1) * 4 / pxPerM;
+        const p = [this.pos(d0, l0), this.pos(d0, l1), this.pos(d1, l1), this.pos(d1, l0)];
+        ctx.beginPath();
+        p.forEach(([x, y], n) => (n ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.closePath();
+        ctx.fillStyle = (i + j) % 2 ? '#111' : '#fff';
+        ctx.fill();
+      }
+    }
 
-    // Kurvennummern (außen)
-    ctx.font = '600 10px system-ui, sans-serif';
-    ctx.fillStyle = '#7d8799';
+    // 8) Kurvennummern (außen)
+    ctx.font = '700 10px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (const c of tr.corners) {
-      const p = pointAt(tr, c.d);
-      const [px, py] = this.toPx(p);
-      const [qx, qy] = this.toPx([this.cx, this.cy]);
-      const dx = px - qx, dy = py - qy;
-      const len = Math.hypot(dx, dy) || 1;
-      const off = 15 * ws;
-      ctx.fillText(c.id.replace('T', ''), px + (dx / len) * off, py + (dy / len) * off);
+      const [x, y] = this.pos(c.d, -c.turn * (half + 16 * ws));
+      ctx.fillStyle = 'rgba(11,15,23,0.75)';
+      ctx.beginPath(); ctx.arc(x, y, 7.5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#c9d1de';
+      ctx.fillText(c.id.replace('T', ''), x, y + 0.5);
     }
     this.bgDirty = false;
   }

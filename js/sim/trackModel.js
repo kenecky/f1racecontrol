@@ -127,7 +127,19 @@ export function buildTrack(def) {
 
   // 5) Kurven einordnen
   const nearestD = at => nearestIndex(xs, ys, N, at) * ds;
-  track.corners = def.corners.map(c => ({ ...c, d: nearestD(c.at) }));
+  // Kurvenrichtung: +1 = Rechtskurve, −1 = Linkskurve (Bildschirmkoordinaten, y nach unten)
+  const turnAt = idx => {
+    let sum = 0;
+    for (let k = -8; k <= 8; k++) {
+      const i = (idx + k + N) % N, a = (i - 4 + N) % N, b = (i + 4) % N;
+      sum += (xs[i] - xs[a]) * (ys[b] - ys[i]) - (ys[i] - ys[a]) * (xs[b] - xs[i]);
+    }
+    return sum >= 0 ? 1 : -1;
+  };
+  track.corners = def.corners.map(c => {
+    const d = nearestD(c.at);
+    return { ...c, d, turn: turnAt(Math.round(d / ds) % N) };
+  });
   const cornerD = id => track.corners.find(c => c.id === id).d;
   const wrap = d => ((d % L) + L) % L;
 
@@ -137,6 +149,19 @@ export function buildTrack(def) {
     end: wrap(cornerD(z.corner) + z.after),
     factor: z.factor,
   }));
+  // Auslaufzonen (Asphalt/Kies) relativ zu Kurven; Seite 'out' = Kurvenaußenseite
+  track.runoffs = (def.runoffs || []).map(r => {
+    const c = track.corners.find(x => x.id === r.corner);
+    const side = r.side === 'in' ? c.turn : r.side === 'out' ? -c.turn : r.side === 'right' ? 1 : -1;
+    return { from: c.d + r.from, to: c.d + r.to, side, type: r.type, width: r.width, offset: r.offset || 0 };
+  });
+  // Randsteine: innen am Scheitel, außen am Kurvenausgang
+  track.kerbs = [];
+  for (const c of track.corners) {
+    const k = (def.kerbs && def.kerbs[c.id]) || {};
+    track.kerbs.push({ from: c.d + (k.inFrom ?? -35), to: c.d + (k.inTo ?? 25), side: c.turn });
+    if (k.out !== false) track.kerbs.push({ from: c.d + (k.outFrom ?? 10), to: c.d + (k.outTo ?? 70), side: -c.turn });
+  }
   track.sectorEnds = def.timingSectors.map(s => wrap(cornerD(s.corner) + s.offset));
   const starts = def.marshalSectors.map(m => (m.line ? 0 : wrap(cornerD(m.corner) + m.offset)));
   track.sectors = starts.map((start, i) => {

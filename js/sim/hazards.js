@@ -82,7 +82,7 @@ export function checkPendingIncident(race, car, prev) {
   }
 }
 
-function createHazard(race, props) {
+export function createHazard(race, props) {
   const h = {
     id: ++race.hazardSeq,
     start: race.time,
@@ -177,7 +177,7 @@ function startCrash(race, car, corner) {
   race.emit('marshal', `Sektor ${h.sector + 1}: SCHWERER UNFALL! ${car.id} schlägt in ${cornerLabel(corner)} heftig in die Barriere ein. ${barrier ? 'Die Barriere ist stark beschädigt und muss repariert werden.' : 'Trümmerteile über die ganze Fahrbahn verteilt.'}`, { hazard: h.id, sector: h.sector, cars: [car.id] });
 }
 
-function retireCar(race, car, reason, lateral) {
+export function retireCar(race, car, reason, lateral) {
   car.retired = true;
   car.dnf = reason;
   car.v = 0;
@@ -267,8 +267,10 @@ export function updateHazards(race, dt) {
     if (done) {
       h.ended = true;
       h.endTime = t;
-      const car = h.carId ? race.carById[h.carId] : null;
-      if (car && car.wreck) car.wreck.removed = true;
+      for (const id of h.carIds || (h.carId ? [h.carId] : [])) {
+        const car = race.carById[id];
+        if (car && car.wreck) car.wreck.removed = true;
+      }
       let text;
       if (h.type === 'spin' && h.rejoined) text = `${h.carId} ist zurück auf der Strecke. Gefahr beseitigt.`;
       else if (h.type === 'stopped') text = `Auto von ${h.carId} ist geborgen. Strecke frei.`;

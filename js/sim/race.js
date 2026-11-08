@@ -8,7 +8,7 @@ import {
 } from './hazards.js';
 import {
   rollBattleIncident, onGiveBackDone, rollTrackLimits, rollPitSpeeding, rollUnsafeRelease,
-  createYellowPassCase, rollVscDelta,
+  createYellowPassCase, rollVscDelta, rollPileup, checkPileup,
 } from './incidents.js';
 import { unservedSecs } from '../control/stewards.js';
 import {
@@ -48,6 +48,9 @@ export class Race {
     this.sc = null;           // Safety Car auf der Strecke
     this.physGap = new Map();
     this.behindSC = new Set();
+    this.weather = { wet: false };   // Regen folgt in einem späteren Meilenstein
+    this.pendingPileup = null;
+    this.maxLeaderLap = -1;
     this.cases = [];          // Fälle für die Rennkommissare
     this.caseSeq = 0;
     this.penaltyPoints = {};
@@ -273,6 +276,10 @@ export class Race {
     }
 
     afterMove(this, DT);
+    // Massenunfall: neue Führungsrunde → würfeln, dann an einer Gruppe auslösen
+    const leadLap = Math.max(0, ...this.cars.filter(c => !c.retired).map(c => c.lap));
+    if (leadLap > this.maxLeaderLap) { this.maxLeaderLap = leadLap; rollPileup(this, leadLap); }
+    checkPileup(this);
     rollVscDelta(this, DT);
     updateHazards(this, DT);
     trackNeutralUse(this, DT);

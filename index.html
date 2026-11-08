@@ -31,8 +31,12 @@
     <section class="map-wrap">
       <canvas id="map"></canvas>
       <div id="lights" class="lights hidden"><span></span><span></span><span></span><span></span><span></span></div>
-      <button id="labelsBtn" class="map-btn" aria-label="Kürzel anzeigen">ABC</button>
-      <button id="zoomResetBtn" class="map-btn map-btn-zoom hidden" aria-label="Zoom zurücksetzen">⤢ Gesamt</button>
+      <div id="tower" class="tower"></div>
+      <div class="map-btns">
+        <button id="zoomResetBtn" class="map-btn hidden" aria-label="Zoom zurücksetzen">⤢ Gesamt</button>
+        <button id="towerBtn" class="map-btn" aria-label="Ranking anzeigen">TOWER</button>
+        <button id="labelsBtn" class="map-btn" aria-label="Kürzel anzeigen">ABC</button>
+      </div>
       <div class="paused-tag">PAUSE</div>
       <button id="alertBanner" class="alert hidden"></button>
     </section>

@@ -1,6 +1,7 @@
 // Flaggen-Panel: Marshal-Sektoren mit Flaggenwahl und Gefahrenhinweisen.
 import { FLAGS } from '../control/flags.js';
 import { WARN_ICON } from './feed.js';
+import { hazardProgress } from '../sim/hazards.js';
 
 const ORDER = ['clear', 'yellow', 'double', 'slippery'];
 
@@ -42,7 +43,7 @@ export class FlagPanel {
     const t = race.time;
     const sig = JSON.stringify([
       race.flags, this.focus,
-      race.hazards.map(h => [h.id, h.ended, h.type, h.need, t - (h.endTime ?? t) < 30]),
+      race.hazards.map(h => [h.id, h.ended, h.type, h.need, t - (h.endTime ?? t) < 30, Math.round(hazardProgress(h) * 20)]),
     ]);
     if (sig === this.sig) return;
     this.sig = sig;
@@ -51,7 +52,7 @@ export class FlagPanel {
       const flag = race.flags[i];
       const active = race.hazards.filter(h => h.sector === i && !h.ended);
       const recentlyCleared = race.hazards.filter(h => h.sector === i && h.ended && t - h.endTime < 30);
-      let notes = active.map(h => `<div class="hazard-note">${WARN_ICON} ${h.desc}</div>`).join('');
+      let notes = active.map(h => `<div class="hazard-note">${WARN_ICON} ${h.desc}${h.workTotal ? `<div class="progress"><span style="width:${Math.round(hazardProgress(h) * 100)}%"></span></div><div class="ctl-small">Bergung ${Math.round(hazardProgress(h) * 100)} %</div>` : ''}</div>`).join('');
       if (!active.length && recentlyCleared.length && flag !== 'clear') {
         notes += '<div class="hazard-note ok">✓ Gefahr beseitigt – Sektor kann wieder auf Grün.</div>';
       }

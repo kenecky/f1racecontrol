@@ -7,7 +7,8 @@ const DEFAULTS = {
   gapMode: 'leader',   // 'leader' | 'interval'
   showLabels: false,
   slowOnIncident: true,
-  panelCollapsed: false, // Zeiten/Meldungen/Fälle eingeklappt // bei neuen Vorfällen auf 1× abbremsen
+  panelCollapsed: false,
+  showTower: true,       // Ranking-Tower in der Karte // Zeiten/Meldungen/Fälle eingeklappt // bei neuen Vorfällen auf 1× abbremsen
 };
 
 const HISTORY_KEY = 'f1rc.history.v1';
