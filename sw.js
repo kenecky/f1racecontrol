@@ -4,7 +4,7 @@
 // Wichtig: Andere Apps auf kenecky.github.io (z. B. Reise-Ausgaben) teilen sich den
 // Cache-Speicher mit uns. Deshalb nur eigene Caches (Präfix 'f1rc-') löschen.
 const PREFIX = 'f1rc-';
-const CACHE = PREFIX + 'v13';
+const CACHE = PREFIX + 'v14';
 const ASSETS = [
   './',
   'index.html',
@@ -25,6 +25,9 @@ const ASSETS = [
   'js/sim/neutral.js',
   'js/sim/session.js',
   'js/sim/persist.js',
+  'js/sim/length.js',
+  'js/sim/start.js',
+  'js/sim/scrutiny.js',
   'js/sim/tyres.js',
   'js/sim/weather.js',
   'js/ui/controlPanel.js',

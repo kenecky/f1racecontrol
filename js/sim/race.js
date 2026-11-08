@@ -21,12 +21,14 @@ const MS_LEN = 100;              // Mini-Sektor-Länge (m) für Abstandsberechnu
 
 import { COMPOUNDS, wetLoss, bestCompound } from './tyres.js';
 import { createWeather, updateWeather } from './weather.js';
+import { beginFormation, stepFormation, stepGrid, stepLights, releasePitStarters } from './start.js';
+import { prepareScrutiny } from './scrutiny.js';
 export { COMPOUNDS };
 
 export class Race {
   constructor({
     track, teams, drivers, seed, weather = 'dry', gridPenalties = {},
-    kind = 'race', laps = null, gridOrder = null, durationSec = null,
+    kind = 'race', laps = null, gridOrder = null, durationSec = null, fullLaps = null,
   }) {
     this.kind = kind;            // race | sprint | fp | quali | sq
     this.gridPenalties = gridPenalties;
@@ -35,8 +37,15 @@ export class Race {
     this.seed = seed;
     this.rng = createRng(seed);
     this.laps = laps || track.laps;
+    // Verkürzte Distanz: Reifen verschleißen schneller, Zwischenfälle pro Runde etwas häufiger
+    this.wear = Math.max(1, (fullLaps || this.laps) / this.laps);
+    this.incScale = Math.sqrt(this.wear);
+    this.startIssue = null;     // Problem in der Startaufstellung (wartet auf die Rennleitung)
+    this.startIssueSeq = 0;
+    this.startLog = [];         // Entscheidungen der Rennleitung beim Start
+    this.formation = null;
     this.time = 0;              // Rennzeit seit "Lichter aus"
-    this.phase = 'pre';         // pre → lights → running → chequered → finished
+    this.phase = 'pre';         // pre → formation → grid → lights → running → chequered → finished
     this.lightsTimer = 0;
     this.lightsHold = 5 + this.rng.range(0.4, 2.4);
     this.events = [];
@@ -154,16 +163,18 @@ export class Race {
       car.plan = [];
       return;
     }
+    // Stopp-Runden als Anteil der Distanz (passt für jede Strecke und Renndauer)
+    const at = (a, b) => Math.max(2, Math.min(this.laps - 3, Math.round(r.range(a, b) * this.laps)));
     const roll = r.next();
     if (gridIdx >= 12 && roll < 0.35) {
       car.compound = 'H';
-      car.plan = [{ lap: r.int(34, 44), compound: 'M' }];
+      car.plan = [{ lap: at(0.48, 0.62), compound: 'M' }];
     } else if (roll < 0.25) {
       car.compound = 'S';
-      car.plan = [{ lap: r.int(14, 19), compound: 'M' }, { lap: r.int(40, 46), compound: 'H' }];
+      car.plan = [{ lap: at(0.2, 0.27), compound: 'M' }, { lap: at(0.56, 0.65), compound: 'H' }];
     } else {
       car.compound = 'M';
-      car.plan = [{ lap: r.int(24, 34), compound: 'H' }];
+      car.plan = [{ lap: at(0.34, 0.48), compound: 'H' }];
     }
   }
 
@@ -183,8 +194,12 @@ export class Race {
       startBehindSC(this);
       return;
     }
-    this.phase = 'lights';
-    this.emit('info', 'Formationsrunde beendet – Autos in der Startaufstellung.');
+    beginFormation(this);
+  }
+
+  // Vor dem Start (Formationsrunde, Startaufstellung, Startampel)
+  get preStart() {
+    return this.phase === 'pre' || this.phase === 'formation' || this.phase === 'grid' || this.phase === 'lights';
   }
 
   get lightsOn() {
@@ -203,7 +218,7 @@ export class Race {
     const leader = this.standings()[0];
     this.events.push({
       id: ++this.eventSeq, type, text, t: this.time,
-      lap: this.phase === 'pre' || this.phase === 'lights' ? 0 : Math.min(this.laps, leader.lap + 1),
+      lap: this.preStart ? 0 : Math.min(this.laps, leader.lap + 1),
       ...data,
     });
   }
@@ -213,8 +228,9 @@ export class Race {
     const progress = Math.min(1, Math.max(0, car.d / (this.laps * tr.L)));
     const C = COMPOUNDS[car.compound];
     const w = this.weather.wetness;
-    let deg = car.tyreAge * C.deg * (C.wet && w < 0.3 ? 3 : 1); // Regenreifen überhitzen auf trockener Strecke
-    if (car.tyreAge > C.cliff) deg += (car.tyreAge - C.cliff) * 0.22;
+    const age = car.tyreAge * this.wear;                        // Verschleiß (bei kurzer Distanz schneller)
+    let deg = age * C.deg * (C.wet && w < 0.3 ? 3 : 1);          // Regenreifen überhitzen auf trockener Strecke
+    if (age > C.cliff) deg += (age - C.cliff) * 0.22;
     const dmg = car.damage === 'wing' ? 1.2 : 0;
     const wet = wetLoss(car.compound, w) + w * (100 - car.driver.wet) * 0.025;
     return tr.baseLap + car.basePenalty + (C.wet ? 0 : C.offset) + wet + deg + 2.2 * (1 - progress) + car.lapNoise + dmg;
@@ -222,27 +238,22 @@ export class Race {
 
   step() {
     if (this.phase === 'pre' || this.phase === 'finished') return;
-    if (this.phase === 'lights') {
-      this.lightsTimer += DT;
-      if (this.lightsTimer >= this.lightsHold) {
-        this.phase = 'running';
-        this.time = 0;
-        this.emit('start', 'Lichter aus – das Rennen ist gestartet!');
-      }
-      return;
-    }
+    if (this.phase === 'formation') { stepFormation(this, DT); return; }
+    if (this.phase === 'grid') { stepGrid(this, DT); return; }
+    if (this.phase === 'lights') { stepLights(this, DT); return; }
 
     this.time += DT;
     const tr = this.track;
     const L = tr.L;
     this.computePhysGap();
     moveSafetyCar(this, DT);
+    releasePitStarters(this);
 
     // 1) Wunschgeschwindigkeit jedes Autos
     for (const car of this.cars) {
       car.move = 0;
       if (car.retired) continue;
-      if (car.redQueued) { car.v = 0; continue; }
+      if (car.redQueued || car.pitHold) { car.v = 0; continue; }
       if (car.offTrack) {
         car.v = 0;
         if (this.time >= car.offTrack.until) endOffTrack(this, car);
@@ -351,6 +362,7 @@ export class Race {
     if (this.phase === 'chequered' && this.cars.every(c => c.finished || c.retired)) {
       this.phase = 'finished';
       this.emit('finish', 'Alle Autos im Ziel. Rennen beendet.');
+      prepareScrutiny(this);
     }
   }
 
@@ -409,7 +421,7 @@ export class Race {
         const zone = tr.zones.find(z => inRange(tr, B.d, z.start, z.end));
         if (zone && !banned) {
           const key = `${B.lap}:${zone.corner}`;
-          const zoneName = tr.corners.find(c => c.id === zone.corner).name;
+          const zoneName = zone.corner;
           if (!B.tried.has(key)) {
             B.tried.add(key);
             if (underYellow) {
@@ -449,9 +461,10 @@ export class Race {
     const lapsLeft = this.laps - car.lap;
     if (lapsLeft < 2) return;
     const w = wx.wetness;
+    const wearLeft = lapsLeft * this.wear;
     const wf = Math.min(1, Math.max(0, w + (wx.rain - w) * 0.6));  // Trend der nächsten Runden
     const loss = id => wetLoss(id, wf) + (COMPOUNDS[id].wet ? 0 : COMPOUNDS[id].offset);
-    const best = bestCompound(wf, lapsLeft);
+    const best = bestCompound(wf, wearLeft);
     if (best === car.compound || (!COMPOUNDS[best].wet && !COMPOUNDS[car.compound].wet)) return;
     if (car.tyreCall === undefined) car.tyreCall = 0.8 + this.rng.next() * 2.6;   // wie mutig das Team ist
     if (loss(car.compound) - loss(best) > car.tyreCall) car.weatherStop = best;
@@ -581,7 +594,8 @@ export class Race {
           this.emit('rc', `${car.id} hat die Durchfahrtsstrafe abgesessen.`, { cars: [car.id] });
           car.serving = null;
         }
-        if (!car.redBound) rollPitSpeeding(this, car);
+        if (!car.redBound && !car.pitStart) rollPitSpeeding(this, car);
+        car.pitStart = false;
       }
     }
 
@@ -665,8 +679,8 @@ export class Race {
       car.plan = [];
       car.planIdx = 0;
       const C = COMPOUNDS[car.compound];
-      const left = this.laps - car.lap;
-      if (!C.wet && left > C.cliff + 3) car.plan = [{ lap: car.lap + C.cliff - 4, compound: 'H' }];
+      const left = (this.laps - car.lap) * this.wear;
+      if (!C.wet && left > C.cliff + 3) car.plan = [{ lap: car.lap + Math.max(2, Math.round((C.cliff - 4) / this.wear)), compound: 'H' }];
       this.emit('pit', `Boxenstopp ${car.id}: ${from} → ${C.name} (${car.lastStopTime.toFixed(1).replace('.', ',')} s)`, { cars: [car.id] });
       rollUnsafeRelease(this, car);
       return;
@@ -677,7 +691,7 @@ export class Race {
       const repaired = car.damage === 'wing' ? 'neue Nase' : 'neue Reifen';
       car.damage = null;
       const nx = car.plan[car.planIdx];
-      if (!nx || nx.lap - car.lap > 8) {
+      if (!nx || (nx.lap - car.lap) * this.wear > 8) {
         car.tyreAge = 0;
         car.stops++;
         this.emit('pit', `Reparaturstopp ${car.id}: ${repaired} (${car.lastStopTime.toFixed(1).replace('.', ',')} s)`, { cars: [car.id] });

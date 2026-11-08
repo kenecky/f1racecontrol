@@ -28,9 +28,11 @@ function danger(race, car, i) {
 }
 
 export function renderTiming(el, race, { gapMode, selected }) {
-  const st = race.standings();
+  let st = race.standings();
+  // Qualifying: Ausgeschiedene werden ab dem nächsten Abschnitt nicht mehr angezeigt
+  if (race.isSession && race.phase !== 'finished') st = st.filter(c => c.elimSeg === null || c.elimSeg === undefined);
   const leader = st[0];
-  const started = race.phase !== 'pre' && race.phase !== 'lights';
+  const started = !race.preStart;
   const rows = st.map((car, i) => {
     const pos = i + 1;
     let gapText;
@@ -40,7 +42,8 @@ export function renderTiming(el, race, { gapMode, selected }) {
       if (!started || t === null) gapText = '–';
       else if (i === 0) gapText = formatLap(t);
       else gapText = formatGap(race.gap(car, gapMode === 'interval' ? st[i - 1] : leader), false);
-    } else if (!started) gapText = `Startplatz ${car.gridPos}`;
+    } else if (!started && car.retired) gapText = 'Ausfall';
+    else if (!started) gapText = car.pitStart ? 'Boxengasse' : `Startplatz ${car.gridPos}`;
     else if (car.retired) gapText = car.dsq ? 'DSQ' : 'Ausfall';
     else if (gapMode === 'interval') gapText = i === 0 ? (car.finished ? '🏁' : 'Intervall') : formatGap(race.gap(car, st[i - 1]), false);
     else gapText = i === 0 ? (car.finished ? '🏁' : 'Führung') : formatGap(race.gap(car, leader), false);

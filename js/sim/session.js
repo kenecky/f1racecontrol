@@ -4,18 +4,20 @@ import { Race, DT, formatLap } from './race.js';
 import { COMPOUNDS, bestCompound } from './tyres.js';
 import { rollLapIncidents } from './hazards.js';
 import { createLapCase, createImpedingCase } from './incidents.js';
+import { sessionDurations } from './length.js';
 
 export const SESSION_INFO = {
   fp:    { name: 'Freies Training',   short: 'FP', segments: [{ id: 'FP', dur: 1200 }] },
   quali: { name: 'Qualifying',        short: 'Q',  segments: [{ id: 'Q1', dur: 600, keep: 16 }, { id: 'Q2', dur: 480, keep: 10 }, { id: 'Q3', dur: 420 }] },
   sq:    { name: 'Sprint-Qualifying', short: 'SQ', segments: [{ id: 'SQ1', dur: 420, keep: 16 }, { id: 'SQ2', dur: 360, keep: 10 }, { id: 'SQ3', dur: 300 }] },
 };
-const BREAK = 120;   // Pause zwischen Q1/Q2/Q3 (Sekunden)
-
 export class Session extends Race {
   constructor(opts) {
-    const info = SESSION_INFO[opts.kind];
-    const total = info.segments.reduce((s, x) => s + x.dur, 0) + BREAK * (info.segments.length - 1);
+    // Abschnittsdauern je nach Einstellung „Dauer“
+    const base = SESSION_INFO[opts.kind];
+    const { segs, brk } = sessionDurations(opts.kind, opts.length || 'full');
+    const info = { ...base, brk, segments: base.segments.map((x, i) => ({ ...x, dur: segs[i] ?? x.dur })) };
+    const total = info.segments.reduce((s, x) => s + x.dur, 0) + brk * (info.segments.length - 1);
     super({ ...opts, laps: 999, durationSec: total });
     this.info = info;
     this.segIdx = 0;
@@ -118,18 +120,28 @@ export class Session extends Race {
     for (const c of this.cars) {
       if (c.retired || c.elimSeg !== null) { c.prog.runs = []; continue; }
       const r = this.rng;
+      const lap = this.track.baseLap;
       let runs;
       if (this.kind === 'fp') {
-        runs = [
-          { depart: r.range(30, 200), push: r.int(3, 6), compound: r.pick(['M', 'H', 'S']), fuel: r.range(0.3, 0.9) },
-          { depart: r.range(450, 650), push: r.int(2, 5), compound: r.pick(['S', 'M']), fuel: r.range(0.1, 0.6) },
-          { depart: r.range(850, 1000), push: r.int(2, 4), compound: 'S', fuel: r.range(0.1, 0.4) },
-        ];
+        // Je nach Dauer 1–3 Ausfahrten, die längeren mit mehr Sprit
+        const n = seg.dur >= 1000 ? 3 : seg.dur >= 650 ? 2 : 1;
+        const slot = seg.dur / n;
+        const maxPush = Math.max(1, Math.floor((slot - out - 50) / lap));
+        runs = [];
+        for (let j = 0; j < n; j++) {
+          runs.push({
+            depart: j * slot + r.range(0.04, 0.4) * slot,
+            push: r.int(Math.min(2, maxPush), Math.min(maxPush, j === 0 ? 6 : 4)),
+            compound: j === n - 1 ? 'S' : r.pick(['M', 'H', 'S']),
+            fuel: j === n - 1 ? r.range(0.1, 0.4) : r.range(0.3, 0.9),
+          });
+        }
       } else {
-        runs = [
-          { depart: r.range(20, seg.dur * 0.3), push: r.chance(0.4) ? 2 : 1, compound: 'S', fuel: 0.08 },
-          { depart: seg.dur - out - this.track.baseLap * r.range(0.15, 0.7), push: 1, compound: 'S', fuel: 0.05 },
-        ];
+        const last = { depart: Math.max(15, seg.dur - out - lap * r.range(0.15, 0.7)), push: 1, compound: 'S', fuel: 0.05 };
+        const cycle = out + lap * 2 + 20;     // Garage → schnelle Runde → zurück
+        runs = seg.dur >= 2 * cycle + 60
+          ? [{ depart: r.range(20, seg.dur * 0.3), push: r.chance(0.4) ? 2 : 1, compound: 'S', fuel: 0.08 }, last]
+          : [{ ...last, depart: r.range(Math.min(20, last.depart), last.depart) }];
       }
       c.prog = { runs, runIdx: 0, phase: c.inGarage ? 'garage' : c.prog.phase, pushLeft: c.prog.pushLeft || 0 };
     }
@@ -140,8 +152,10 @@ export class Session extends Race {
   step() {
     if (this.phase === 'pre' || this.phase === 'finished') return;
     if (this.segState === 'break') {
-      this.time += DT;
+      // Pause: Autos auf der Auslaufrunde fahren noch in die Box
       this.breakLeft -= DT;
+      if (this.cars.some(c => !c.retired && !c.inGarage)) super.step();
+      else this.time += DT;
       if (this.breakLeft <= 0) this.startSegment(this.segIdx + 1);
       return;
     }
@@ -170,7 +184,8 @@ export class Session extends Race {
       n.phase = 'stopped';
       this.emit('rc', 'Alle Autos sind in der Box.');
     }
-    if (this.segFlag && !n && this.cars.every(c => c.retired || c.inGarage)) this.endSegment();
+    // Abschnitt endet, wenn die letzte gezeitete Runde beendet ist (Auslaufrunden zählen nicht)
+    if (this.segFlag && !n && this.cars.every(c => c.retired || c.inGarage || c.prog.phase !== 'push')) this.endSegment();
   }
 
   programFactor(car) {
@@ -292,8 +307,9 @@ export class Session extends Race {
       out.forEach(c => { if (c.elimSeg === null) c.elimSeg = this.segIdx; });
       this.emit('rc', `Ausgeschieden in ${seg.id}: ${out.map(c => c.id).join(', ')}`);
       this.segState = 'break';
-      this.breakLeft = BREAK;
-      this.emit('info', `Pause – ${this.info.segments[this.segIdx + 1].id} beginnt in ${BREAK / 60} Minuten.`);
+      this.breakLeft = this.info.brk ?? 120;
+      const mins = this.breakLeft / 60;
+      this.emit('info', `Pause – ${this.info.segments[this.segIdx + 1].id} beginnt in ${mins >= 1 ? `${String(mins).replace('.', ',')} Minuten` : `${this.breakLeft} Sekunden`}.`);
       return;
     }
     this.phase = 'finished';

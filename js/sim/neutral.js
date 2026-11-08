@@ -30,6 +30,7 @@ function leaderOnTrack(race) {
 // ---------- Aktionen der Rennleitung ----------
 
 export function deployVSC(race) {
+  if (race.isSession) return false;   // kein VSC in Training/Qualifying
   if (race.phase !== 'running' || race.neutral) return false;
   race.neutral = { type: 'vsc', phase: 'active', start: race.time };
   race.neutralStats.vsc++;
@@ -48,6 +49,7 @@ export function endVSC(race) {
 }
 
 export function deploySC(race) {
+  if (race.isSession) return false;   // kein Safety Car in Training/Qualifying
   if (race.phase !== 'running') return false;
   if (race.neutral && race.neutral.type !== 'vsc') return false;
   const leader = leaderOnTrack(race);
@@ -346,7 +348,8 @@ export function pitDecision(race, car, next) {
   if (!next) return null;
   if (car.lap + 1 >= next.lap) return 'plan';
   const cheap = n && (n.type === 'vsc' || (n.type === 'sc' && n.phase === 'out'));
-  if (cheap && car.lap >= 6 && next.lap - (car.lap + 1) <= 10) return 'cheap';
+  const w = race.wear || 1;
+  if (cheap && car.lap * w >= 6 && (next.lap - (car.lap + 1)) * w <= 10) return 'cheap';
   return null;
 }
 
@@ -358,7 +361,7 @@ export function enterPitUnderRed(race, car) {
 export function arriveInQueue(race, car) {
   car.redQueued = true;
   car.v = 0;
-  const remaining = race.laps - car.lap;
+  const remaining = (race.laps - car.lap) * (race.wear || 1);   // Reifenverschleiß bis ins Ziel
   const used = car.usedCompounds;
   let choice = race.weather.wetness > 0.15
     ? bestCompound(race.weather.wetness, remaining)

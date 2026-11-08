@@ -766,3 +766,17 @@ button {
 .wstep.now { background: var(--accent); color: #fff; }
 .wsep { color: var(--muted); }
 .brand-img { background: none; border-radius: 10px; }
+
+/* Technische Abnahme */
+.tech-box { background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.tech-box h3 { display: inline; }
+.tech-box summary { cursor: pointer; list-style: none; }
+.tech-box summary::-webkit-details-marker { display: none; }
+.tech-box summary::after { content: ' ›'; color: var(--muted); }
+.tech-box[open] summary::after { content: ' ⌄'; }
+.tech-box .chips { margin: 8px 0 10px; }
+.tech-row { display: flex; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 12px; }
+.tech-row b { min-width: 34px; }
+.tech-row > span { display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.tech-ok { color: var(--muted); }
+.tech-bad { color: #ffb020; font-weight: 600; }

@@ -406,3 +406,37 @@ Zusätzlich direkt wählbar: Startplatzstrafe 3 / 5 / 10 Plätze. Strafpunkte bl
 Siehe Gespräch – Ideen: Rennwochenende mit FP1–FP3 (Track Limits, Unsafe Release,
 Behinderung, rote Flaggen ohne Neustart-Druck), Qualifying Q1–Q3 mit Ausscheiden,
 gestrichenen Rundenzeiten, Behinderungen (Blocking), gelben Flaggen, die Runden zerstören.
+
+### Dauer (umgesetzt)
+Option „Dauer“ im Startbildschirm: **Kurz** (¼ Renndistanz, FP 8 Min., Q 5/4/3 Min.),
+**Mittel** (½ Renndistanz, FP 12 Min., Q 7/6/5 Min., Standard) und **Lang** (volle Distanz,
+FP 20 Min., Q 10/8/7 Min.). Bei kürzerer Distanz verschleißen die Reifen entsprechend schneller,
+Boxenstopp-Runden werden als Anteil der Distanz geplant; Zwischenfälle pro Runde etwas häufiger.
+Training/Qualifying-Abschnitte enden mit der letzten gezeiteten Runde (Auslaufrunden laufen in der Pause).
+
+### Startablauf (umgesetzt)
+- **Formationsrunde** vor jedem stehenden Start. Möglich: Auto kommt nicht los (→ Boxengassenstart),
+  technischer Defekt (Ausfall, Gefahr absichern), Dreher beim Reifenaufwärmen (→ Start vom Ende des Feldes).
+- **Abgestorbener Motor in der Startaufstellung**: Die Ampel wartet auf die Rennleitung –
+  Start abbrechen (Extra-Formationsrunde, Distanz −1 Runde, Auto startet aus der Boxengasse),
+  Start hinter dem Safety Car oder Start trotzdem freigeben (gefährlich, Abzug bei Sicherheit).
+- **Fehlstart**: Auto bewegt sich vor dem Erlöschen der Lichter (Transponder, Weg, Stillstand beim Signal;
+  kurzes Zucken innerhalb der Toleranz ist kein Fehlstart).
+- **Falsche Startposition**: Auto steht über der Linie der Startbox (üblich 5 s).
+
+### Technische Abnahme (umgesetzt, vereinfacht)
+Nach Rennen und Sprint prüft die FIA die Top 3, die Rennleitung kann bis zu 3 weitere Autos wählen.
+Geprüft wird (vereinfachte Werte nach Reglement 2026):
+- Mindestgewicht 768 kg (inkl. Fahrer, ohne Kraftstoff)
+- Kraftstoffprobe: mindestens 1,0 l muss entnommen werden können
+- Unterboden-Planke: neu 10 mm, nach dem Rennen an jedem Messpunkt mindestens 9,0 mm
+- Antriebsleistung: MGU-K max. 350 kW (FIA-Sensor, Sensorfehler möglich)
+- Flügel-Belastungstest (Durchbiegung unter Prüflast)
+Klare Werte sind sofort erledigt; Grenzfälle werden zu Entscheidungen (keine Strafe / Verwarnung / Disqualifikation).
+Erst nach der Abnahme kann das Ergebnis in die Saison übernommen werden.
+Ideen für später: Reifendruck-Kontrolle vor dem Start, Parc-fermé-Verstöße (→ Boxengassenstart),
+schwarz-orange Flagge für beschädigte Autos, Kraftstofftemperatur, Verhalten unter Rot.
+
+### Rennszenen (in Planung – noch nicht gebaut)
+Kleine 2D-Draufsicht eines Vorfalls (Autos als kleine F1-Silhouetten) als zusätzlicher „Beweis“
+in den Entscheidungen. Details werden noch besprochen.

@@ -2,6 +2,7 @@
 import { flagReport } from './flags.js';
 import { stewardReport, PENALTIES } from './stewards.js';
 import { NEED_LEVEL, NEED_LABEL } from '../sim/hazards.js';
+import { createRng } from '../util/rng.js';
 
 const HAZARD_WEIGHT = { yellow: 10, double: 15, vsc: 18, sc: 25, red: 35 };
 const LATE = { yellow: 20, double: 20, vsc: 30, sc: 30, red: 45 };
@@ -36,6 +37,10 @@ export function rateRace(race) {
     else if (it.verdict === 'late') safety -= w * clamp((h.adequateAt - h.start - LATE[h.need]) / 60, 0.25, 0.8);
   }
 
+  // Start: stehendes Auto in der Startaufstellung, Startabbruch ohne Grund
+  const startLog = race.startLog || [];
+  for (const s of startLog) if (s.action === 'released') safety -= s.crash ? 35 : 25;
+
   // Fairness
   let fairness = 100;
   for (const it of sr.items) {
@@ -60,7 +65,8 @@ export function rateRace(race) {
 
   // Rennfluss
   const over = fr.items.filter(i => i.h.maxResponse >= 3 && i.h.maxResponse - NEED_LEVEL[i.h.need] >= 2).length;
-  const flow = 100 - fr.idleFlagTime / 10 - fr.neutral.idle / 6 - 8 * over;
+  const needless = startLog.filter(s => s.type === 'none' && s.action !== 'released').length;
+  const flow = 100 - fr.idleFlagTime / 10 - fr.neutral.idle / 6 - 8 * over - 10 * needless;
 
   const scores = {
     safety: Math.round(clamp(safety, 0, 100)),
@@ -83,7 +89,7 @@ export function rateRace(race) {
 // ---------- Stimmen zum Rennen ----------
 
 function buildVoices(race, fr, sr, scores, total, over) {
-  const r = race.rng;
+  const r = createRng(race.seed ^ 0x5eed);   // eigener Zufall: Anzeige verändert das Rennen nicht
   const voices = [];
   const team = id => race.carById[id].team.name;
   const say = (who, text, tone) => voices.push({ who, text, tone });
@@ -98,6 +104,17 @@ function buildVoices(race, fr, sr, scores, total, over) {
       say(`Teamchef ${team(v.carId)}`, `„Ja, das war nicht sauber – aber ${PENALTIES[v.penalty].name} ist viel zu hart.“`, 'neg');
     } else if (it.verdict === 'lenient' && t.victim) {
       say(`Teamchef ${team(t.victim)}`, `„Bei Entscheidung #${c.id} kommt ${t.offender} viel zu billig davon.“`, 'neg');
+    }
+  }
+  for (const s of race.startLog || []) {
+    if (s.action === 'released') {
+      say('Fahrervereinigung (GPDA)', s.crash
+        ? `„Start freigegeben, obwohl ${s.carId} in der Startaufstellung stand – und dann kracht es. Unverantwortlich.“`
+        : `„Start freigegeben, obwohl ${s.carId} in der Startaufstellung stand. Da hätte viel passieren können.“`, 'neg');
+    } else if (s.type === 'none') {
+      say('Presse', '„Startabbruch ohne erkennbaren Grund – das Publikum versteht die Rennleitung nicht.“', 'neg');
+    } else if (s.type === 'stall' && s.action === 'abort') {
+      say('Fahrer', `„Richtig, den Start abzubrechen, als ${s.carId} stand.“`, 'pos');
     }
   }
   if (sr.open) say('Presse', `„Die Kommissare lassen ${sr.open === 1 ? 'eine Entscheidung' : `${sr.open} Entscheidungen`} offen – Teams fordern Klarheit.“`, 'neg');
@@ -116,7 +133,7 @@ function buildVoices(race, fr, sr, scores, total, over) {
   if (fr.idleFlagTime > 60) say('Fahrer', '„Ständig gelbe Flaggen, wo gar nichts war. Das nervt.“', 'neg');
   if (over) say('Presse', '„Mit Kanonen auf Spatzen: Die Rennleitung reagiert überzogen.“', 'neg');
 
-  if (total >= 88) say('Presse', `„Souveräne Rennleitung in Spielberg – kaum etwas zu kritisieren.“`, 'pos');
+  if (total >= 88) say('Presse', '„Souveräne Rennleitung heute – kaum etwas zu kritisieren.“', 'pos');
   else if (total >= 75) say('Presse', '„Solide Arbeit der Rennleitung mit kleinen Schwächen.“', 'pos');
   if (scores.fairness === 100 && sr.total >= 3) say('Teamchef', '„Klare, nachvollziehbare Entscheidungen heute. So soll es sein.“', 'pos');
   if (scores.safety === 100 && fr.total >= 2) say('Fahrervereinigung (GPDA)', '„Gefahren wurden schnell und richtig abgesichert. Danke an die Marshals und die Rennleitung.“', 'pos');

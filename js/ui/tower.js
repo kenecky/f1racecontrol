@@ -1,10 +1,11 @@
 // Ranking-Tower links in der Karte (wie in der TV-Übertragung)
 import { formatLap } from '../sim/race.js';
 export function renderTower(el, race, selected) {
-  const st = race.standings();
+  let st = race.standings();
+  if (race.isSession && race.phase !== 'finished') st = st.filter(c => c.elimSeg === null || c.elimSeg === undefined);
   const leader = st[0];
-  const started = race.phase !== 'pre' && race.phase !== 'lights';
-  let lap = started ? `<b>${race.leaderLap}</b> / ${race.laps}` : `<b>START</b>`;
+  const started = !race.preStart;
+  let lap = started ? `<b>${race.leaderLap}</b> / ${race.laps}` : `<b>${race.phase === 'formation' ? 'FORMATION' : 'START'}</b>`;
   if (race.isSession) {
     const rem = race.segState === 'break' ? race.breakLeft : race.remaining;
     const mm = `${Math.floor(rem / 60)}:${String(Math.floor(rem % 60)).padStart(2, '0')}`;
@@ -20,7 +21,7 @@ export function renderTower(el, race, selected) {
       else { const g = race.gap(car, leader); gap = g ? `+${g.time.toFixed(3).replace('.', ',')}` : ''; }
     } else if (car.dsq) gap = 'DSQ';
     else if (car.retired) gap = 'OUT';
-    else if (!started) gap = '';
+    else if (!started) gap = car.pitStart ? 'BOX' : '';
     else if (i === 0) gap = car.finished ? '🏁' : 'Leader';
     else if (car.inPit || car.stopTimer > 0) gap = 'BOX';
     else {
@@ -37,5 +38,5 @@ export function renderTower(el, race, selected) {
         <span class="tw-tyre ${car.compound}">${car.retired ? '' : car.compound}</span>
       </div>`;
   }).join('');
-  el.innerHTML = `<div class="tw-head">${race.isSession ? '' : 'RUNDE '}${lap}</div>${rows}`;
+  el.innerHTML = `<div class="tw-head">${race.isSession || !started ? '' : 'RUNDE '}${lap}</div>${rows}`;
 }

@@ -32,6 +32,9 @@ import {
   saveRaceState, loadRaceState, clearRaceState, loadSeason, saveSeason,
 } from './storage.js';
 import { serializeRace, restoreRace } from './sim/persist.js';
+import { abortStart, releaseStart, startFromGridBehindSC } from './sim/start.js';
+import { distanceFor, LENGTHS } from './sim/length.js';
+import { runScrutiny, TECH_CHECKS, EXTRA_CHECKS } from './sim/scrutiny.js';
 import { rateRace, AXES } from './control/rating.js';
 
 const SPEEDS = [1, 2, 4, 8, 16, 32];
@@ -75,6 +78,9 @@ const controlPanel = new ControlPanel({
       'session-resume': () => race.sessionResume(),
       'restart-sc': () => restartRace(race, 'sc'),
       'restart-standing': () => restartRace(race, 'standing'),
+      'start-abort': () => abortStart(race),
+      'start-release': () => releaseStart(race),
+      'start-sc': () => startFromGridBehindSC(race),
     };
     if (actions[action]) actions[action]();
     controlPanel.sig = '';
@@ -112,6 +118,7 @@ let unread = 0;
 let resultShown = false;
 let wakeLock = null;
 let seenHazards = 0;
+let seenStartIssue = 0;
 const prevD = new Map();
 
 map.showLabels = settings.showLabels;
@@ -139,17 +146,21 @@ function newRace(seed = randomSeed()) {
       kind = setup.kind;
       gridPenalties = setup.gridPenalties;
       gridOrder = setup.gridOrder;
-      laps = setup.laps;
       drivers = DRIVERS.filter(d => !setup.excluded.includes(d.id));
       roundNo = season.round;
     }
     saveSeason(season);
   } else {
     track = getTrack(settings.trackId);
-    if (kind === 'sprint') laps = Math.ceil(100000 / track.def.lengthM);
   }
+  // Renndistanz nach Einstellung „Dauer“
+  let fullLaps = null;
+  if (kind === 'race' || kind === 'sprint') ({ laps, full: fullLaps } = distanceFor(track, kind, settings.length));
   map.setTrack(track);
-  const opts = { track, teams: TEAMS, drivers, seed, weather: settings.weatherMode, gridPenalties, gridOrder, laps, kind };
+  const opts = {
+    track, teams: TEAMS, drivers, seed, weather: settings.weatherMode, gridPenalties, gridOrder, laps, fullLaps, kind,
+    length: settings.length,
+  };
   race = ['fp', 'quali', 'sq'].includes(kind) ? new Session(opts) : new Race(opts);
   if (roundNo !== null) { race.seasonRound = roundNo; race.weekendIdx = season.weekend.idx; }
   renderForecast();
@@ -159,6 +170,7 @@ function newRace(seed = randomSeed()) {
   resultShown = false;
   seenHazards = 0;
   seenCases = 0;
+  seenStartIssue = 0;
   casesPanel.open.clear();
   casesPanel.forms = {};
   casesPanel.sig = '';
@@ -206,7 +218,9 @@ function renderEventCard() {
     $('startBtn').disabled = false;
   }
   if (!savedRace) $('startBtn').textContent = `${KIND_NAME[race.kind]} starten`;
-  $('evLaps').textContent = race.isSession ? '–' : race.laps;
+  $('evLaps').textContent = race.isSession
+    ? Math.round(race.info.segments.reduce((s, x) => s + x.dur, 0) / 60) : race.laps;
+  $('evLapsLabel').textContent = race.isSession ? 'Minuten' : 'Runden';
   $('evKm').textContent = (def.lengthM / 1000).toFixed(3).replace('.', ',');
   $('evDrivers').textContent = race ? race.cars.length : 22;
 }
@@ -318,7 +332,7 @@ function renderHistory() {
 // ---------- Speichern / Fortsetzen ----------
 
 function autosave() {
-  if (!race || race.phase === 'pre' || race.phase === 'lights') return;
+  if (!race || race.phase === 'pre') return;
   saveRaceState(serializeRace(race));
 }
 
@@ -352,6 +366,7 @@ function resumeRace() {
   resultShown = false;
   seenHazards = race.hazards.length;
   seenCases = race.cases.length;
+  seenStartIssue = race.startIssueSeq || 0;
   casesPanel.open.clear();
   casesPanel.forms = {};
   casesPanel.sig = '';
@@ -426,6 +441,10 @@ function frame(now) {
         onNewHazard();
         break;
       }
+      if (race.startIssueSeq > seenStartIssue) {
+        onStartIssue();
+        break;
+      }
     }
   }
 
@@ -434,7 +453,8 @@ function frame(now) {
     const renderD = new Map();
     for (const c of race.cars) {
       const p = prevD.get(c);
-      renderD.set(c, p === undefined ? c.d : p + (c.d - p) * alpha);
+      // Sprünge (Ende der Formationsrunde, Boxengassenstart) nicht interpolieren
+      renderD.set(c, p === undefined || Math.abs(c.d - p) > 200 ? c.d : p + (c.d - p) * alpha);
     }
     map.paused = paused;
     map.draw(race, renderD);
@@ -450,6 +470,14 @@ function frame(now) {
     }
   }
   requestAnimationFrame(frame);
+}
+
+function onStartIssue() {
+  seenStartIssue = race.startIssueSeq;
+  acc = 0;
+  if (settings.slowOnIncident && settings.speed > 1) setSpeed(1);
+  toast('Problem in der Startaufstellung – Rennleitung muss entscheiden');
+  openControl('start');
 }
 
 function onNewHazard() {
@@ -498,8 +526,8 @@ function updateStatus() {
     lapEl.textContent = race.phase === 'pre' ? 'Start' : race.phase === 'finished' ? 'Ende'
       : race.segState === 'break' ? `Pause ${mm}` : `${race.segment.id} · ${mm}`;
   } else {
-    $('lapLabel').textContent = race.kind === 'sprint' ? 'Sprint · Runde' : 'Runde';
-    if (race.phase === 'pre' || race.phase === 'lights') lapEl.textContent = `Start · ${race.laps} Rd`;
+    $('lapLabel').textContent = race.phase === 'formation' ? 'Formation' : race.preStart ? 'Start' : race.kind === 'sprint' ? 'Sprint · Runde' : 'Runde';
+    if (race.preStart) lapEl.textContent = `${race.laps} Rd`;
     else lapEl.textContent = `${race.leaderLap}/${race.laps}`;
   }
   const running = race.phase === 'running' || race.phase === 'chequered' || race.phase === 'finished';
@@ -515,7 +543,9 @@ function updateStatus() {
   else if (n && n.type === 'red') { flag.textContent = 'ROT'; flag.className = 'flag-chip flag-red'; }
   else if (n && n.type === 'sc') { flag.textContent = n.go ? 'SC NEUSTART' : n.phase === 'in' ? 'SC IN' : 'SAFETY CAR'; flag.className = 'flag-chip flag-sc'; }
   else if (n && n.type === 'vsc') { flag.textContent = n.phase === 'ending' ? 'VSC ENDET' : 'VSC'; flag.className = 'flag-chip flag-vsc'; }
-  else if (race.phase === 'pre' || race.phase === 'lights') { flag.textContent = 'START'; flag.className = 'flag-chip flag-start'; }
+  else if (race.startIssue) { flag.textContent = 'HALT'; flag.className = 'flag-chip flag-double'; }
+  else if (race.phase === 'formation') { flag.textContent = 'FORMATION'; flag.className = 'flag-chip flag-start'; }
+  else if (race.preStart) { flag.textContent = 'START'; flag.className = 'flag-chip flag-start'; }
   else if (status === 'double') { flag.textContent = 'GELB ×2'; flag.className = 'flag-chip flag-double'; }
   else if (status === 'yellow') { flag.textContent = 'GELB'; flag.className = 'flag-chip flag-yellow'; }
   else if (status === 'slippery') { flag.textContent = 'RUTSCHIG'; flag.className = 'flag-chip flag-slippery'; }
@@ -537,6 +567,12 @@ function updateAlert() {
   const t = race.time;
   el.style.background = '';
   if (race.phase === 'finished') { el.className = 'alert hidden'; return; }
+  if (race.startIssue && !race.startIssue.released) {
+    el.dataset.kind = 'start';
+    el.className = 'alert';
+    el.innerHTML = `<span class="alert-text">⚠ Startaufstellung: ${race.startIssue.carId} steht mit abgestorbenem Motor</span><span class="alert-go">Start ›</span>`;
+    return;
+  }
   const open = race.hazards.filter(h => !h.ended && h.adequateAt === null);
   const h = open[open.length - 1];
   if (h) {
@@ -709,11 +745,14 @@ function showResults() {
       ${srep.inconsistent.map(g => `<div class="report-item"><span class="v">⚖</span><div>Inkonsequent: gleichartige Vorfälle ${g} unterschiedlich bestraft.</div></div>`).join('')}
     </div>`;
   const hearings = race.cases.filter(c => c.status === 'post' || c.status === 'hearing').length;
+  const scr = race.scrutiny;
+  const techOpen = Boolean(scr && !scr.done);
   const parts = [];
+  if (techOpen) parts.push('technische Abnahme');
   if (hearings) parts.push(`${hearings} ${hearings > 1 ? 'Anhörungen' : 'Anhörung'}`);
   if (open - hearings > 0) parts.push(`${open - hearings} ${open - hearings > 1 ? 'Entscheidungen' : 'Entscheidung'}`);
   const what = race.isSession ? race.info.name : race.kind === 'sprint' ? 'Sprint' : 'Rennen';
-  $('resultTitle').textContent = open ? `⏳ Vorläufiges Ergebnis – ${parts.join(' und ')} offen` : `🏁 Ergebnis ${what}`;
+  $('resultTitle').textContent = open || techOpen ? `⏳ Vorläufiges Ergebnis – ${parts.join(' und ')} offen` : `🏁 Ergebnis ${what}`;
   $('openCasesBtn').classList.toggle('hidden', open === 0);
   const sBtn = $('applySeasonBtn');
   const seasonNow = getSeason();
@@ -721,9 +760,9 @@ function showResults() {
   const canApply = race.seasonRound !== undefined && !race.seasonApplied && seasonNow && seasonNow.round === race.seasonRound
     && wkNow && wkNow.idx === race.weekendIdx;
   sBtn.classList.toggle('hidden', !canApply);
-  sBtn.disabled = open > 0;
+  sBtn.disabled = open > 0 || techOpen;
   const nextKind = wkNow ? wkNow.sessions[wkNow.idx + 1] : null;
-  sBtn.textContent = open > 0 ? 'Erst alle Entscheidungen treffen'
+  sBtn.textContent = techOpen ? 'Erst technische Abnahme durchführen' : open > 0 ? 'Erst alle Entscheidungen treffen'
     : race.kind === 'race' ? 'In die Saison übernehmen' : `Weiter: ${KIND_NAME[nextKind] || 'Rennen'}`;
   // Gesamtbewertung
   const rating = rateRace(race);
@@ -768,6 +807,7 @@ function showResults() {
   autosave();
 
   $('resultBody').innerHTML = `
+    ${scrutinyHtml()}
     ${ratingHtml}
     <h3 class="section-title">Ergebnis</h3>
     <table class="results">
@@ -787,6 +827,57 @@ function showResults() {
   closeControl();
   $('resultScreen').classList.remove('hidden');
 }
+
+// ---------- Technische Abnahme ----------
+
+let scrutinyPick = new Set();
+const CHECK_SHORT = { weight: 'Gewicht', fuel: 'Kraftstoff', plank: 'Planke', power: 'Leistung', wing: 'Flügel' };
+
+function scrutinyHtml() {
+  const s = race.scrutiny;
+  if (!s) return '';
+  if (!s.done) {
+    const others = race.standings().filter(c => s.hidden[c.id] && !s.mandatory.includes(c.id));
+    const chips = others.map(c => `<button class="chip${scrutinyPick.has(c.id) ? ' on' : ''}" data-scr-pick="${c.id}">${c.id}</button>`).join('');
+    return `
+      <div class="report tech-box">
+        <h3>🔧 Technische Abnahme</h3>
+        <p class="ctl-small">Die FIA prüft die Top 3 (${s.mandatory.join(', ')}): Gewicht, Kraftstoffprobe, Unterboden-Planke, Antriebsleistung und Flügel. Du kannst bis zu ${EXTRA_CHECKS} weitere Autos prüfen lassen.</p>
+        <div class="chips">${chips}</div>
+        <button class="ctl-btn ctl-sc" data-scr-run="1">Abnahme durchführen (${s.mandatory.length + scrutinyPick.size} Autos)</button>
+      </div>`;
+  }
+  const rows = s.results.map(r => `
+    <div class="tech-row"><b>${r.carId}</b><span>${r.items.map(it => it.ok
+      ? `<span class="tech-ok">${CHECK_SHORT[it.check]} ${it.text} ✓</span>`
+      : `<span class="tech-bad">${CHECK_SHORT[it.check]} ${it.text} ⚖ #${it.caseId}</span>`).join(' ')}</span></div>`).join('');
+  return `
+    <details class="report tech-box">
+      <summary><h3>🔧 Technische Abnahme</h3></summary>
+      <p class="ctl-small">${Object.values(TECH_CHECKS).map(c => `${c.name}: ${c.rule}`).join(' · ')}</p>
+      ${rows}
+    </details>`;
+}
+
+$('resultBody').addEventListener('click', e => {
+  const pick = e.target.closest('[data-scr-pick]');
+  if (pick) {
+    const id = pick.dataset.scrPick;
+    if (scrutinyPick.has(id)) scrutinyPick.delete(id);
+    else if (scrutinyPick.size < EXTRA_CHECKS) scrutinyPick.add(id);
+    else toast(`Höchstens ${EXTRA_CHECKS} zusätzliche Autos`);
+    showResults();
+    return;
+  }
+  if (e.target.closest('[data-scr-run]')) {
+    const created = runScrutiny(race, [...scrutinyPick]);
+    scrutinyPick = new Set();
+    seenCases = race.cases.length;
+    updateCasesBadge();
+    toast(created.length ? `Technische Abnahme: ${created.length} Auffälligkeit${created.length > 1 ? 'en' : ''} – siehe Entscheidungen` : 'Technische Abnahme: alles in Ordnung');
+    showResults();
+  }
+});
 
 function formatMin(t) {
   t = Math.round(t);
@@ -900,7 +991,7 @@ timingEl.addEventListener('click', e => {
 
 document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => {
   if (suppressTabClick) return;
-  if (settings.panelCollapsed) setCollapsed(false);
+  if (settings.panelCollapsed) animatePanel(false, mapWrap.getBoundingClientRect().height);
   setTab(b.dataset.tab);
 }));
 
@@ -915,6 +1006,9 @@ function setCollapsed(on) {
   appEl.classList.toggle('collapsed', on);
   saveSettings(settings);
 }
+
+// Höhenbereich der Karte (ausgeklappt … eingeklappt) – steuert die Drehung beim Wischen
+map.heightRange = () => [Math.max(200, window.innerHeight * 0.34), maxMapHeight()];
 
 function maxMapHeight() {
   const used = ['.status', '#dragHandle', '.tabs', '.actions']
@@ -940,14 +1034,31 @@ window.addEventListener('pointermove', e => {
   drag.last = Math.max(minH, Math.min(maxMapHeight(), drag.h + dy));
   mapWrap.style.height = `${drag.last}px`;
 });
+// Karte weich auf die Zielhöhe animieren (die Drehung folgt dabei der Höhe)
+function animatePanel(collapse, fromH) {
+  const expandedH = Math.max(200, window.innerHeight * 0.34);
+  const toH = collapse ? maxMapHeight() : expandedH;
+  const start = performance.now();
+  appEl.classList.add('dragging');
+  appEl.classList.remove('collapsed');
+  const stepAnim = now => {
+    const k = Math.min(1, (now - start) / 260);
+    const e = 1 - Math.pow(1 - k, 3);
+    mapWrap.style.height = `${fromH + (toH - fromH) * e}px`;
+    if (k < 1) { requestAnimationFrame(stepAnim); return; }
+    appEl.classList.remove('dragging');
+    mapWrap.style.height = '';
+    setCollapsed(collapse);
+  };
+  requestAnimationFrame(stepAnim);
+}
+
 const dragEnd = () => {
   if (!drag) return;
   if (drag.moved) {
     const expandedH = Math.max(200, window.innerHeight * 0.34);
     const collapse = drag.last > (expandedH + maxMapHeight()) / 2;
-    appEl.classList.remove('dragging');
-    mapWrap.style.height = '';
-    setCollapsed(collapse);
+    animatePanel(collapse, drag.last);
     suppressTabClick = true;
     setTimeout(() => { suppressTabClick = false; }, 50);
   }
@@ -973,7 +1084,7 @@ $('alertBanner').addEventListener('click', () => {
 });
 $('vscBtn').addEventListener('click', () => openControl('vsc'));
 $('scBtn').addEventListener('click', () => openControl('sc'));
-$('redBtn').addEventListener('click', () => openControl('red'));
+$('redBtn').addEventListener('click', () => openControl(race && race.preStart && race.phase !== 'pre' && !race.isSession ? 'start' : 'red'));
 $('ctlCloseBtn').addEventListener('click', closeControl);
 
 document.querySelectorAll('.act[data-soon]').forEach(b => b.addEventListener('click', () => {
@@ -1005,6 +1116,11 @@ $('weatherSel').addEventListener('change', e => {
 $('startSel').addEventListener('change', e => {
   settings.startMode = e.target.value;
   saveSettings(settings);
+});
+$('lengthSel').addEventListener('change', e => {
+  settings.length = e.target.value;
+  saveSettings(settings);
+  if (race && race.phase === 'pre') newRace(race.seed);
 });
 $('modeSingle').addEventListener('click', () => setMode('single'));
 $('modeSeason').addEventListener('click', () => setMode('season'));
@@ -1082,6 +1198,7 @@ $('weatherSel').value = settings.weatherMode;
 fillTrackSelect();
 $('kindSel').value = settings.singleKind || 'race';
 $('startSel').value = settings.startMode;
+$('lengthSel').value = LENGTHS[settings.length] ? settings.length : 'medium';
 appEl.classList.toggle('collapsed', settings.panelCollapsed);
 applyTower();
 $('labelsBtn').classList.toggle('active', settings.showLabels);

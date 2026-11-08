@@ -54,7 +54,7 @@ export function cornerNear(track, d) {
 }
 
 export function cornerLabel(c) {
-  return c.name !== c.id ? `${c.id} (${c.name})` : c.id;
+  return c.id;   // Kurvennamen werden im Spiel nicht verwendet
 }
 
 // Beim Überfahren der Ziellinie: Zufallsereignis für die nächste Runde planen
@@ -62,12 +62,13 @@ export function rollLapIncidents(race, car) {
   if (race.phase !== 'running' || car.lap >= race.laps - 1 || race.neutral) return;
   const r = race.rng;
   const L = race.track.L;
-  const failP = (100 - car.team.reliability) * 0.000038;
-  let spinP = 0.0019 * (car.driver.errors / 28);
+  const k = race.incScale || 1;
+  const failP = (100 - car.team.reliability) * 0.000038 * k;
+  let spinP = 0.0019 * (car.driver.errors / 28) * k;
   // Nässe und falsche Reifen erhöhen das Risiko stark
   const w = race.weather.wetness;
   if (w > 0.05) {
-    const best = bestCompound(w, race.laps - car.lap);
+    const best = bestCompound(w, (race.laps - car.lap) * (race.wear || 1));
     const mismatch = Math.min(3, Math.max(0, (wetLoss(car.compound, w) - wetLoss(best, w)) / 4));
     spinP *= 1 + 5 * w + 4 * mismatch;
     spinP *= 1.5 - car.driver.wet / 200;
@@ -158,12 +159,13 @@ export function endOffTrack(race, car) {
   }
 }
 
-function startFailure(race, car) {
+export function startFailure(race, car, formation = false) {
   const r = race.rng;
   const side = r.chance(0.5) ? 1 : -1;
   const roll = r.next();
-  const need = roll < 0.4 ? 'yellow' : roll < 0.75 ? 'double' : 'vsc';
-  retireCar(race, car, 'Technischer Defekt', side * 12);
+  // In der Formationsrunde gibt es noch kein VSC – das Auto wird mit Gelb geborgen
+  const need = roll < 0.4 ? 'yellow' : roll < 0.75 || formation ? 'double' : 'vsc';
+  retireCar(race, car, formation ? 'Defekt in der Formationsrunde' : 'Technischer Defekt', side * 12);
   const where = {
     yellow: 'sicher hinter der Leitplanke',
     double: 'ungeschützt direkt neben der Fahrbahn',
@@ -174,6 +176,8 @@ function startFailure(race, car) {
   const quotes = ['Ich verliere Leistung … ich muss anhalten.', 'Kein Antrieb mehr!', 'Etwas ist kaputt, ich stelle das Auto ab.', 'Motor ist aus, Motor ist aus!'];
   race.emit('radio', `Funk ${car.id}: „${r.pick(quotes)}“`, { cars: [car.id] });
   race.emit('marshal', `Sektor ${h.sector + 1}: ${car.id} steht in ${cornerLabel(h.corner)} – ${where}.`, { hazard: h.id, sector: h.sector, cars: [car.id] });
+  if (formation) race.emit('rc', `${car.id} fällt in der Formationsrunde aus und kann nicht starten.`, { cars: [car.id] });
+  return h;
 }
 
 function startCrash(race, car, corner) {

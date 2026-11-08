@@ -57,26 +57,44 @@ export class TrackMap {
     const pad = 34;    // Rand: Gras und Auslaufzonen ragen über die Mittellinie hinaus
     const padTop = 76; // Platz für Einblendungen (Vorfälle, VSC, SC …)
     const padL = this.padLeft ? this.padLeft + 40 : pad; // Platz für den Ranking-Tower
-    const bounds = rot => {
+    const bounds = (ang, h = this.h) => {
+      const c = Math.cos(ang), sn = Math.sin(ang);
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      for (let i = 0; i < tr.N; i++) {
-        const [x, y] = rot ? [tr.ys[i], -tr.xs[i]] : [tr.xs[i], tr.ys[i]];
+      for (let i = 0; i < tr.N; i += 2) {
+        const x = tr.xs[i] * c + tr.ys[i] * sn, y = -tr.xs[i] * sn + tr.ys[i] * c;
         minX = Math.min(minX, x); maxX = Math.max(maxX, x);
         minY = Math.min(minY, y); maxY = Math.max(maxY, y);
       }
-      const s = Math.min((this.w - padL - pad) / (maxX - minX), (this.h - padTop - pad) / (maxY - minY));
+      const s = Math.min((this.w - padL - pad) / (maxX - minX), (h - padTop - pad) / (maxY - minY));
       return { minX, minY, maxX, maxY, s };
     };
-    // Hohe, schmale Karte (z. B. eingeklappter Bereich): Strecke um 90° drehen, wenn sie dadurch deutlich größer wird
-    const normal = bounds(false), rotated = bounds(true);
-    this.rot = rotated.s > normal.s * 1.2;
-    const { minX, minY, maxX, maxY, s } = this.rot ? rotated : normal;
+    // Hohe, schmale Karte (eingeklappter Bereich): Strecke um 90° drehen, wenn sie dadurch größer wird.
+    // Zwischen ausgeklappter und eingeklappter Höhe folgt der Winkel stufenlos der Kartenhöhe –
+    // beim Wischen dreht sich die Karte also langsam mit.
+    const angleFor = h => {
+      const r = bounds(Math.PI / 2, h).s / bounds(0, h).s;
+      const k = Math.min(1, Math.max(0, (r - 1.05) / 0.35));
+      return k * k * (3 - 2 * k) * Math.PI / 2;
+    };
+    const [h0, h1] = this.heightRange ? this.heightRange() : [this.h, this.h];
+    if (h1 > h0 + 40 && this.h > h0 && this.h < h1) {
+      const a0 = angleFor(h0), a1 = angleFor(h1);
+      let t = (this.h - h0) / (h1 - h0);
+      t = t * t * (3 - 2 * t);
+      this.angle = a0 + (a1 - a0) * t;
+    } else {
+      this.angle = angleFor(this.h);
+    }
+    this.cosA = Math.cos(this.angle);
+    this.sinA = Math.sin(this.angle);
+    const { minX, minY, maxX, maxY, s } = bounds(this.angle);
     this.scale = s;
     this.ox = padL + (this.w - padL - pad - (maxX - minX) * s) / 2 - minX * s;
     this.oy = padTop + (this.h - padTop - pad - (maxY - minY) * s) / 2 - minY * s;
     // Mittelpunkt in Streckenkoordinaten (ungedreht)
     const mx = (minX + maxX) / 2, my = (minY + maxY) / 2;
-    [this.cx, this.cy] = this.rot ? [-my, mx] : [mx, my];
+    this.cx = mx * this.cosA - my * this.sinA;
+    this.cy = mx * this.sinA + my * this.cosA;
     this.clampPan();
     this.bgDirty = true;
   }
@@ -129,7 +147,7 @@ export class TrackMap {
   }
 
   toPx([x, y]) {
-    if (this.rot) [x, y] = [y, -x];
+    if (this.angle) [x, y] = [x * this.cosA + y * this.sinA, -x * this.sinA + y * this.cosA];
     return [(this.ox + x * this.scale) * this.zoom + this.panX, (this.oy + y * this.scale) * this.zoom + this.panY];
   }
 

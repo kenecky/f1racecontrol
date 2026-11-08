@@ -2,7 +2,7 @@
 import { Race } from './race.js';
 import { Session } from './session.js';
 
-const VERSION = 3;   // 3: mit Sessions
+const VERSION = 4;   // 3: mit Sessions · 4: Formationsrunde, Abnahme
 // Laufzeit-Strukturen, die beim Laden neu aufgebaut werden
 const SKIP = new Set(['track', 'rng', 'cars', 'carById', 'physGap', 'behindSC']);
 

@@ -4,7 +4,7 @@ import { sectorIndexAt } from '../sim/trackModel.js';
 import { WARN_ICON } from './feed.js';
 import { hazardProgress, hazardWhere } from '../sim/hazards.js';
 
-const TITLES = { vsc: 'Virtual Safety Car', sc: 'Safety Car', red: 'Rote Flagge' };
+const TITLES = { vsc: 'Virtual Safety Car', sc: 'Safety Car', red: 'Rote Flagge', start: 'Start' };
 
 function mmss(t) {
   t = Math.max(0, Math.floor(t));
@@ -65,6 +65,7 @@ export class ControlPanel {
       scInPossibleThisLap(race),
       race.cars.filter(c => c.unlap).length, race.cars.filter(c => c.redQueued).length,
       active.map(h => Math.round(hazardProgress(h) * 50)), canRestart(race),
+      race.phase, race.startIssue && race.startIssue.carId, race.startIssue && race.startIssue.released, race.laps,
     ]);
     if (sig === this.sig) return;
     this.sig = sig;
@@ -93,7 +94,7 @@ export class ControlPanel {
       }
     }
 
-    if (kind === 'sc') {
+    if (kind === 'sc' && !race.isSession) {
       sub = 'Feld fährt hinter dem Safety Car, Überholverbot';
       if (!n || n.type === 'vsc') {
         html = `<p class="ctl-text">Das Safety Car setzt sich vor den Führenden, das Feld schließt auf. Gut für längere Bergungen und Trümmerfelder.${n ? ' Das VSC wird dadurch ersetzt.' : ''}</p>
@@ -119,6 +120,30 @@ export class ControlPanel {
         }
       } else {
         html = '<p class="ctl-text">Nicht verfügbar während der roten Flagge.</p>';
+      }
+    }
+
+    if (kind === 'start') {
+      sub = 'Formationsrunde und Startfreigabe';
+      const issue = race.startIssue;
+      const atGrid = race.phase === 'grid' || race.phase === 'lights';
+      if (race.phase === 'formation') {
+        html = `<div class="ctl-status">${race.formation && race.formation.n > 1 ? 'Extra-' : ''}Formationsrunde läuft</div>
+          <p class="ctl-text">Die Autos wärmen Reifen und Bremsen auf. Defekte oder Dreher sind möglich – sichere Gefahren wie im Rennen mit Flaggen ab. Wer seinen Platz verliert, startet von hinten; wer nicht losfährt, aus der Boxengasse.</p>`;
+      } else if (atGrid && issue && !issue.released) {
+        html = `<div class="ctl-status">⚠ ${issue.carId} steht mit abgestorbenem Motor in der Startaufstellung</div>
+          <p class="ctl-text">Die Startampel wartet auf deine Entscheidung. Ein stehendes Auto beim Start ist gefährlich.</p>
+          <button class="ctl-btn ctl-red" data-action="start-abort">Start abbrechen – Extra-Formationsrunde</button>
+          <p class="ctl-small">${issue.carId} wird in die Boxengasse geschoben und startet von dort. Das Rennen wird um eine Runde verkürzt (dann ${Math.max(3, race.laps - 1)} Runden).</p>
+          <button class="ctl-btn ctl-sc" data-action="start-sc">Start hinter dem Safety Car</button>
+          <button class="ctl-btn ctl-ghost" data-action="start-release">Start trotzdem freigeben</button>`;
+      } else if (atGrid) {
+        html = `<div class="ctl-status">${race.phase === 'lights' ? 'Startampel läuft' : 'Startaufstellung komplett'}</div>
+          <button class="ctl-btn ctl-ghost" data-action="start-abort">Start abbrechen – Extra-Formationsrunde</button>
+          <button class="ctl-btn ctl-ghost" data-action="start-sc">Start hinter dem Safety Car</button>
+          <p class="ctl-small">Nur bei einem Problem in der Startaufstellung oder auf der Strecke. Ein Startabbruch kostet eine Runde Renndistanz.</p>`;
+      } else {
+        html = `<div class="ctl-status">${race.phase === 'pre' ? 'Der Start wurde noch nicht freigegeben.' : 'Das Rennen ist gestartet.'}</div>`;
       }
     }
 

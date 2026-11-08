@@ -91,7 +91,7 @@ export class CasesPanel {
           <span class="case-no">#${c.id}</span>
           <span class="case-main">
             <span class="case-title">${c.title}</span>
-            <span class="case-meta">Runde ${c.lap} · ${c.typeName}${c.verdict && c.verdict.carId ? ` · ${PENALTIES[c.verdict.penalty].short} ${c.verdict.carId}` : ''}</span>
+            <span class="case-meta">${c.when || (c.lap ? `Runde ${c.lap}` : 'Vor dem Start')} · ${c.typeName}${c.verdict && c.verdict.carId ? ` · ${PENALTIES[c.verdict.penalty].short} ${c.verdict.carId}` : ''}</span>
           </span>
           <span class="case-status ${cls}">${label}</span>
         </button>
@@ -106,7 +106,7 @@ export class CasesPanel {
           <button class="ctl-btn ctl-sc" data-act="investigate">Untersuchen</button>
           <div class="case-actions-row">
             <button class="ctl-btn ctl-ghost" data-act="nfa">Keine Untersuchung</button>
-            <button class="ctl-btn ctl-ghost" data-act="post">Nach dem Rennen</button>
+            ${finished ? '' : '<button class="ctl-btn ctl-ghost" data-act="post">Nach dem Rennen</button>'}
           </div>
         </div>`;
     }

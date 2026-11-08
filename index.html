@@ -134,7 +134,7 @@
         <div id="evTrack" class="event-track"></div>
         <div id="weekendSteps" class="weekend-steps"></div>
         <div class="event-facts">
-          <div><b id="evLaps"></b><span>Runden</span></div>
+          <div><b id="evLaps"></b><span id="evLapsLabel">Runden</span></div>
           <div><b id="evKm"></b><span>km</span></div>
           <div><b id="evDrivers"></b><span>Fahrer</span></div>
         </div>
@@ -169,6 +169,13 @@
             <option value="dry">Trocken</option>
             <option value="rain">Regen</option>
             <option value="changeable">Wechselhaft (Schauer möglich)</option>
+          </select>
+        </label>
+        <label>Dauer
+          <select id="lengthSel">
+            <option value="short">Kurz – ¼ Renndistanz, kurze Sessions</option>
+            <option value="medium">Mittel – ½ Renndistanz</option>
+            <option value="full">Lang – volle Renndistanz</option>
           </select>
         </label>
         <label>Startart

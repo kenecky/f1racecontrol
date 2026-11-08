@@ -18,17 +18,20 @@ export const CASE_TYPES = {
   ignoredOrder:  { name: 'Anordnung nicht befolgt',       options: ['warning', '5s', '10s', 'dt', 'sg', 'grid5', 'dsq'] },
   tlLap:         { name: 'Track Limits (Rundenzeit)',     options: ['deleteLap'] },
   impeding:      { name: 'Behinderung',                   options: ['warning', 'grid3', 'grid5', 'grid10'] },
+  jumpStart:     { name: 'Fehlstart',                     options: ['warning', '5s', '10s', 'dt'] },
+  gridBox:       { name: 'Falsche Startposition',         options: ['warning', '5s', '10s'] },
+  tech:          { name: 'Technische Abnahme',            options: ['warning', 'dsq'] },
 };
 
 const f1 = x => x.toFixed(1).replace('.', ',');
 const pick = (race, arr) => race.rng.pick(arr);
 
-function createCase(race, props) {
+export function createCase(race, props) {
   const leader = race.standings()[0];
   const c = {
     id: ++race.caseSeq,
     time: race.time,
-    lap: Math.min(race.laps, leader.lap + 1),
+    lap: race.preStart ? 0 : Math.min(race.laps, leader.lap + 1),
     status: 'new',          // new → investigating | post → decided  (oder nfa)
     verdict: null,
     evidence: [],
@@ -41,7 +44,7 @@ function createCase(race, props) {
   return c;
 }
 
-function ev(kind, label, text, early = false) {
+export function ev(kind, label, text, early = false) {
   return { kind, label, text, early };
 }
 
@@ -50,7 +53,7 @@ function ev(kind, label, text, early = false) {
 // Aufgerufen bei jedem Überholversuch in einer Überholzone
 export function rollBattleIncident(race, attacker, defender, zoneCorner, success) {
   if (race.neutral || race.phase !== 'running') return;
-  const aggr = (attacker.driver.aggression + defender.driver.aggression) / 140;
+  const aggr = (attacker.driver.aggression + defender.driver.aggression) / 140 * (race.incScale || 1);
   const r = race.rng;
   if (success) {
     if (!r.chance(0.015 * aggr)) return;
@@ -66,7 +69,7 @@ export function rollBattleIncident(race, attacker, defender, zoneCorner, success
 }
 
 // Messwert aus einer Verteilung (Beweise überlappen sich bewusst)
-function measure(race, mean, sd, lo, hi) {
+export function measure(race, mean, sd, lo, hi) {
   return Math.max(lo, Math.min(hi, mean + race.rng.gauss(sd)));
 }
 const pct = x => `${Math.round(x)} %`;
@@ -78,7 +81,7 @@ const RULE_TRACK = 'Die Strecke gilt als verlassen, wenn alle vier Räder jensei
 const RULE_YELLOW = 'Unter Gelb darf nicht überholt werden – außer an einem Auto, das offensichtlich ein Problem hat.';
 
 // TV-Eindruck: manchmal ein Hinweis – der aber auch täuschen kann
-function tvImpression(race, truthHint, falseHint) {
+export function tvImpression(race, truthHint, falseHint) {
   const r = race.rng;
   if (!r.chance(0.55)) return '';
   return ' ' + (r.chance(0.65) ? truthHint : falseHint);
@@ -264,7 +267,7 @@ export function onGiveBackDone(race, car, target) {
 export function rollTrackLimits(race, car) {
   if (race.neutral || race.phase !== 'running') return;
   const r = race.rng;
-  if (!r.chance(0.012 * (car.driver.errors / 28))) return;
+  if (!r.chance(0.012 * (car.driver.errors / 28) * (race.incScale || 1))) return;
   const corner = r.pick(['T9', 'T10', 'T10', 'T1', 'T6']);
   car.tl = (car.tl || 0) + 1;
   car.tlLog = car.tlLog || [];
@@ -376,7 +379,7 @@ export function rollVscDelta(race, dt) {
 export function rollPileup(race, leaderLap) {
   if (race.neutral || race.phase !== 'running' || race.pendingPileup) return;
   const wet = 1 + 4 * race.weather.wetness;   // Regen: deutlich häufiger
-  const p = (leaderLap === 0 ? 0.03 : 0.0008) * wet;
+  const p = (leaderLap === 0 ? 0.03 : 0.0008 * (race.incScale || 1)) * wet;
   if (!race.rng.chance(p)) return;
   const corners = leaderLap === 0
     ? race.track.corners.filter(c => c.id === 'T1' || c.id === 'T3' || c.id === 'T4')
@@ -569,5 +572,60 @@ export function createImpedingCase(race, slow, fast, lost) {
     truth: warned
       ? { offender: slow.id, expected: lost > 0.4 ? ['grid3'] : ['warning', 'grid3'], points: [0, 1], victim: fast.id }
       : { offender: slow.id, expected: ['warning'], points: [0, 0], victim: fast.id },
+  });
+}
+
+// ---------- Start ----------
+
+// Bewegung vor dem Erlöschen der Startampel
+export function createJumpStartCase(race, car, jump) {
+  const r = race.rng;
+  const real = jump.real;
+  const early = measure(race, real ? 0.24 : 0.12, 0.08, 0.02, 0.7);
+  const cm = Math.round(measure(race, jump.dist, 0.22, 0.03, 2.6) * 100);
+  const still = real ? r.chance(0.2) : r.chance(0.8);
+  createCase(race, {
+    type: 'jumpStart', cars: [car.id],
+    title: `Fehlstart ${car.id}?`,
+    summary: `${car.id} bewegt sich in der Startaufstellung, bevor die Lichter ausgehen.`,
+    evidence: [
+      ev('video', 'TV-Bilder', `${car.id} scheint sich kurz vor dem Erlöschen der Lichter zu bewegen.${tvImpression(race,
+        real ? 'Das Auto rollt sichtbar nach vorn.' : 'Es wirkt eher wie ein kurzes Zucken.',
+        real ? 'Es wirkt eher wie ein kurzes Zucken.' : 'Das Auto rollt sichtbar nach vorn.')}`, true),
+      ev('telemetry', 'Transponder (FIA)', `Erste Bewegung ${early.toFixed(2).replace('.', ',')} s vor Lichter aus.`),
+      ev('position', 'Weg vor dem Startsignal', `${car.id} bewegt sich etwa ${cm} cm nach vorn.`),
+      ev('telemetry', 'Stillstand beim Signal', still
+        ? 'Sensor: Das Auto stand beim Erlöschen der Lichter wieder still.'
+        : 'Sensor: Das Auto war beim Erlöschen der Lichter in Bewegung.'),
+      ev('radio', `Funk ${car.id}`, r.pick(['„Die Kupplung hat gegriffen, ich konnte nichts machen.“', '„Start war okay, oder?“', '„Ich habe gestanden!“'])),
+      ev('data', 'Leitlinie', 'Fehlstart: Das Auto bewegt sich, bevor die Lichter ausgehen. Ein kurzes Zucken, nach dem das Auto beim Signal wieder steht, liegt innerhalb der Toleranz. Üblich: 5- oder 10-s-Zeitstrafe, bei deutlichem Vorteil Durchfahrtsstrafe.'),
+    ],
+    truth: real
+      ? { offender: car.id, expected: jump.dist > 1.2 ? ['10s', 'dt'] : ['5s', '10s'], points: [0, 1] }
+      : { offender: null, expected: ['none'], points: [0, 0] },
+  });
+}
+
+// Auto steht nicht korrekt in seiner Startbox
+export function createGridBoxCase(race, car) {
+  const r = race.rng;
+  const out = r.chance(0.65);
+  const trueCm = out ? r.range(6, 35) : r.range(-8, -1);
+  const m1 = measure(race, trueCm, 7, -20, 50);
+  const m2 = measure(race, trueCm, 2.5, -20, 50);
+  const txt = m => (m > 0 ? `Vorderreifen etwa ${Math.round(m)} cm über der vorderen Linie der Startbox.` : `Vorderreifen etwa ${Math.round(-m)} cm innerhalb der Startbox.`);
+  createCase(race, {
+    type: 'gridBox', cars: [car.id],
+    title: `${car.id} falsch in der Startbox?`,
+    summary: `${car.id} steht beim Start auffällig weit vorn in seiner Startbox.`,
+    evidence: [
+      ev('video', 'Kamera über der Startaufstellung', `${car.id} steht leicht schräg, die Vorderräder auf Höhe der Linie. ${txt(m1)}`, true),
+      ev('position', 'Vermessung (Overhead-Aufnahme)', txt(m2)),
+      ev('radio', `Teamfunk ${car.team.name}`, '„Er stand korrekt, die Linie ist kaum zu sehen.“'),
+      ev('data', 'Leitlinie', 'Das Auto muss innerhalb seiner Startbox stehen. Steht es über der Linie, ist eine 5-s-Zeitstrafe üblich.'),
+    ],
+    truth: out
+      ? { offender: car.id, expected: ['5s'], points: [0, 1] }
+      : { offender: null, expected: ['none'], points: [0, 0] },
   });
 }
