@@ -1,6 +1,6 @@
 // Training und Qualifying: Autos starten aus der Garage, fahren Aufwärm-, schnelle und
 // Auslaufrunden; Session-Uhr (steht bei Rot), Q1–Q3 mit Ausscheiden, Bestzeiten.
-import { Race, DT, formatLap } from './race.js';
+import { Race, DT, formatLap, aggressionOf, errorsOf } from './race.js';
 import { COMPOUNDS, bestCompound } from './tyres.js';
 import { rollLapIncidents } from './hazards.js';
 import { createLapCase, createImpedingCase } from './incidents.js';
@@ -210,7 +210,7 @@ export class Session extends Race {
     this.impedeChecked = this.impedeChecked || {};
     if (!this.impedeChecked[key]) {
       this.impedeChecked[key] = true;
-      if (this.kind !== 'fp' && this.rng.chance(0.009 * A.driver.aggression / 70)) {
+      if (this.kind !== 'fp' && this.rng.chance(0.009 * aggressionOf(A) / 70)) {
         const lost = this.rng.range(0.2, 1.2);
         B.slowUntil = this.time + 1.2 + lost;
         B.compromised = true;
@@ -252,6 +252,7 @@ export class Session extends Race {
     car.stopTimer = 0;
     car.stoppedThisVisit = true;
     car.prog.phase = 'out';
+    car.outStartD = car.d;   // Aufwärmrunde zählt erst ab einer vollen Runde
     car.prog.pushLeft = run.push;
     car.compromised = false;
   }
@@ -272,13 +273,14 @@ export class Session extends Race {
         this.emit('fastest', `Bestzeit: ${car.id} ${formatLap(lapTime)}`, { cars: [car.id] });
       }
       // Track Limits auf der gezeiteten Runde?
-      if (this.rng.chance((this.kind === 'fp' ? 0.012 : 0.025) * (car.driver.errors / 28))) {
+      if (this.rng.chance((this.kind === 'fp' ? 0.012 : 0.025) * (errorsOf(car) / 28))) {
         createLapCase(this, car, rec, this.rng.pick(this.track.corners).id);
       }
       rollLapIncidents(this, car);
       p.pushLeft--;
       p.phase = p.pushLeft > 0 && !this.segFlag ? 'push' : 'cool';
     } else if (p.phase === 'out') {
+      if (car.d - (car.outStartD ?? -Infinity) < this.track.L * 0.6) return;   // nur über die Linie in der Boxengasse
       p.phase = this.segFlag ? 'cool' : 'push';
     }
   }

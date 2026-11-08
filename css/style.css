@@ -780,3 +780,36 @@ button {
 .tech-row > span { display: flex; flex-wrap: wrap; gap: 4px 8px; }
 .tech-ok { color: var(--muted); }
 .tech-bad { color: #ffb020; font-weight: 600; }
+
+/* Startablauf: Formationsrunde / Startampel / Lichter aus */
+.start-ctl {
+  position: absolute; right: 8px; bottom: 40px; z-index: 6;
+  min-width: 180px; padding: 11px 14px; border: 0; border-radius: 10px;
+  font: 800 15px system-ui, sans-serif; letter-spacing: .02em; color: #0b0f17;
+  box-shadow: 0 4px 14px rgba(0,0,0,.45);
+}
+.start-ctl.hidden { display: none; }
+.start-go { background: var(--green); }
+.start-amber { background: #ff9f1a; }
+.start-wait { background: #2a3142; color: #ff3b30; letter-spacing: .25em; font-size: 18px; }
+.start-red { background: #e10600; color: #fff; font-size: 18px; animation: pulseOut .6s ease-in-out infinite alternate; }
+@keyframes pulseOut { from { transform: scale(1); } to { transform: scale(1.05); } }
+
+/* Fahrer verfolgen: Details oberhalb der Karte */
+.driver-card {
+  flex: none; padding: 8px 12px 10px; background: var(--bg-2);
+  border-bottom: 1px solid var(--line); border-left: 4px solid var(--team, var(--accent));
+}
+.driver-card.hidden { display: none; }
+.dc-head { display: flex; align-items: center; gap: 10px; }
+.dc-pos { font: 800 18px system-ui, sans-serif; min-width: 34px; }
+.dc-num { font: 800 15px system-ui, sans-serif; color: var(--team, #fff); min-width: 22px; }
+.dc-name { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.dc-name b { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dc-name small { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dc-tag { font-size: 10px; padding: 2px 6px; border-radius: 6px; background: #3a2f12; color: var(--yellow); white-space: nowrap; }
+.dc-close { background: var(--bg-3); border: 0; color: var(--text); width: 30px; height: 30px; border-radius: 8px; font-size: 14px; }
+.dc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px 8px; margin-top: 8px; }
+.dc-grid div { display: flex; flex-direction: column; min-width: 0; }
+.dc-grid span { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.dc-grid b { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

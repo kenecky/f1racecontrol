@@ -174,7 +174,8 @@ export function buildTrack(def) {
   track.pit = {
     entry: at(def.pit.entry),
     exit: at(def.pit.exit),
-    box: def.pit.boxOffsetAfterLine,
+    // Boxen/Garagen liegen rund um die Ziellinie (vor allem davor) – nie schon in Kurve 1
+    box: def.pit.box ?? -Math.round(Math.min(150, (L - wrap(at(def.pit.entry))) * 0.5)),
     side: def.pitLaneSide,
   };
   return track;

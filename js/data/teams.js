@@ -13,7 +13,7 @@ export const TEAMS = [
   { id: 'racingbulls', name: 'Racing Bulls',    short: 'RB',  color: '#6692FF', pace: 81, reliability: 82, pitCrew: 86 },
   { id: 'williams',    name: 'Williams',        short: 'WIL', color: '#64C4FF', pace: 80, reliability: 84, pitCrew: 85 },
   { id: 'audi',        name: 'Audi',            short: 'AUD', color: '#B0122E', pace: 79, reliability: 80, pitCrew: 80 },
-  { id: 'astonmartin', name: 'Aston Martin',    short: 'AMR', color: '#229971', pace: 74, reliability: 76, pitCrew: 84 },
+  { id: 'astonmartin', name: 'Aston Martin',    short: 'AST', color: '#229971', pace: 74, reliability: 76, pitCrew: 84 },
   { id: 'cadillac',    name: 'Cadillac',        short: 'CAD', color: '#F2F2F2', pace: 72, reliability: 78, pitCrew: 78 },
 ];
 

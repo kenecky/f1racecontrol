@@ -21,14 +21,19 @@ const MS_LEN = 100;              // Mini-Sektor-Länge (m) für Abstandsberechnu
 
 import { COMPOUNDS, wetLoss, bestCompound } from './tyres.js';
 import { createWeather, updateWeather } from './weather.js';
-import { beginFormation, stepFormation, stepGrid, stepLights, releasePitStarters } from './start.js';
+import { stepFormation, stepGrid, stepLights, releasePitStarters, PRESTART } from './start.js';
 import { prepareScrutiny } from './scrutiny.js';
+import { ambientRadio, T } from './texts.js';
 export { COMPOUNDS };
+
+// Vorsicht nach Strafen: weniger Risiko und Fehler, aber auch etwas langsamer (0 … 1)
+export const aggressionOf = car => car.driver.aggression * (1 - 0.35 * (car.caution || 0));
+export const errorsOf = car => car.driver.errors * (1 - 0.3 * (car.caution || 0));
 
 export class Race {
   constructor({
     track, teams, drivers, seed, weather = 'dry', gridPenalties = {},
-    kind = 'race', laps = null, gridOrder = null, durationSec = null, fullLaps = null,
+    kind = 'race', laps = null, gridOrder = null, durationSec = null, fullLaps = null, caution = {},
   }) {
     this.kind = kind;            // race | sprint | fp | quali | sq
     this.gridPenalties = gridPenalties;
@@ -45,7 +50,7 @@ export class Race {
     this.startLog = [];         // Entscheidungen der Rennleitung beim Start
     this.formation = null;
     this.time = 0;              // Rennzeit seit "Lichter aus"
-    this.phase = 'pre';         // pre → formation → grid → lights → running → chequered → finished
+    this.phase = 'pre';         // pre → ready → formation → grid → lights → running → chequered → finished
     this.lightsTimer = 0;
     this.lightsHold = 5 + this.rng.range(0.4, 2.4);
     this.events = [];
@@ -97,6 +102,7 @@ export class Race {
         damage: null, slowUntil: 0, giveBack: null,
         timePens: [], serve: [], serving: null, tl: 0, warnings: 0, dsq: false,
         gridPos: 0,
+        caution: Math.min(0.8, caution[drv.id] || 0),
       };
     });
     this.carById = Object.fromEntries(this.cars.map(c => [c.id, c]));
@@ -194,19 +200,21 @@ export class Race {
       startBehindSC(this);
       return;
     }
-    beginFormation(this);
+    // Autos stehen in der Startaufstellung – die Rennleitung gibt die Formationsrunde frei
+    this.phase = 'ready';
+    this.emit('info', 'Alle Autos in der Startaufstellung. Die Rennleitung gibt die Formationsrunde frei.');
   }
 
   // Vor dem Start (Formationsrunde, Startaufstellung, Startampel)
   get preStart() {
-    return this.phase === 'pre' || this.phase === 'formation' || this.phase === 'grid' || this.phase === 'lights';
+    return this.phase === 'pre' || this.phase === 'ready' || this.phase === 'formation' || this.phase === 'grid' || this.phase === 'lights';
   }
 
   get lightsOn() {
     const n = this.neutral;
     if (n && n.type === 'red' && n.phase === 'grid') return Math.min(5, Math.floor(n.lightsTimer) + 1);
-    if (this.phase !== 'lights') return 0;
-    return Math.min(5, Math.floor(this.lightsTimer) + 1);
+    if (this.phase !== 'lights' || this.lightsTimer < PRESTART) return 0;
+    return Math.min(5, Math.floor(this.lightsTimer - PRESTART) + 1);
   }
 
   get leaderLap() {
@@ -233,11 +241,12 @@ export class Race {
     if (age > C.cliff) deg += (age - C.cliff) * 0.22;
     const dmg = car.damage === 'wing' ? 1.2 : 0;
     const wet = wetLoss(car.compound, w) + w * (100 - car.driver.wet) * 0.025;
-    return tr.baseLap + car.basePenalty + (C.wet ? 0 : C.offset) + wet + deg + 2.2 * (1 - progress) + car.lapNoise + dmg;
+    const careful = (car.caution || 0) * 0.3;                   // vorsichtiger Fahrer: bis 0,3 s langsamer
+    return tr.baseLap + car.basePenalty + (C.wet ? 0 : C.offset) + wet + deg + 2.2 * (1 - progress) + car.lapNoise + dmg + careful;
   }
 
   step() {
-    if (this.phase === 'pre' || this.phase === 'finished') return;
+    if (this.phase === 'pre' || this.phase === 'ready' || this.phase === 'finished') return;
     if (this.phase === 'formation') { stepFormation(this, DT); return; }
     if (this.phase === 'grid') { stepGrid(this, DT); return; }
     if (this.phase === 'lights') { stepLights(this, DT); return; }
@@ -340,6 +349,11 @@ export class Race {
           const pos = this.standings().indexOf(car) + 1;
           const zone = car.pass.zone ? ` (${car.pass.zone})` : '';
           this.emit('overtake', `${car.id} überholt ${target.id} – P${pos}${zone}`, { cars: [car.id, target.id], slow: car.pass.slow });
+          if (!car.pass.slow && !this.isSession && this.chatRand() < 0.1) {
+            const good = this.chatRand() < 0.5;
+            const who = good ? car : target;
+            this.emit('radio', `Funk ${who.id}: „${this.chatPick(good ? 'passGood' : 'passBad')}“`, { cars: [who.id] });
+          }
         }
         car.pass = null;
       } else if (this.time >= car.pass.until || target.inPit || target.finished || target.retired || target.offTrack) {
@@ -349,6 +363,7 @@ export class Race {
 
     afterMove(this, DT);
     updateWeather(this, DT);
+    ambientRadio(this, DT, () => this.chatRand());
     // Massenunfall: neue Führungsrunde → würfeln, dann an einer Gruppe auslösen
     if (!this.isSession) {
       const leadLap = Math.max(0, ...this.cars.filter(c => !c.retired).map(c => c.lap));
@@ -407,6 +422,7 @@ export class Race {
         if (lapping && !underYellow && !banned) {
           // Überrundung: blaue Flagge, Hinterbänkler macht Platz
           this.startPass(B, A, { blue: true });
+          if (!this.isSession && this.chatRand() < 0.04) this.emit('radio', `Funk ${B.id}: „${this.chatPick('blueFlag')}“`, { cars: [B.id] });
           continue;
         }
         const startPhase = A.d < A.launchUntil;
@@ -426,7 +442,7 @@ export class Race {
             B.tried.add(key);
             if (underYellow) {
               // seltener Regelverstoß: Überholen trotz gelber Flagge
-              if (this.rng.chance(0.04 * B.driver.aggression / 70)) {
+              if (this.rng.chance(0.04 * aggressionOf(B) / 70)) {
                 const fB = this.flags[sectorIndexAt(tr, B.d)], fA = this.flags[sectorIndexAt(tr, A.d)];
                 this.startPass(B, A, { zone: zoneName, violation: true });
                 createYellowPassCase(this, B, A, fB === 'double' || fA === 'double' ? 'double' : 'yellow');
@@ -497,12 +513,25 @@ export class Race {
     let p;
     if (paceDiff < 0.1) p = 0.04;
     else p = 0.08 + paceDiff * 0.45;
-    p += (B.driver.aggression - 65) / 300;
-    p -= (A.driver.aggression - 65) / 400;
+    p += (aggressionOf(B) - 65) / 300;
+    p -= (aggressionOf(A) - 65) / 400;
     if (B.lap === 0) p += 0.12;   // Startrunde: mehr Bewegung im Feld
     p *= zone.factor;
     p *= 1 - 0.35 * this.weather.wetness;   // Gischt und wenig Grip bei Nässe
     return Math.max(0.02, Math.min(0.85, p));
+  }
+
+  // Eigener Zufall nur für Funksprüche (verändert den Rennverlauf nicht)
+  chatRand() {
+    this.chatN = (this.chatN || 0) + 1;
+    let x = (Math.imul(this.seed | 0, 2654435761) + Math.imul(this.chatN, 40503)) >>> 0;
+    x ^= x >>> 16; x = Math.imul(x, 0x45d9f3b) >>> 0; x ^= x >>> 16; x = Math.imul(x, 0x45d9f3b) >>> 0; x ^= x >>> 16;
+    return (x >>> 0) / 4294967296;
+  }
+
+  chatPick(key) {
+    const p = T[key];
+    return p[Math.floor(this.chatRand() * p.length)];
   }
 
   // Hooks für Sessions (Training/Qualifying)
@@ -559,6 +588,10 @@ export class Race {
         if (!car.redBound) enterPitUnderRed(this, car);
         car.stoppedThisVisit = true;
       } else if (decision && car.lap < this.laps - 2) {
+        if (this.chatRand() < 0.3) {
+          this.emit('radio', `Teamfunk ${car.team.name} an ${car.id}: „${this.chatPick('boxCall')}“`, { cars: [car.id] });
+          if (this.chatRand() < 0.5) this.emit('radio', `Funk ${car.id}: „${this.chatPick('boxReply')}“`, { cars: [car.id] });
+        }
         car.inPit = true;
         car.stoppedThisVisit = false;
         car.pass = null;
@@ -628,6 +661,7 @@ export class Race {
       if (car.lap >= 2 && (!this.fastest || lapTime < this.fastest.time)) {
         this.fastest = { carId: car.id, time: lapTime, lap: car.lap };
         this.emit('fastest', `Schnellste Runde: ${car.id} ${formatLap(lapTime)}`, { cars: [car.id] });
+        if (car.lap > 3 && this.chatRand() < 0.25) this.emit('radio', `Teamfunk ${car.team.name} an ${car.id}: „${this.chatPick('fastest')}“`, { cars: [car.id] });
       }
 
       onLineCrossed(this, car);

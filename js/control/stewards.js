@@ -90,6 +90,25 @@ export function decide(race, c, { carId, penalty, points }) {
   race.emit('rc', `STRAFE: ${PENALTIES[penalty].name} für ${carId}${pts} – ${c.typeName}`, { cars: [carId] });
   applyPenalty(race, car, penalty, c);
   reactToVerdict(race, c);
+  raiseCaution(race, car, PENALTIES[penalty].sev);
+}
+
+// Wer bestraft wird, fährt danach vorsichtiger (weniger Risiko, aber auch etwas langsamer)
+const CAUTION_TALK = [
+  'Keine weiteren Risiken jetzt, wir können uns keine Strafe mehr leisten.',
+  'Ruhig bleiben – sauber fahren, die Kommissare schauen genau hin.',
+  'Wir brauchen die Punkte. Keine Brechstange mehr, okay?',
+  'Lass die Zweikämpfe etwas ruhiger angehen.',
+  'Noch eine Strafe und es wird teuer. Konzentrier dich.',
+  'Bitte sauber bleiben, auch wenn es Zeit kostet.',
+];
+function raiseCaution(race, car, sev) {
+  if (!car || car.dsq) return;
+  const before = car.caution || 0;
+  car.caution = Math.min(1, before + (sev >= 2 ? 0.25 : 0.1));
+  if (!race.isSession && !car.retired && !car.finished && race.phase === 'running' && car.caution >= 0.25 && before < car.caution) {
+    race.emit('radio', `Teamfunk ${car.team.name} an ${car.id}: „${race.rng.pick(CAUTION_TALK)}“`, { cars: [car.id] });
+  }
 }
 
 // Ausgeschiedene Fahrer: Strafen wirken als Startplatzstrafe im nächsten Rennen

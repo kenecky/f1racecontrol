@@ -126,24 +126,27 @@ export class ControlPanel {
     if (kind === 'start') {
       sub = 'Formationsrunde und Startfreigabe';
       const issue = race.startIssue;
-      const atGrid = race.phase === 'grid' || race.phase === 'lights';
-      if (race.phase === 'formation') {
+      const atGrid = (race.phase === 'grid' || race.phase === 'lights') && race.formation && race.formation.arrived;
+      if (race.phase === 'ready') {
+        html = `<div class="ctl-status">Autos in der Startaufstellung</div>
+          <p class="ctl-text">Mit „Formationsrunde freigeben“ (Knopf auf der Karte) beginnt die Formationsrunde. Danach schaltest du die Startampel ein – aber erst, wenn alle Autos in ihren Startboxen stehen. Wenn alle fünf Lichter brennen, löschst du sie per Klick (üblich: innerhalb von 3 Sekunden).</p>`;
+      } else if (race.phase === 'formation') {
         html = `<div class="ctl-status">${race.formation && race.formation.n > 1 ? 'Extra-' : ''}Formationsrunde läuft</div>
           <p class="ctl-text">Die Autos wärmen Reifen und Bremsen auf. Defekte oder Dreher sind möglich – sichere Gefahren wie im Rennen mit Flaggen ab. Wer seinen Platz verliert, startet von hinten; wer nicht losfährt, aus der Boxengasse.</p>`;
       } else if (atGrid && issue && !issue.released) {
         html = `<div class="ctl-status">⚠ ${issue.carId} steht mit abgestorbenem Motor in der Startaufstellung</div>
-          <p class="ctl-text">Die Startampel wartet auf deine Entscheidung. Ein stehendes Auto beim Start ist gefährlich.</p>
+          <p class="ctl-text">Schalte die Startampel jetzt nicht ein – ein stehendes Auto beim Start ist gefährlich.</p>
           <button class="ctl-btn ctl-red" data-action="start-abort">Start abbrechen – Extra-Formationsrunde</button>
           <p class="ctl-small">${issue.carId} wird in die Boxengasse geschoben und startet von dort. Das Rennen wird um eine Runde verkürzt (dann ${Math.max(3, race.laps - 1)} Runden).</p>
           <button class="ctl-btn ctl-sc" data-action="start-sc">Start hinter dem Safety Car</button>
-          <button class="ctl-btn ctl-ghost" data-action="start-release">Start trotzdem freigeben</button>`;
+          <button class="ctl-btn ctl-ghost" data-action="start-lights">Startampel trotzdem einschalten</button>`;
       } else if (atGrid) {
-        html = `<div class="ctl-status">${race.phase === 'lights' ? 'Startampel läuft' : 'Startaufstellung komplett'}</div>
+        html = `<div class="ctl-status">${race.phase === 'lights' ? 'Startampel läuft' : 'Startaufstellung komplett – Startampel über den Knopf auf der Karte'}</div>
           <button class="ctl-btn ctl-ghost" data-action="start-abort">Start abbrechen – Extra-Formationsrunde</button>
           <button class="ctl-btn ctl-ghost" data-action="start-sc">Start hinter dem Safety Car</button>
           <p class="ctl-small">Nur bei einem Problem in der Startaufstellung oder auf der Strecke. Ein Startabbruch kostet eine Runde Renndistanz.</p>`;
       } else {
-        html = `<div class="ctl-status">${race.phase === 'pre' ? 'Der Start wurde noch nicht freigegeben.' : 'Das Rennen ist gestartet.'}</div>`;
+        html = `<div class="ctl-status">${race.phase === 'pre' ? 'Der Start wurde noch nicht freigegeben.' : race.phase === 'lights' ? 'Startampel läuft.' : 'Das Rennen ist gestartet.'}</div>`;
       }
     }
 

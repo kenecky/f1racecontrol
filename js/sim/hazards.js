@@ -3,6 +3,8 @@
 // VSC, Safety Car oder roter Flagge – davon hängt ab, wie schnell geborgen werden kann.
 import { sectorIndexAt, wrapD } from './trackModel.js';
 import { neutralLevel } from './neutral.js';
+import { errorsOf } from './race.js';
+import { pickText } from './texts.js';
 import { wetLoss, bestCompound } from './tyres.js';
 
 export const FLAG_FACTOR = { clear: 1, slippery: 0.97, yellow: 0.92, double: 0.8 };
@@ -64,7 +66,7 @@ export function rollLapIncidents(race, car) {
   const L = race.track.L;
   const k = race.incScale || 1;
   const failP = (100 - car.team.reliability) * 0.000038 * k;
-  let spinP = 0.0019 * (car.driver.errors / 28) * k;
+  let spinP = 0.0019 * (errorsOf(car) / 28) * k;
   // Nässe und falsche Reifen erhöhen das Risiko stark
   const w = race.weather.wetness;
   if (w > 0.05) {
@@ -132,11 +134,10 @@ export function startSpin(race, car) {
   car.pass = null;
   const h = createHazard(race, { type: 'spin', carId: car.id, d: car.d, need: 'yellow' });
   car.offTrack.hazardId = h.id;
-  const text = r.chance(0.5)
-    ? `${car.id} dreht sich in ${cornerLabel(h.corner)} und steht neben der Strecke`
-    : `${car.id} rutscht in ${cornerLabel(h.corner)} von der Strecke ins Kiesbett`;
+  const text = pickText(race, 'spin', { id: car.id, c: cornerLabel(h.corner) });
   h.desc = text;
   race.emit('marshal', `Sektor ${h.sector + 1}: ${text}.`, { hazard: h.id, sector: h.sector, cars: [car.id] });
+  if (r.chance(0.45)) race.emit('radio', `Funk ${car.id}: „${pickText(race, 'spinRadio')}“`, { cars: [car.id] });
 }
 
 // Dreher vorbei: zurück auf die Strecke oder festgefahren
@@ -151,7 +152,8 @@ export function endOffTrack(race, car) {
     h.need = exposed ? 'double' : 'yellow';
     h.work = h.workTotal = race.rng.range(70, 160);
     h.desc = `${car.id} steckt fest – ${exposed ? 'Auto steht ungeschützt direkt neben der Fahrbahn' : 'Auto steht weit im Auslauf'}`;
-    race.emit('marshal', `Sektor ${h.sector + 1}: ${car.id} kommt nicht mehr frei. ${exposed ? 'Das Auto steht ungeschützt direkt neben der Fahrbahn.' : 'Das Auto steht weit im Auslauf, Bergung läuft.'}`, { hazard: h.id, sector: h.sector, cars: [car.id] });
+    race.emit('marshal', `Sektor ${h.sector + 1}: ${pickText(race, exposed ? 'stuckExposed' : 'stuckSafe', { id: car.id })}`, { hazard: h.id, sector: h.sector, cars: [car.id] });
+    if (race.rng.chance(0.6)) race.emit('radio', `Funk ${car.id}: „${pickText(race, 'stuckRadio')}“`, { cars: [car.id] });
   } else {
     car.v = 0;
     h.endAt = race.time + 3;
@@ -173,8 +175,8 @@ export function startFailure(race, car, formation = false) {
   }[need];
   const h = createHazard(race, { type: 'stopped', carId: car.id, d: car.d, need, work: r.range(70, 170) });
   h.desc = `${car.id} hat ein Problem und stellt das Auto ab – ${where}`;
-  const quotes = ['Ich verliere Leistung … ich muss anhalten.', 'Kein Antrieb mehr!', 'Etwas ist kaputt, ich stelle das Auto ab.', 'Motor ist aus, Motor ist aus!'];
-  race.emit('radio', `Funk ${car.id}: „${r.pick(quotes)}“`, { cars: [car.id] });
+  race.emit('radio', `Funk ${car.id}: „${pickText(race, 'failureRadio')}“`, { cars: [car.id] });
+  if (r.chance(0.5)) race.emit('radio', `Teamfunk ${car.team.name}: „${pickText(race, 'failureTeam')}“`, { cars: [car.id] });
   race.emit('marshal', `Sektor ${h.sector + 1}: ${car.id} steht in ${cornerLabel(h.corner)} – ${where}.`, { hazard: h.id, sector: h.sector, cars: [car.id] });
   if (formation) race.emit('rc', `${car.id} fällt in der Formationsrunde aus und kann nicht starten.`, { cars: [car.id] });
   return h;
@@ -194,7 +196,7 @@ function startCrash(race, car, corner) {
   h.desc = barrier
     ? `Schwerer Unfall ${car.id} – Barriere stark beschädigt, muss repariert werden`
     : `Schwerer Unfall ${car.id} – Wrack und Trümmerfeld auf der Strecke`;
-  race.emit('marshal', `Sektor ${h.sector + 1}: SCHWERER UNFALL! ${car.id} schlägt in ${cornerLabel(corner)} heftig in die Barriere ein. ${barrier ? 'Die Barriere ist stark beschädigt und muss repariert werden.' : 'Trümmerteile über die ganze Fahrbahn verteilt.'}`, { hazard: h.id, sector: h.sector, cars: [car.id] });
+  race.emit('marshal', `Sektor ${h.sector + 1}: SCHWERER UNFALL! ${pickText(race, 'crash', { id: car.id, c: cornerLabel(corner) })} ${barrier ? 'Die Barriere ist stark beschädigt und muss repariert werden.' : 'Trümmerteile über die ganze Fahrbahn verteilt.'}`, { hazard: h.id, sector: h.sector, cars: [car.id] });
 }
 
 export function retireCar(race, car, reason, lateral) {
@@ -228,7 +230,7 @@ export function createDebris(race, attacker, defender) {
     work: race.rng.range(40, 110),
   });
   h.desc = `Trümmerteile auf der Ideallinie nach Kontakt ${attacker.id}/${defender.id}`;
-  race.emit('marshal', `Sektor ${h.sector + 1}: Trümmerteile auf der Ideallinie nach Berührung ${attacker.id}/${defender.id} in ${cornerLabel(h.corner)}.`, { hazard: h.id, sector: h.sector, cars: [attacker.id, defender.id] });
+  race.emit('marshal', `Sektor ${h.sector + 1}: ${pickText(race, 'debris', { id: attacker.id, o: defender.id, c: cornerLabel(h.corner) })}`, { hazard: h.id, sector: h.sector, cars: [attacker.id, defender.id] });
   return h;
 }
 
@@ -253,7 +255,7 @@ export function updateHazards(race, dt) {
 
     if (h.okAt && t >= h.okAt) {
       h.okAt = null;
-      race.emit('radio', `Funk ${h.carId}: „Mir geht's gut.“`, { cars: [h.carId] });
+      race.emit('radio', `Funk ${h.carId}: „${pickText(race, 'crashOk')}“`, { cars: [h.carId] });
     }
 
     // Fahrer beschweren sich, wenn gar nicht abgesichert wird
@@ -264,13 +266,8 @@ export function updateHazards(race, dt) {
         .filter(c => !c.retired && !c.finished && !c.inPit && !c.offTrack && !involved.includes(c.id))
         .sort((a, b) => wrapD(race.track, h.d - a.d) - wrapD(race.track, h.d - b.d))[0];
       if (witness) {
-        const text = h.type === 'weather'
-          ? `Funk ${witness.id}: „Ich sehe gar nichts mehr, hier steht überall Wasser!“`
-          : h.type === 'debris'
-          ? `Funk ${witness.id}: „Da liegen überall Teile in ${h.corner.id}!“`
-          : h.type === 'crash'
-            ? `Funk ${witness.id}: „Riesiger Unfall in ${h.corner.id}! Da liegt alles voll!“`
-            : `Funk ${witness.id}: „Da steht ein Auto in ${h.corner.id} – keine gelbe Flagge?!“`;
+        const key = { weather: 'complainWeather', debris: 'complainDebris', crash: 'complainCrash' }[h.type] || 'complainStopped';
+        const text = `Funk ${witness.id}: „${pickText(race, key, { c: h.corner.id })}“`;
         race.emit('radio', text, { cars: [witness.id], sector: h.sector });
       }
     }

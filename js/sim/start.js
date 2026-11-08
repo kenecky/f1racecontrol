@@ -68,10 +68,17 @@ export function beginFormation(race) {
 }
 
 export function stepFormation(race, dt) {
+  race.time += dt;
+  moveFormation(race, dt);
+  updateHazards(race, dt);
+}
+
+// Bewegung der Autos auf der Formationsrunde (läuft weiter, falls die Ampel zu früh startet)
+function moveFormation(race, dt) {
   const f = race.formation;
   const tr = race.track;
+  if (f.arrived) return;
   f.t += dt;
-  race.time += dt;
 
   if (f.stall && f.t >= f.stall.at) {
     const c = race.carById[f.stall.id];
@@ -128,8 +135,6 @@ export function stepFormation(race, dt) {
     }
     if (!car.retired && !car.offTrack) ahead = car;
   }
-  updateHazards(race, dt);
-
   const live = order.filter(c => !c.retired && !c.pitStart);
   if (live.every(c => !c.offTrack && c.fTarget - c.d < 0.6 && c.v < 0.3)) arriveOnGrid(race);
 }
@@ -153,9 +158,27 @@ function arriveOnGrid(race) {
     c.launchUntil = c.d + 400;
   }
   renumberGrid(race);
-  race.phase = 'grid';
+  f.arrived = true;
   f.gridT = 0;
-  race.emit('info', 'Alle Autos stehen in der Startaufstellung.');
+  if (race.phase === 'formation') race.phase = 'grid';
+  race.emit('info', race.phase === 'grid'
+    ? 'Alle Autos stehen in der Startaufstellung – die Startampel kann eingeschaltet werden.'
+    : 'Alle Autos stehen jetzt in der Startaufstellung.');
+}
+
+// Formationsrunde noch nicht beendet, aber das Rennen startet: Autos rollen von ihrer Position aus los
+function abandonFormation(race) {
+  const f = race.formation;
+  const L = race.track.L;
+  if (f.stall) { const c = race.carById[f.stall.id]; f.stall = null; toPitLane(race, c); }
+  for (const c of race.cars) {
+    if (c.retired || c.pitStart || !f.order.includes(c.id)) continue;
+    c.d -= L;
+    if (c.offTrack) continue;
+    c.reaction = 0;
+    c.launchUntil = c.d + 400;
+  }
+  f.arrived = true;
 }
 
 // Startplätze: Platz in der Aufstellung, Boxengassenstarter dahinter
@@ -166,51 +189,109 @@ function renumberGrid(race) {
 }
 
 // ---------- Startaufstellung und Startampel ----------
+// Ablauf (Reglement 2026, vereinfacht): Rennleitung gibt die Formationsrunde frei. Stehen alle
+// Autos in ihren Startboxen, schaltet sie die Startampel ein: 5 s „Pre-Start“, dann gehen die
+// fünf roten Lichter im Sekundentakt an. Danach löscht die Rennleitung die Lichter –
+// üblich nach einer zufälligen Pause von bis zu 3 s.
+export const PRESTART = 5;          // Sekunden bis zum ersten roten Licht
+export const ALL_ON = PRESTART + 4; // alle fünf Lichter an
+export const HOLD_MAX = 3;          // längste übliche Pause bis „Lichter aus“
+const AUTO_OUT = 8;                 // spätestens dann gehen die Lichter automatisch aus
+
+// Rennleitung gibt die Formationsrunde frei
+export function releaseFormation(race) {
+  if (race.phase !== 'ready') return false;
+  race.emit('rc', 'Rennleitung: Formationsrunde freigegeben.');
+  beginFormation(race);
+  return true;
+}
+
+function checkGridStall(race) {
+  const f = race.formation;
+  if (race.startIssue || !f.gridStall || !f.arrived || f.gridT < 1.2) return;
+  const c = race.carById[f.gridStall];
+  f.gridStall = null;
+  if (!c || c.retired || c.pitStart) return;
+  race.startIssue = { type: 'stall', carId: c.id, seq: ++race.startIssueSeq };
+  race.emit('marshal', `Startaufstellung: ${c.id} hebt die Hände – Motor abgestorben! Gelbe Flagge in der Startaufstellung.`, { cars: [c.id] });
+  race.emit('radio', `Funk ${c.id}: „${race.rng.pick(['Ich stehe, der Motor ist aus!', 'Motor aus! Motor aus!', 'Anti-Stall … nichts geht mehr!', 'Ich komme nicht weg, der Motor ist abgestorben!'])}“`, { cars: [c.id] });
+}
 
 export function stepGrid(race, dt) {
   const f = race.formation;
   f.gridT += dt;
   race.time += dt;
   updateHazards(race, dt);
-  if (!race.startIssue && f.gridStall && f.gridT >= 1.2) {
-    const c = race.carById[f.gridStall];
-    f.gridStall = null;
-    if (c && !c.retired && !c.pitStart) {
-      race.startIssue = { type: 'stall', carId: c.id, seq: ++race.startIssueSeq };
-      race.emit('marshal', `Startaufstellung: ${c.id} hebt die Hände – Motor abgestorben! Gelbe Flagge in der Startaufstellung.`, { cars: [c.id] });
-      race.emit('radio', `Funk ${c.id}: „Ich stehe, der Motor ist aus!“`, { cars: [c.id] });
-    }
+  checkGridStall(race);
+}
+
+// Rennleitung schaltet die Startampel ein
+export function startLights(race) {
+  if (race.phase !== 'grid' && race.phase !== 'formation') return false;
+  const f = race.formation;
+  const issue = race.startIssue;
+  if (race.phase === 'formation') {
+    const missing = race.cars.filter(c => !c.retired && !c.pitStart && f.order.includes(c.id) && c.fTarget - c.d > 0.6).length;
+    race.startLog.push({ type: 'lights', action: 'early', missing });
+    race.emit('rc', `Startampel eingeschaltet – obwohl noch ${missing} Auto${missing > 1 ? 's' : ''} nicht in der Startbox ${missing > 1 ? 'stehen' : 'steht'}!`);
+  } else {
+    race.emit('rc', 'Startampel eingeschaltet – Pre-Start.');
   }
-  if (!race.startIssue && f.gridT >= 4) beginLights(race);
+  if (issue) issue.released = true;
+  beginLights(race);
+  return true;
 }
 
 function beginLights(race) {
   const r = race.rng;
   race.phase = 'lights';
   race.lightsTimer = 0;
-  race.lightsHold = 5 + r.range(0.4, 2.4);
-  // Fehlstart: höchstens ein Auto bewegt sich zu früh
+  race.lightsHold = null;
+  // Fehlstart: ein Auto wird nach dem letzten Licht nervös (je länger die Pause, desto eher)
   const grid = race.cars.filter(c => !c.retired && !c.pitStart && !(race.startIssue && race.startIssue.carId === c.id));
   for (const c of grid) {
-    if (!r.chance(0.011 * (0.6 + c.driver.aggression / 100))) continue;
+    if (!r.chance(0.02 * (0.6 + c.driver.aggression * (1 - 0.35 * (c.caution || 0)) / 100))) continue;
     const real = r.chance(0.6);
-    c.jump = { at: race.lightsHold - r.range(0.05, 0.6), real, dist: real ? r.range(0.4, 1.8) : r.range(0.05, 0.35), moved: 0 };
+    c.jump = { at: ALL_ON + r.range(0.4, 3.5), real, dist: real ? r.range(0.4, 1.8) : r.range(0.05, 0.35), moved: 0 };
     break;
   }
 }
 
 export function stepLights(race, dt) {
+  const f = race.formation;
   race.lightsTimer += dt;
   race.time += dt;
+  if (f.arrived) f.gridT += dt;
+  moveFormation(race, dt);
   updateHazards(race, dt);
+  checkGridStall(race);
+  const t = race.lightsTimer;
+  // Lange Pause: Fahrer werden nervös
+  if (t > ALL_ON + HOLD_MAX && !race.cars.some(c => c.jump) && race.rng.chance(0.05 * dt)) {
+    const cand = race.cars.filter(c => !c.retired && !c.pitStart && !c.offTrack);
+    if (cand.length) {
+      const real = race.rng.chance(0.6);
+      race.rng.pick(cand).jump = { at: t, real, dist: real ? race.rng.range(0.4, 1.8) : race.rng.range(0.05, 0.35), moved: 0 };
+    }
+  }
   for (const c of race.cars) {
     const j = c.jump;
-    if (!j || race.lightsTimer < j.at || j.moved >= j.dist) continue;
+    if (!j || t < j.at || j.moved >= j.dist || c.retired) continue;
     const m = Math.min(j.dist - j.moved, 1.2 * dt);
     c.d += m;
     j.moved += m;
   }
-  if (race.lightsTimer >= race.lightsHold) goGreen(race);
+  if (t >= ALL_ON + AUTO_OUT) lightsOut(race, true);
+}
+
+// Rennleitung löscht die Lichter → Rennstart
+export function lightsOut(race, auto = false) {
+  if (race.phase !== 'lights' || race.lightsTimer < ALL_ON) return false;
+  const hold = race.lightsTimer - ALL_ON;
+  race.startLog.push({ type: 'lights', action: 'out', hold, auto });
+  if (auto) race.emit('rc', 'Die Lichter gehen nach langer Wartezeit automatisch aus.');
+  goGreen(race);
+  return true;
 }
 
 // Uhr auf 0: alle bisherigen Zeitpunkte verschieben
@@ -229,6 +310,8 @@ function shiftTimes(race, s) {
 }
 
 function goGreen(race) {
+  const f0 = race.formation;
+  if (f0 && !f0.arrived) abandonFormation(race);
   shiftTimes(race, race.time);
   race.time = 0;
   race.phase = 'running';
@@ -279,7 +362,7 @@ function stalledAtStart(race, car) {
 
 // Start abbrechen: Extra-Formationsrunde, Renndistanz −1 Runde
 export function abortStart(race) {
-  if (race.phase !== 'grid' && race.phase !== 'lights') return false;
+  if ((race.phase !== 'grid' && race.phase !== 'lights') || !race.formation.arrived) return false;
   const issue = race.startIssue;
   race.startIssue = null;
   for (const c of race.cars) {
@@ -297,19 +380,9 @@ export function abortStart(race) {
   return true;
 }
 
-// Start trotz Problem freigeben (Ampel läuft)
-export function releaseStart(race) {
-  const issue = race.startIssue;
-  if (race.phase !== 'grid' || !issue || issue.released) return false;
-  issue.released = true;
-  race.emit('rc', 'Rennleitung: Start wird freigegeben.');
-  beginLights(race);
-  return true;
-}
-
 // Start hinter dem Safety Car (z. B. Starkregen oder Problem in der Startaufstellung)
 export function startFromGridBehindSC(race) {
-  if (race.phase !== 'grid' && race.phase !== 'lights') return false;
+  if ((race.phase !== 'grid' && race.phase !== 'lights') || !race.formation.arrived) return false;
   const issue = race.startIssue;
   race.startIssue = null;
   for (const c of race.cars) {

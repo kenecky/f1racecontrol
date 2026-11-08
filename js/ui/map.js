@@ -5,6 +5,8 @@ import { drawTrackArt } from './trackArt.js';
 
 const PIT_OFFSET_PX = 9;
 const MAX_ZOOM = 6;
+const BG_MARGIN = 140;   // Hintergrund größer zeichnen → Verschieben ohne Neuzeichnen
+const FOLLOW_ZOOM = 3.2;
 const FLAG_COLORS = { yellow: '#ffd12e', double: '#ffd12e' };
 
 export class TrackMap {
@@ -39,7 +41,7 @@ export class TrackMap {
     const rect = this.canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
     // Größe geändert (z. B. Bereich unten ein-/ausgeklappt): komplett herauszoomen
-    if (this.w && (Math.abs(rect.width - this.w) > 1 || Math.abs(rect.height - this.h) > 1)) {
+    if (this.w && !this.follow && (Math.abs(rect.width - this.w) > 1 || Math.abs(rect.height - this.h) > 1)) {
       this.zoom = 1;
       this.panX = 0;
       this.panY = 0;
@@ -49,10 +51,10 @@ export class TrackMap {
     this.dpr = dpr;
     this.w = rect.width;
     this.h = rect.height;
-    for (const c of [this.canvas, this.bg]) {
-      c.width = Math.round(rect.width * dpr);
-      c.height = Math.round(rect.height * dpr);
-    }
+    this.canvas.width = Math.round(rect.width * dpr);
+    this.canvas.height = Math.round(rect.height * dpr);
+    this.bg.width = Math.round((rect.width + 2 * BG_MARGIN) * dpr);
+    this.bg.height = Math.round((rect.height + 2 * BG_MARGIN) * dpr);
     const tr = this.track;
     const pad = 34;    // Rand: Gras und Auslaufzonen ragen über die Mittellinie hinaus
     const padTop = 76; // Platz für Einblendungen (Vorfälle, VSC, SC …)
@@ -97,6 +99,8 @@ export class TrackMap {
     this.cy = mx * this.sinA + my * this.cosA;
     this.clampPan();
     this.bgDirty = true;
+    // Sofort neu zeichnen: eine geänderte Canvas-Größe löscht den Inhalt – sonst flackert es beim Wischen
+    if (this.lastRace !== undefined) this.draw(this.lastRace, this.lastRenderD || new Map());
   }
 
   setTrack(track) {
@@ -124,7 +128,6 @@ export class TrackMap {
     this.panX = panX;
     this.panY = panY;
     this.clampPan();
-    this.bgDirty = true;
     if (this.onZoomChange) this.onZoomChange(this.zoom);
   }
 
@@ -141,6 +144,7 @@ export class TrackMap {
   }
 
   clampPan() {
+    if (this.follow) return;   // Verfolgen: Fahrer bleibt in der Mitte, auch am Kartenrand
     const z = this.zoom;
     this.panX = Math.min(0, Math.max(this.w - this.w * z, this.panX));
     this.panY = Math.min(0, Math.max(this.h - this.h * z, this.panY));
@@ -255,10 +259,34 @@ export class TrackMap {
 
   drawBackground() {
     const ctx = this.bg.getContext('2d');
-    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    ctx.clearRect(0, 0, this.w, this.h);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, this.bg.width, this.bg.height);
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, BG_MARGIN * this.dpr, BG_MARGIN * this.dpr);
     drawTrackArt(this, ctx, { pitOffsetPx: PIT_OFFSET_PX });
     this.bgDirty = false;
+    this.bgView = { zoom: this.zoom, panX: this.panX, panY: this.panY };
+  }
+
+  // Verfolgen: Ansicht so verschieben, dass das Auto in der Mitte steht
+  startFollow(id) {
+    this.follow = id;
+    this.selected = id;
+    this.zoom = Math.max(this.zoom, FOLLOW_ZOOM);
+    if (this.onZoomChange) this.onZoomChange(this.zoom);
+  }
+
+  stopFollow() {
+    if (!this.follow) return;
+    this.follow = null;
+    this.resetView();
+  }
+
+  centerOn(d, lateral) {
+    this.panX = 0;
+    this.panY = 0;
+    const [bx, by] = this.pos(d, lateral);
+    this.panX = this.w / 2 - bx;
+    this.panY = (this.h + 40) / 2 - by;
   }
 
   drawSectorOverlay(ctx, race) {
@@ -370,11 +398,22 @@ export class TrackMap {
     const now = performance.now();
     if (!this.paused && this.lastDraw !== null) this.anim += Math.min(0.25, (now - this.lastDraw) / 1000);
     this.lastDraw = now;
+    this.lastRace = race;
+    this.lastRenderD = renderD;
+    if (this.follow && race && race.carById[this.follow]) {
+      const car = race.carById[this.follow];
+      if (car.retired && car.wreck && !car.wreck.removed) this.centerOn(car.wreck.d, car.wreck.lateral * this.widthScale());
+      else if (!car.retired) this.centerOn(renderD.get(car) ?? car.d, this.carLateral(race, car));
+    }
+    const bv = this.bgView;
+    if (!this.bgDirty && (!bv || bv.zoom !== this.zoom
+      || Math.abs(this.panX - bv.panX) > BG_MARGIN * 0.8 || Math.abs(this.panY - bv.panY) > BG_MARGIN * 0.8)) this.bgDirty = true;
     if (this.bgDirty) this.drawBackground();
     const ctx = this.ctx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    ctx.drawImage(this.bg, 0, 0);
+    const v = this.bgView;
+    ctx.drawImage(this.bg, Math.round((this.panX - v.panX - BG_MARGIN) * this.dpr), Math.round((this.panY - v.panY - BG_MARGIN) * this.dpr));
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this.drawSectorOverlay(ctx, race);
     if (!race) return;

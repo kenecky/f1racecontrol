@@ -39,7 +39,10 @@ export function rateRace(race) {
 
   // Start: stehendes Auto in der Startaufstellung, Startabbruch ohne Grund
   const startLog = race.startLog || [];
-  for (const s of startLog) if (s.action === 'released') safety -= s.crash ? 35 : 25;
+  for (const s of startLog) {
+    if (s.action === 'released') safety -= s.crash ? 35 : 25;
+    if (s.type === 'lights' && s.action === 'early') safety -= 40;   // Ampel, obwohl noch Autos fahren
+  }
 
   // Fairness
   let fairness = 100;
@@ -66,7 +69,10 @@ export function rateRace(race) {
   // Rennfluss
   const over = fr.items.filter(i => i.h.maxResponse >= 3 && i.h.maxResponse - NEED_LEVEL[i.h.need] >= 2).length;
   const needless = startLog.filter(s => s.type === 'none' && s.action !== 'released').length;
-  const flow = 100 - fr.idleFlagTime / 10 - fr.neutral.idle / 6 - 8 * over - 10 * needless;
+  // Lichter aus: üblich bis 3 s nach dem fünften Licht – länger macht die Fahrer nervös
+  const lateLights = startLog.filter(s => s.type === 'lights' && s.action === 'out')
+    .reduce((sum, s) => sum + (s.auto ? 25 : Math.min(25, Math.max(0, s.hold - 3) * 8)), 0);
+  const flow = 100 - fr.idleFlagTime / 10 - fr.neutral.idle / 6 - 8 * over - 10 * needless - lateLights;
 
   const scores = {
     safety: Math.round(clamp(safety, 0, 100)),
@@ -111,6 +117,12 @@ function buildVoices(race, fr, sr, scores, total, over) {
       say('Fahrervereinigung (GPDA)', s.crash
         ? `„Start freigegeben, obwohl ${s.carId} in der Startaufstellung stand – und dann kracht es. Unverantwortlich.“`
         : `„Start freigegeben, obwohl ${s.carId} in der Startaufstellung stand. Da hätte viel passieren können.“`, 'neg');
+    } else if (s.type === 'lights' && s.action === 'early') {
+      say('Fahrervereinigung (GPDA)', `„Die Startampel lief, während noch ${s.missing || 'einige'} Auto${s.missing === 1 ? '' : 's'} auf der Formationsrunde ${s.missing === 1 ? 'war' : 'waren'}. Das ist brandgefährlich!“`, 'neg');
+    } else if (s.type === 'lights' && s.action === 'out' && (s.auto || s.hold > 3)) {
+      say('Fahrer', `„${s.auto ? 'Gefühlt eine Ewigkeit' : `${s.hold.toFixed(1).replace('.', ',')} Sekunden`} mit allen Lichtern an – die Kupplung kocht, so provoziert man Fehlstarts.“`, 'neg');
+    } else if (s.type === 'lights' && s.action === 'out') {
+      say('Presse', '„Sauberer Start – die Lichter gingen genau im richtigen Moment aus.“', 'pos');
     } else if (s.type === 'none') {
       say('Presse', '„Startabbruch ohne erkennbaren Grund – das Publikum versteht die Rennleitung nicht.“', 'neg');
     } else if (s.type === 'stall' && s.action === 'abort') {

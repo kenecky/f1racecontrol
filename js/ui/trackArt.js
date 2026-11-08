@@ -146,11 +146,11 @@ export function drawTrackArt(map, ctx, { pitOffsetPx }) {
   ctx.lineCap = 'round';
   ctx.stroke();
   ctx.lineCap = 'butt';
-  map.tracePath(ctx, tr.L - 230, tr.L + 260, side * (half + (pitOffsetPx * ws - half) / 2));
+  map.tracePath(ctx, tr.L + tr.pit.box - 180, tr.L + tr.pit.box + 240, side * (half + (pitOffsetPx * ws - half) / 2));
   ctx.strokeStyle = PAL.pitWall;
   ctx.lineWidth = 0.9;
   ctx.stroke();
-  map.tracePath(ctx, tr.L - 220, tr.L + 250, side * (pitOffsetPx + 5.5) * ws);
+  map.tracePath(ctx, tr.L + tr.pit.box - 170, tr.L + tr.pit.box + 230, side * (pitOffsetPx + 5.5) * ws);
   ctx.strokeStyle = PAL.building;
   ctx.lineWidth = 5 * ws;
   ctx.stroke();

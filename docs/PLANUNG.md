@@ -415,6 +415,10 @@ Boxenstopp-Runden werden als Anteil der Distanz geplant; Zwischenfälle pro Rund
 Training/Qualifying-Abschnitte enden mit der letzten gezeiteten Runde (Auslaufrunden laufen in der Pause).
 
 ### Startablauf (umgesetzt)
+- Die Rennleitung steuert den Start selbst: **Formationsrunde freigeben** → **Startampel einschalten**
+  (erst wenn alle Autos in ihren Startboxen stehen, sonst großer Abzug bei Sicherheit) → 5 s Pre-Start,
+  fünf rote Lichter im Sekundentakt → **Lichter aus** per Klick. Üblich: bis 3 s nach dem fünften Licht;
+  längeres Warten kostet Punkte (Rennfluss) und macht Fehlstarts wahrscheinlicher, nach 8 s gehen die Lichter automatisch aus.
 - **Formationsrunde** vor jedem stehenden Start. Möglich: Auto kommt nicht los (→ Boxengassenstart),
   technischer Defekt (Ausfall, Gefahr absichern), Dreher beim Reifenaufwärmen (→ Start vom Ende des Feldes).
 - **Abgestorbener Motor in der Startaufstellung**: Die Ampel wartet auf die Rennleitung –
@@ -437,6 +441,15 @@ Erst nach der Abnahme kann das Ergebnis in die Saison übernommen werden.
 Ideen für später: Reifendruck-Kontrolle vor dem Start, Parc-fermé-Verstöße (→ Boxengassenstart),
 schwarz-orange Flagge für beschädigte Autos, Kraftstofftemperatur, Verhalten unter Rot.
 
+### Fahrerverhalten nach Strafen (umgesetzt)
+Jede Strafe macht einen Fahrer vorsichtiger (im Rennen sofort, in der Saison über aktive Strafpunkte
+und Verwarnungen): weniger riskante Manöver und Fehler, aber bis zu 0,3 s pro Runde langsamer.
+
+### Fahrer verfolgen (umgesetzt)
+Klick auf einen Fahrer im Tower: Karte zoomt auf ihn und folgt ihm, oberhalb der Karte erscheinen
+seine Details, der Bereich unten wird eingeklappt. ✕ oder erneuter Klick beendet das Verfolgen.
+
 ### Rennszenen (in Planung – noch nicht gebaut)
-Kleine 2D-Draufsicht eines Vorfalls (Autos als kleine F1-Silhouetten) als zusätzlicher „Beweis“
-in den Entscheidungen. Details werden noch besprochen.
+Kurze 2D-Draufsicht eines Vorfalls in der Entscheidungskarte (+ Vollbild-Button), zuerst als unklarer
+„TV-Blick“, nach „Untersuchen“ genauer mit Hilfslinien; zusätzlich Wiederholung auf der großen Karte.
+Start mit Kollision, Abdrängen, Überholen neben der Strecke. Fahrzeug-Varianten: docs/fahrzeug_varianten.png.

@@ -3,6 +3,7 @@
 // und Beweise, die der Spieler auswerten muss. Beweise können unklar oder parteiisch sein.
 import { startSpin, stopCarAfterIncident, createDebris, cornerNear, cornerLabel, createHazard, retireCar } from './hazards.js';
 import { sectorIndexAt, wrapD } from './trackModel.js';
+import { aggressionOf, errorsOf } from './race.js';
 
 export const CASE_TYPES = {
   collision:     { name: 'Kollision',                     options: ['warning', '5s', '10s', 'dt', 'sg', 'grid3', 'grid5', 'grid10', 'dsq'] },
@@ -24,6 +25,24 @@ export const CASE_TYPES = {
 };
 
 const f1 = x => x.toFixed(1).replace('.', ',');
+
+// Funksprüche in den Beweisen ({o} = der andere Fahrer)
+const RADIO = {
+  hitBy: ['{o} ist mir einfach reingefahren!', 'Was macht {o} da?! Der hat mich abgeschossen!', '{o} hat mich hinten links erwischt!',
+    'Ich wurde getroffen! Schaut euch das an!', '{o} hat überhaupt nicht gebremst!', 'Das war doch Absicht von {o}!',
+    'Kontakt! {o} kam aus dem Nichts.', 'Er hat mich umgedreht! Strafe!'],
+  doorClosed: ['{o} hat mir die Tür zugemacht!', 'Er zieht einfach rüber, ich war schon daneben!', '{o} lässt mir keinen Platz!',
+    'Ich war neben ihm, er hat mich gesehen!', 'Er bewegt sich in der Bremszone!', 'Das war meine Linie!'],
+  admitAtt: ['Hm … vielleicht etwas zu optimistisch.', 'Da habe ich mich verschätzt.', 'Zu spät gebremst, sorry.'],
+  admitDef: ['Ich habe ihn zu spät gesehen.', 'Hab ihn im Spiegel nicht gesehen.', 'Ich dachte, er bleibt hinter mir.'],
+  pushedOff: ['Er hat mich rausgedrückt! Keine Autobreite Platz!', '{o} drückt mich von der Strecke!', 'Wohin soll ich denn da noch?!',
+    'Keine Autobreite! Das ist gegen die Regeln!', 'Ich musste ins Gras, sonst hätte es gekracht!'],
+  myCorner: ['Ich war vorne, das ist meine Kurve.', 'Ganz normales Racing.', 'Ich habe meine Linie gehalten.', 'Er war nie richtig daneben.',
+    'Er hat es außen versucht – das ist sein Risiko.'],
+  rearEnded: ['Was war das denn?! Jemand ist mir voll hinten drauf!', 'Ich wurde von hinten abgeschossen!', 'Hinten komplett kaputt, jemand ist reingeflogen!'],
+  braked: ['{o} hat mitten auf der Geraden gebremst!', '{o} bremst viel zu früh!', 'Ich konnte nicht ausweichen, {o} stand plötzlich da!'],
+};
+const radio = (race, key, o = '') => `„${race.rng.pick(RADIO[key]).replace(/\{o\}/g, o)}“`;
 const pick = (race, arr) => race.rng.pick(arr);
 
 export function createCase(race, props) {
@@ -53,7 +72,7 @@ export function ev(kind, label, text, early = false) {
 // Aufgerufen bei jedem Überholversuch in einer Überholzone
 export function rollBattleIncident(race, attacker, defender, zoneCorner, success) {
   if (race.neutral || race.phase !== 'running') return;
-  const aggr = (attacker.driver.aggression + defender.driver.aggression) / 140 * (race.incScale || 1);
+  const aggr = (aggressionOf(attacker) + aggressionOf(defender)) / 140 * (race.incScale || 1);
   const r = race.rng;
   if (success) {
     if (!r.chance(0.015 * aggr)) return;
@@ -137,8 +156,8 @@ function collision(race, A, B, cornerId) {
     ev('telemetry', `Telemetrie ${B.id}`, unclear(0.15)
       ? 'Lenkdaten nicht eindeutig.'
       : `Lenkbewegung in der Bremszone: ${f1(steer)}° in Richtung ${A.id}.`),
-    ev('radio', `Funk ${A.id}`, blame === 'attacker' && r.chance(0.15) ? '„Hm … vielleicht etwas zu optimistisch.“' : `„${B.id} hat mir die Tür zugemacht!“`),
-    ev('radio', `Funk ${B.id}`, blame === 'defender' && r.chance(0.1) ? '„Ich habe ihn zu spät gesehen.“' : `„${A.id} ist mir einfach reingefahren!“`),
+    ev('radio', `Funk ${A.id}`, blame === 'attacker' && r.chance(0.15) ? radio(race, 'admitAtt') : radio(race, 'doorClosed', B.id)),
+    ev('radio', `Funk ${B.id}`, blame === 'defender' && r.chance(0.1) ? radio(race, 'admitDef') : radio(race, 'hitBy', A.id)),
     ev('data', 'Leitlinie', RULE_INSIDE),
   ];
   createCase(race, {
@@ -183,8 +202,8 @@ function forcedOff(race, A, B, cornerId) {
       : `Vorderachse von ${A.id} bei etwa ${pct(overlap)} der Fahrzeuglänge von ${B.id}.`),
     ev('position', 'Platz am Kurvenausgang', `Zwischen ${B.id} und dem Streckenrand bleiben ${f1(space)} m.`),
     ev('telemetry', `Telemetrie ${B.id}`, r.chance(0.15) ? 'Lenkdaten nicht eindeutig.' : `Lenkwinkel am Ausgang ${f1(steer)}° größer als in den Vorrunden.`),
-    ev('radio', `Funk ${A.id}`, '„Er hat mich rausgedrückt! Keine Autobreite Platz!“'),
-    ev('radio', `Funk ${B.id}`, r.chance(0.5) ? '„Ich war vorne, das ist meine Kurve.“' : '„Ganz normales Racing.“'),
+    ev('radio', `Funk ${A.id}`, radio(race, 'pushedOff', B.id)),
+    ev('radio', `Funk ${B.id}`, radio(race, 'myCorner', A.id)),
     ev('data', 'Leitlinie', RULE_OUTSIDE),
   ];
   createCase(race, {
@@ -267,7 +286,7 @@ export function onGiveBackDone(race, car, target) {
 export function rollTrackLimits(race, car) {
   if (race.neutral || race.phase !== 'running') return;
   const r = race.rng;
-  if (!r.chance(0.012 * (car.driver.errors / 28) * (race.incScale || 1))) return;
+  if (!r.chance(0.012 * (errorsOf(car) / 28) * (race.incScale || 1))) return;
   const corner = r.pick(['T9', 'T10', 'T10', 'T1', 'T6']);
   car.tl = (car.tl || 0) + 1;
   car.tlLog = car.tlLog || [];
@@ -456,8 +475,8 @@ function startPileup(race, cars) {
         blame === 'follower' ? `${A.id} scheint ungewöhnlich früh zu bremsen.` : `${B.id} scheint viel zu spät zu bremsen.`)}`, true),
       ev('telemetry', `Telemetrie ${B.id}`, r.chance(0.15) ? 'Bremsdaten unvollständig.' : `Bremspunkt ${f1(brake)} m später als im Schnitt der Vorrunden, Annäherung ${Math.round(closing)} km/h schneller als ${A.id}.`),
       ev('telemetry', `Telemetrie ${A.id}`, `${A.id} bremst ${f1(measure(race, blame === 'chain' ? 9 : 3, 4, 0, 20))} m früher als in den Vorrunden.`),
-      ev('radio', `Funk ${B.id}`, `„${A.id} hat mitten auf der Geraden gebremst!“`),
-      ev('radio', `Funk ${A.id}`, '„Was war das denn?! Jemand ist mir voll hinten drauf!“'),
+      ev('radio', `Funk ${B.id}`, radio(race, 'braked', A.id)),
+      ev('radio', `Funk ${A.id}`, radio(race, 'rearEnded', B.id)),
       ev('data', 'Leitlinie', 'Wer auf ein vorausfahrendes Auto auffährt, ist in der Regel verantwortlich – es sei denn, der Vordermann bremst unerwartet oder es liegt eine Kettenreaktion ohne klaren Auslöser vor.'),
     ],
     truth: blame === 'follower'

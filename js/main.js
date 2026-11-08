@@ -9,7 +9,7 @@ import {
 } from './season/season.js';
 import { Session } from './sim/session.js';
 import { buildTrack } from './sim/trackModel.js';
-import { Race, DT, formatLap } from './sim/race.js';
+import { Race, DT, formatLap, COMPOUNDS } from './sim/race.js';
 import { randomSeed } from './util/rng.js';
 import { setSectorFlag, clearAllFlags, trackStatus, flagReport } from './control/flags.js';
 import { TrackMap } from './ui/map.js';
@@ -22,7 +22,7 @@ import { renderTower } from './ui/tower.js';
 import { hazardProgress, hazardWhere } from './sim/hazards.js';
 import { weatherLabel } from './sim/weather.js';
 import {
-  investigate, postpone, noFurtherAction, decide, openCases, stewardReport, unservedSecs, startHearing,
+  investigate, postpone, noFurtherAction, decide, openCases, stewardReport, unservedSecs, startHearing, PENALTIES,
 } from './control/stewards.js';
 import {
   deployVSC, endVSC, deploySC, allowUnlap, scInThisLap, redFlag, restartRace, canRestart,
@@ -32,7 +32,7 @@ import {
   saveRaceState, loadRaceState, clearRaceState, loadSeason, saveSeason,
 } from './storage.js';
 import { serializeRace, restoreRace } from './sim/persist.js';
-import { abortStart, releaseStart, startFromGridBehindSC } from './sim/start.js';
+import { abortStart, startFromGridBehindSC, releaseFormation, startLights, lightsOut, ALL_ON } from './sim/start.js';
 import { distanceFor, LENGTHS } from './sim/length.js';
 import { runScrutiny, TECH_CHECKS, EXTRA_CHECKS } from './sim/scrutiny.js';
 import { rateRace, AXES } from './control/rating.js';
@@ -79,7 +79,7 @@ const controlPanel = new ControlPanel({
       'restart-sc': () => restartRace(race, 'sc'),
       'restart-standing': () => restartRace(race, 'standing'),
       'start-abort': () => abortStart(race),
-      'start-release': () => releaseStart(race),
+      'start-lights': () => doStartLights(),
       'start-sc': () => startFromGridBehindSC(race),
     };
     if (actions[action]) actions[action]();
@@ -133,7 +133,9 @@ function getSeason() {
 }
 
 function newRace(seed = randomSeed()) {
+  if (map.follow) { map.follow = null; map.resetView(); $('driverCard').classList.add('hidden'); followRestore = null; }
   let gridPenalties = {}, drivers = DRIVERS, roundNo = null, gridOrder = null, laps = null;
+  const caution = {};   // Fahrer mit vielen Strafen fahren vorsichtiger
   let kind = settings.singleKind || 'race';
   if (settings.mode === 'season') {
     season = getSeason();
@@ -148,6 +150,11 @@ function newRace(seed = randomSeed()) {
       gridOrder = setup.gridOrder;
       drivers = DRIVERS.filter(d => !setup.excluded.includes(d.id));
       roundNo = season.round;
+      const ref = roundDate(season, entry);
+      for (const d of DRIVERS) {
+        const c = activePoints(season, d.id, ref) * 0.07 + (season.warnings[d.id] || 0) * 0.04;
+        if (c > 0) caution[d.id] = c;
+      }
     }
     saveSeason(season);
   } else {
@@ -158,7 +165,7 @@ function newRace(seed = randomSeed()) {
   if (kind === 'race' || kind === 'sprint') ({ laps, full: fullLaps } = distanceFor(track, kind, settings.length));
   map.setTrack(track);
   const opts = {
-    track, teams: TEAMS, drivers, seed, weather: settings.weatherMode, gridPenalties, gridOrder, laps, fullLaps, kind,
+    track, teams: TEAMS, drivers, seed, weather: settings.weatherMode, gridPenalties, gridOrder, laps, fullLaps, kind, caution,
     length: settings.length,
   };
   race = ['fp', 'quali', 'sq'].includes(kind) ? new Session(opts) : new Race(opts);
@@ -458,6 +465,7 @@ function frame(now) {
     }
     map.paused = paused;
     map.draw(race, renderD);
+    updateStartCtl();
 
     if (!paused && now - lastSave > 10000) { lastSave = now; autosave(); }
 
@@ -471,6 +479,58 @@ function frame(now) {
   }
   requestAnimationFrame(frame);
 }
+
+// ---------- Startablauf: Formationsrunde, Ampel, Lichter aus ----------
+
+let speedBeforeLights = null;
+function doStartLights() {
+  if (!startLights(race)) return;
+  if (settings.speed > 1) {
+    speedBeforeLights = settings.speed;
+    setSpeed(1);
+    toast('Startampel läuft – Tempo 1×');
+  }
+  closeControl();
+}
+
+function startCtlState() {
+  if (!race || race.isSession || !race.preStart || race.phase === 'pre') return null;
+  if (race.phase === 'ready') return { cls: 'go', text: '🏁 Formationsrunde freigeben', act: 'formation' };
+  if (race.phase === 'formation' || race.phase === 'grid') return { cls: 'amber', text: '🚦 Startampel einschalten', act: 'lights' };
+  if (race.phase === 'lights') {
+    if (race.lightsTimer < ALL_ON) {
+      const n = race.lightsOn;
+      return { cls: 'wait', text: n ? `${'●'.repeat(n)}${'○'.repeat(5 - n)}` : 'Pre-Start …', act: null };
+    }
+    return { cls: 'red', text: 'LICHTER AUS', act: 'out' };
+  }
+  return null;
+}
+
+function updateStartCtl() {
+  const el = $('startCtl');
+  const st = startCtlState();
+  const key = st ? `${st.cls}|${st.text}` : '';
+  if (el.dataset.key === key) return;
+  el.dataset.key = key;
+  el.classList.toggle('hidden', !st);
+  if (!st) return;
+  el.className = `start-ctl start-${st.cls}`;
+  el.textContent = st.text;
+  el.disabled = !st.act;
+  el.dataset.act = st.act || '';
+}
+
+$('startCtl').addEventListener('click', () => {
+  const act = $('startCtl').dataset.act;
+  if (act === 'formation') releaseFormation(race);
+  else if (act === 'lights') doStartLights();
+  else if (act === 'out' && lightsOut(race)) {
+    if (speedBeforeLights) { setSpeed(speedBeforeLights); speedBeforeLights = null; }
+  }
+  updateStartCtl();
+  refreshUi();
+});
 
 function onStartIssue() {
   seenStartIssue = race.startIssueSeq;
@@ -511,6 +571,7 @@ function refreshUi() {
       toast(`Neue Entscheidung #${c.id}: ${c.typeName} – Tempo auf 1×`);
     } else if (activeTab !== 'cases') toast(`Neue Entscheidung #${c.id}: ${c.typeName}`);
   }
+  if (map.follow) renderDriverCard();
   if (!touching) {
     renderTiming($('timing'), race, timingOpts());
     if (settings.showTower) renderTower($('tower'), race, map.selected);
@@ -953,7 +1014,7 @@ $('labelsBtn').addEventListener('click', () => {
   $('labelsBtn').classList.toggle('active', settings.showLabels);
   saveSettings(settings);
 });
-$('zoomResetBtn').addEventListener('click', () => map.resetView());
+$('zoomResetBtn').addEventListener('click', () => { if (map.follow) stopFollow(); else map.resetView(); });
 
 // Ranking-Tower
 const TOWER_PAD = 164;
@@ -971,8 +1032,83 @@ $('towerBtn').addEventListener('click', () => {
 $('tower').addEventListener('pointerdown', () => { touching = true; });
 $('tower').addEventListener('click', e => {
   const row = e.target.closest('.tw-row');
-  if (row) select(row.dataset.id);
+  if (row) toggleFollow(row.dataset.id);
 });
+
+// ---------- Fahrer verfolgen (Klick im Tower) ----------
+let followRestore = null;   // war der Bereich unten vorher ausgeklappt?
+function toggleFollow(id) {
+  if (map.follow === id) { stopFollow(); return; }
+  if (!map.follow) followRestore = !settings.panelCollapsed;
+  map.selected = id;
+  map.startFollow(id);
+  renderDriverCard();
+  $('driverCard').classList.remove('hidden');
+  if (!settings.panelCollapsed) animatePanel(true, mapWrap.getBoundingClientRect().height);
+  renderTiming($('timing'), race, timingOpts());
+  if (settings.showTower) renderTower($('tower'), race, map.selected);
+}
+
+function stopFollow() {
+  if (!map.follow) return;
+  map.stopFollow();
+  map.selected = null;
+  $('driverCard').classList.add('hidden');
+  if (followRestore) animatePanel(false, mapWrap.getBoundingClientRect().height);
+  followRestore = null;
+  if (race) {
+    renderTiming($('timing'), race, timingOpts());
+    if (settings.showTower) renderTower($('tower'), race, map.selected);
+  }
+}
+
+function renderDriverCard() {
+  const el = $('driverCard');
+  if (!map.follow || !race) return;
+  const car = race.carById[map.follow];
+  if (!car) { stopFollow(); return; }
+  const st = race.standings();
+  const i = st.indexOf(car);
+  const ahead = i > 0 ? st[i - 1] : null, behind = st[i + 1];
+  const g = (a, b) => { const x = race.gap(a, b); return !x ? '–' : x.laps ? `${x.laps} Rd` : `${x.time.toFixed(1).replace('.', ',')} s`; };
+  let status = 'Auf der Strecke';
+  if (car.dsq) status = 'Disqualifiziert';
+  else if (car.retired) status = `Ausfall – ${car.dnf}`;
+  else if (car.finished) status = 'Im Ziel';
+  else if (car.inGarage) status = 'In der Garage';
+  else if (car.pitStart && race.preStart) status = 'Start aus der Boxengasse';
+  else if (car.inPit) status = 'Boxengasse';
+  else if (car.offTrack) status = 'Neben der Strecke';
+  else if (car.damage) status = car.damage === 'wing' ? 'Frontflügel beschädigt' : 'Reifenschaden';
+  const pens = [];
+  const sec = unservedSecs(car);
+  if (sec) pens.push(`+${sec} s offen`);
+  for (const p of [...car.serve, ...(car.serving ? [car.serving] : [])]) pens.push(PENALTIES[p.type].short);
+  if (car.warnings) pens.push(`${car.warnings} Verw.`);
+  if (race.penaltyPoints[car.id]) pens.push(`${race.penaltyPoints[car.id]} Strafpkt.`);
+  const careful = car.caution >= 0.2 ? `<span class="dc-tag">${car.caution >= 0.5 ? 'fährt sehr vorsichtig' : 'fährt vorsichtiger'}</span>` : '';
+  const cell = (l, v) => `<div><span>${l}</span><b>${v}</b></div>`;
+  el.style.setProperty('--team', car.team.color);
+  el.innerHTML = `
+    <div class="dc-head">
+      <span class="dc-pos">${car.retired ? '–' : `P${i + 1}`}</span>
+      <span class="dc-num">${car.driver.number}</span>
+      <span class="dc-name"><b>${car.driver.first} ${car.driver.last}</b><small>${car.team.name} · ${status}</small></span>
+      ${careful}
+      <button class="dc-close" aria-label="Verfolgen beenden">✕</button>
+    </div>
+    <div class="dc-grid">
+      ${race.isSession ? cell('Beste Runde', formatLap(car.bestLap)) : cell('Vordermann', ahead ? `${ahead.id} ${g(car, ahead)}` : '–')}
+      ${race.isSession ? cell('Runden', car.sLaps ? car.sLaps.length : 0) : cell('Hintermann', behind ? `${behind.id} ${g(behind, car)}` : '–')}
+      ${cell('Letzte', formatLap(car.lastLap))}
+      ${cell('Beste', formatLap(car.bestLap))}
+      ${cell('Reifen', `${COMPOUNDS[car.compound].name} · ${car.tyreAge} Rd`)}
+      ${cell(race.isSession ? 'Startplatz' : 'Stopps', race.isSession ? '–' : car.stops)}
+      ${cell('Strafen', pens.join(' · ') || 'keine')}
+      ${cell('Startplatz', race.isSession ? '–' : car.gridPos)}
+    </div>`;
+}
+$('driverCard').addEventListener('click', e => { if (e.target.closest('.dc-close')) stopFollow(); });
 
 $('gapHead').addEventListener('click', () => {
   settings.gapMode = settings.gapMode === 'interval' ? 'leader' : 'interval';
@@ -1011,7 +1147,7 @@ function setCollapsed(on) {
 map.heightRange = () => [Math.max(200, window.innerHeight * 0.34), maxMapHeight()];
 
 function maxMapHeight() {
-  const used = ['.status', '#dragHandle', '.tabs', '.actions']
+  const used = ['.status', '#driverCard', '#dragHandle', '.tabs', '.actions']
     .reduce((sum, sel) => sum + document.querySelector(sel).getBoundingClientRect().height, 0);
   return appEl.getBoundingClientRect().height - used;
 }
