@@ -18,7 +18,8 @@ import {
 import {
   deployVSC, endVSC, deploySC, allowUnlap, scInThisLap, redFlag, restartRace, canRestart,
 } from './sim/neutral.js';
-import { loadSettings, saveSettings } from './storage.js';
+import { loadSettings, saveSettings, loadHistory, saveHistoryEntry } from './storage.js';
+import { rateRace, AXES } from './control/rating.js';
 
 const SPEEDS = [1, 2, 4, 8, 16, 32];
 const $ = id => document.getElementById(id);
@@ -115,6 +116,7 @@ function newRace(seed = randomSeed()) {
   closeControl();
   map.selected = null;
   $('seedInfo').textContent = `Rennen #${seed}`;
+  renderHistory();
   $('seedInput').value = '';
   $('resultScreen').classList.add('hidden');
   $('startScreen').classList.remove('hidden');
@@ -122,7 +124,23 @@ function newRace(seed = randomSeed()) {
   updatePauseBtn();
 }
 
+function renderHistory() {
+  const list = loadHistory();
+  const el = $('history');
+  if (!list.length) { el.innerHTML = ''; return; }
+  const best = Math.max(...list.map(e => e.total));
+  el.innerHTML = `
+    <div class="history-title">Deine letzten Rennen <span>Bestwert ${best}/100</span></div>
+    ${list.slice(0, 5).map(e => `
+      <div class="history-row">
+        <span>${new Date(e.date).toLocaleDateString('de-DE')} · #${e.seed}</span>
+        <span class="history-stars">${'★'.repeat(e.stars)}${'☆'.repeat(5 - e.stars)}</span>
+        <b>${e.total}${e.provisional ? '*' : ''}</b>
+      </div>`).join('')}`;
+}
+
 function startRace() {
+  race.startedAt = Date.now();
   $('startScreen').classList.add('hidden');
   race.start();
   paused = false;
@@ -410,9 +428,45 @@ function showResults() {
     </div>`;
   $('resultTitle').textContent = open ? `⏳ Vorläufiges Ergebnis – ${open} ${open > 1 ? 'Fälle' : 'Fall'} offen` : '🏁 Rennergebnis';
   $('openCasesBtn').classList.toggle('hidden', open === 0);
+  // Gesamtbewertung
+  const rating = rateRace(race);
+  const stars = '★'.repeat(rating.stars) + '☆'.repeat(5 - rating.stars);
+  const bars = AXES.map(a => {
+    const v = rating.scores[a.id];
+    const cls = v === null ? '' : v >= 80 ? 'good' : v >= 60 ? 'mid' : 'bad';
+    return `
+      <div class="axis">
+        <div class="axis-top"><span>${a.name}</span><b>${v === null ? '–' : v}</b></div>
+        <div class="axis-bar"><span class="${cls}" style="width:${v ?? 0}%"></span></div>
+        <div class="axis-hint">${v === null ? 'Nicht bewertbar – keine vergleichbaren Urteile' : a.hint}</div>
+      </div>`;
+  }).join('');
+  const voices = rating.voices.map(v => `
+    <div class="voice voice-${v.tone}"><div class="voice-who">${v.who}</div><div>${v.text}</div></div>`).join('');
+  const ratingHtml = `
+    <div class="rating">
+      <div class="rating-head">
+        <div class="rating-stars" aria-label="${rating.stars} von 5 Sternen">${stars}</div>
+        <div class="rating-grade">${rating.grade}${rating.provisional ? ' <span class="prov">(vorläufig)</span>' : ''}</div>
+        <div class="rating-total">${rating.total}<span>/100</span></div>
+      </div>
+      <div class="axes">${bars}</div>
+    </div>
+    ${voices ? `<div class="report"><h3>Stimmen zum Rennen</h3><div class="voices">${voices}</div></div>` : ''}`;
+  saveHistoryEntry({
+    key: `${race.seed}-${race.startedAt}`,
+    date: new Date().toISOString(),
+    gp: race.track.def.grandPrix,
+    seed: race.seed,
+    total: rating.total,
+    grade: rating.grade,
+    stars: rating.stars,
+    provisional: rating.provisional,
+  });
+
   $('resultBody').innerHTML = `
-    ${report}
-    ${stewards}
+    ${ratingHtml}
+    <h3 class="section-title">Ergebnis</h3>
     <table class="results">
       <thead><tr><th>Pos</th><th>Fahrer</th><th>Zeit/Abstand</th><th>Stopps</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -420,7 +474,12 @@ function showResults() {
     <div class="result-facts">
       <div><span>Schnellste Runde</span>${fl}</div>
       <div><span>Überholmanöver</span>${overtakes}</div>
-    </div>`;
+    </div>
+    <details class="report-details" open>
+      <summary>Details zur Bewertung</summary>
+      ${report}
+      ${stewards}
+    </details>`;
   closeFlags();
   closeControl();
   $('resultScreen').classList.remove('hidden');

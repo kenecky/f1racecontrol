@@ -10,6 +10,27 @@ const DEFAULTS = {
   panelCollapsed: false, // Zeiten/Meldungen/Fälle eingeklappt // bei neuen Vorfällen auf 1× abbremsen
 };
 
+const HISTORY_KEY = 'f1rc.history.v1';
+
+// Bewertungen der letzten Rennen (neueste zuerst, max. 20)
+export function loadHistory() {
+  try {
+    return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+export function saveHistoryEntry(entry) {
+  try {
+    const list = loadHistory().filter(e => e.key !== entry.key);
+    list.unshift(entry);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, 20)));
+  } catch {
+    // Speicher nicht verfügbar – ignorieren
+  }
+}
+
 export function loadSettings() {
   try {
     const raw = localStorage.getItem(KEY);

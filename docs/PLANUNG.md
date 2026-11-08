@@ -265,7 +265,11 @@ docs/
       Bewertung jedes Urteils und Konsistenz-Prüfung im Rennbericht
 - [x] **Extras**: Bereich unter der Karte wischbar (Strecke wird größer/gedreht),
       SC-Reinholen nur bis Sektor 6, SC baut in der Einfahrtsrunde Vorsprung auf
-- [ ] **M5 – Bewertung**: Bewertungsachsen, Reaktionen, Rennbericht
+- [x] **M5 – Bewertung**: Gesamtnote (0–100, Sterne, Sehr gut … Mangelhaft) aus Sicherheit,
+      Fairness, Konsistenz, Rennfluss; Stimmen zum Rennen (Teamchefs, Fahrer, GPDA, Presse);
+      Live-Reaktionen der Teams auf Urteile; Verlauf der letzten Rennen auf dem Startbildschirm
+- [x] **Beweise mehrdeutig**: Messwerte aus überlappenden Verteilungen, Leitlinien als
+      Bezugspunkt, unklare Kamerawinkel, täuschende TV-Eindrücke, Fälle ohne Vergehen
 - [ ] **M6 – Speichern/Laden**: Rennen fortsetzen, Statistik
 - [ ] **M7 – Saison**: weitere Strecken, Meisterschaftstabelle, Strafpunkte über die Saison
 - [ ] **Später**: Wetter, Track Limits im Detail, Unsafe Release, blaue Flaggen,
@@ -332,6 +336,16 @@ angemessene Strafe, übliche Strafpunkte). Die Beweise führen dorthin, können 
 | VSC-Delta | Fahrer | 5 s (knapp: Verwarnung) |
 
 Durchfahrt/Stop & Go mit weniger als 3 Runden Rest bzw. nach dem Rennen → +20 s / +30 s.
+
+### Bewertung (M5)
+| Achse | Gewicht | Abzüge |
+|---|---|---|
+| Sicherheit | 35 % | verpasste Gefahr: Gelb 10, Doppelt Gelb 15, VSC 18, SC 25, Rot 35 · zu spät: anteilig |
+| Fairness | 35 % | zu mild/zu hart 9 · Strafe ohne Vergehen 12 · falscher Fahrer 15 · offen 15 |
+| Konsistenz | 15 % | je inkonsequente Fallgruppe 15 · Strafpunkte-Abweichung >1: 5 (nur bewertbar mit vergleichbaren Urteilen) |
+| Rennfluss | 15 % | 1 je 10 s unnötig Gelb · 1 je 6 s unnötige Neutralisierung · 8 je überzogener Reaktion |
+
+Noten: ≥ 90 Sehr gut (5★) · ≥ 78 Gut · ≥ 64 Befriedigend · ≥ 50 Ausreichend · darunter Mangelhaft.
 
 Bewertung (Vorstufe zu M5): rechtzeitig = angemessene Flagge innerhalb von 20 s;
 zusätzlich wird „unnötig gelb“ gemessen (Flagge ohne Gefahr, 10 s Kulanz nach Freigabe).

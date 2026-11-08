@@ -61,6 +61,25 @@ export function rollBattleIncident(race, attacker, defender, zoneCorner, success
   }
 }
 
+// Messwert aus einer Verteilung (Beweise überlappen sich bewusst)
+function measure(race, mean, sd, lo, hi) {
+  return Math.max(lo, Math.min(hi, mean + race.rng.gauss(sd)));
+}
+const pct = x => `${Math.round(x)} %`;
+
+// Leitlinien der Rennkommissare (helfen beim Einordnen der Messwerte)
+const RULE_INSIDE = 'Wer innen angreift, hat Anspruch auf Platz, wenn seine Vorderachse beim Einlenken mindestens auf Höhe der Spiegel des anderen ist (etwa 60 % der Fahrzeuglänge). Der Verteidiger darf in der Bremszone die Linie nicht mehr wechseln.';
+const RULE_OUTSIDE = 'Wer außen am Scheitelpunkt mit der Vorderachse mindestens auf Höhe der Spiegel ist (etwa 60 %), muss eine Autobreite Platz bekommen (≈ 2 m).';
+const RULE_TRACK = 'Die Strecke gilt als verlassen, wenn alle vier Räder jenseits der weißen Linie sind. Ein so gewonnener Vorteil muss zurückgegeben werden.';
+const RULE_YELLOW = 'Unter Gelb darf nicht überholt werden – außer an einem Auto, das offensichtlich ein Problem hat.';
+
+// TV-Eindruck: manchmal ein Hinweis – der aber auch täuschen kann
+function tvImpression(race, truthHint, falseHint) {
+  const r = race.rng;
+  if (!r.chance(0.55)) return '';
+  return ' ' + (r.chance(0.65) ? truthHint : falseHint);
+}
+
 function collision(race, A, B, cornerId) {
   const r = race.rng;
   const corner = race.track.corners.find(c => c.id === cornerId);
@@ -77,7 +96,7 @@ function collision(race, A, B, cornerId) {
     wing: `${victim.id} verliert Teile des Frontflügels.`,
     puncture: `${victim.id} hat danach einen Reifenschaden.`,
     spin: `${victim.id} dreht sich und verliert mehrere Positionen.`,
-    dnf: `${victim.id} ist so stark beschädigt, dass er nicht weiterfahren kann.`,
+    dnf: `Das Auto von ${victim.id} ist so stark beschädigt, dass es nicht weiterfahren kann.`,
   }[consequence];
   applyConsequence(race, victim, consequence, A, B);
 
@@ -89,24 +108,31 @@ function collision(race, A, B, cornerId) {
     else { expected = ['5s', '10s']; points = [1, 2]; }
   }
 
-  // Beweise
-  const lateA = blame === 'attacker' ? r.range(12, 26) : r.range(1, 7);
-  const alongside = blame === 'attacker'
-    ? `Vorderachse von ${A.id} nur auf Höhe des Hinterrads von ${B.id} – ${A.id} war beim Einlenken nicht neben ${B.id}.`
+  // Beweise – Messwerte überlappen sich je nach Wahrheit
+  const overlap = measure(race, { attacker: 34, defender: 70, racing: 55 }[blame], 14, 0, 100);
+  const brake = measure(race, blame === 'attacker' ? 13 : 6, blame === 'attacker' ? 6 : 4, 0, 32);
+  const steer = measure(race, blame === 'defender' ? 3.8 : 1.4, blame === 'defender' ? 1.8 : 1.1, 0, 9);
+  const speed = measure(race, blame === 'attacker' ? 9 : 4, 4, -2, 20);
+  const unclear = p => r.chance(p);
+  const hint = blame === 'attacker'
+    ? tvImpression(race, `Aus dieser Perspektive wirkt es, als käme ${A.id} sehr spät.`, `Aus dieser Perspektive wirkt es, als mache ${B.id} die Tür zu.`)
     : blame === 'defender'
-      ? `Vorderachse von ${A.id} mindestens auf Höhe der Spiegel von ${B.id} – ${A.id} war beim Einlenken klar neben ${B.id}.`
-      : `Vorderachse von ${A.id} etwa auf Höhe der Seitenkästen von ${B.id} – Grenzfall.`;
-  const steerB = blame === 'defender'
-    ? `${B.id} wechselt in der Bremszone die Linie (Lenkbewegung ${f1(r.range(3, 7))}° Richtung ${A.id}).`
-    : `${B.id} bleibt auf seiner Linie und lenkt normal ein.`;
-  const brakeA = `${A.id} bremst ${f1(lateA)} m später als in den Runden zuvor${lateA > 15 ? ', blockierendes Vorderrad' : ''}.`;
+      ? tvImpression(race, `Aus dieser Perspektive wirkt es, als mache ${B.id} die Tür zu.`, `Aus dieser Perspektive wirkt es, als käme ${A.id} sehr spät.`)
+      : tvImpression(race, 'Beide scheinen um dieselbe Linie zu kämpfen.', r.chance(0.5) ? `Es wirkt, als käme ${A.id} sehr spät.` : `Es wirkt, als mache ${B.id} die Tür zu.`);
   const evidence = [
-    ev('video', 'TV-Bilder', `${A.id} greift ${B.id} in ${cornerLabel(corner)} innen an, es kommt zur Berührung am Scheitelpunkt. ${consText}`, true),
-    ev('position', 'Position beim Einlenken', alongside),
-    ev('telemetry', `Telemetrie ${A.id}`, r.chance(0.15) ? 'Bremsdaten nicht eindeutig (Signalaussetzer).' : brakeA),
-    ev('telemetry', `Telemetrie ${B.id}`, r.chance(0.15) ? 'Lenkdaten nicht eindeutig.' : steerB),
-    ev('radio', `Funk ${A.id}`, blame === 'attacker' && r.chance(0.3) ? '„Sorry, das war mein Fehler.“' : `„${B.id} hat mir die Tür zugemacht!“`),
-    ev('radio', `Funk ${B.id}`, `„${A.id} ist mir einfach reingefahren! Das ist eine Strafe!“`),
+    ev('video', 'TV-Bilder', `${A.id} greift ${B.id} in ${cornerLabel(corner)} innen an, es kommt zur Berührung am Scheitelpunkt. ${consText}${hint}`, true),
+    ev('position', 'Überlappung beim Einlenken', unclear(0.2)
+      ? `Kamerawinkel ungünstig – Vorderachse von ${A.id} geschätzt bei ${pct(Math.max(0, overlap - 15))}–${pct(Math.min(100, overlap + 15))} der Fahrzeuglänge von ${B.id}.`
+      : `Vorderachse von ${A.id} bei etwa ${pct(overlap)} der Fahrzeuglänge von ${B.id} (0 % = Heck, 100 % = Vorderachse).`),
+    ev('telemetry', `Telemetrie ${A.id}`, unclear(0.15)
+      ? 'Bremsdaten unvollständig (Signalaussetzer).'
+      : `Bremspunkt ${f1(brake)} m später als im Schnitt der Vorrunden, Einlenk-Tempo ${speed >= 0 ? '+' : ''}${Math.round(speed)} km/h.`),
+    ev('telemetry', `Telemetrie ${B.id}`, unclear(0.15)
+      ? 'Lenkdaten nicht eindeutig.'
+      : `Lenkbewegung in der Bremszone: ${f1(steer)}° in Richtung ${A.id}.`),
+    ev('radio', `Funk ${A.id}`, blame === 'attacker' && r.chance(0.15) ? '„Hm … vielleicht etwas zu optimistisch.“' : `„${B.id} hat mir die Tür zugemacht!“`),
+    ev('radio', `Funk ${B.id}`, blame === 'defender' && r.chance(0.1) ? '„Ich habe ihn zu spät gesehen.“' : `„${A.id} ist mir einfach reingefahren!“`),
+    ev('data', 'Leitlinie', RULE_INSIDE),
   ];
   createCase(race, {
     type: 'collision', cars: [A.id, B.id], corner: corner.id,
@@ -138,16 +164,21 @@ function forcedOff(race, A, B, cornerId) {
   const fault = r.chance(0.55);
   A.slowUntil = race.time + r.range(2, 4);
   const lost = f1(r.range(1.2, 3.5));
+  const overlap = measure(race, fault ? 70 : 42, 14, 0, 100);
+  const space = measure(race, fault ? 0.8 : 1.3, 0.6, 0, 3.5);
+  const steer = measure(race, fault ? 5 : 2.6, 2, 0, 12);
   const evidence = [
-    ev('video', 'TV-Bilder', `${A.id} versucht ${B.id} in ${cornerLabel(corner)} außen zu überholen und muss neben die Strecke. ${A.id} verliert rund ${lost} s.`, true),
-    ev('position', 'Position am Scheitelpunkt', fault
-      ? `${A.id} liegt am Scheitelpunkt mit der Vorderachse vor der Vorderachse von ${B.id}.`
-      : `${A.id} liegt am Scheitelpunkt deutlich hinter ${B.id} – Vorderachse nur auf Höhe des Hinterrads.`),
-    ev('telemetry', `Telemetrie ${B.id}`, fault
-      ? `${B.id} lässt am Kurvenausgang bis zum Rand laufen, obwohl ${A.id} daneben ist (Lenkwinkel ${f1(r.range(4, 9))}° mehr als üblich).`
-      : `${B.id} fährt die normale Linie, Lenkwinkel wie in den Vorrunden.`),
-    ev('radio', `Funk ${A.id}`, `„Er hat mich rausgedrückt! Keine Autobreite Platz!“`),
+    ev('video', 'TV-Bilder', `${A.id} versucht ${B.id} in ${cornerLabel(corner)} außen zu überholen und muss neben die Strecke. ${A.id} verliert rund ${lost} s.${tvImpression(race,
+      fault ? `${B.id} scheint bewusst weit nach außen zu ziehen.` : `${A.id} wirkt zu weit hinten für dieses Manöver.`,
+      fault ? `${A.id} wirkt zu weit hinten für dieses Manöver.` : `${B.id} scheint bewusst weit nach außen zu ziehen.`)}`, true),
+    ev('position', 'Überlappung am Scheitelpunkt', r.chance(0.2)
+      ? `Kamerawinkel ungünstig – Vorderachse von ${A.id} geschätzt bei ${pct(Math.max(0, overlap - 15))}–${pct(Math.min(100, overlap + 15))} der Fahrzeuglänge von ${B.id}.`
+      : `Vorderachse von ${A.id} bei etwa ${pct(overlap)} der Fahrzeuglänge von ${B.id}.`),
+    ev('position', 'Platz am Kurvenausgang', `Zwischen ${B.id} und dem Streckenrand bleiben ${f1(space)} m.`),
+    ev('telemetry', `Telemetrie ${B.id}`, r.chance(0.15) ? 'Lenkdaten nicht eindeutig.' : `Lenkwinkel am Ausgang ${f1(steer)}° größer als in den Vorrunden.`),
+    ev('radio', `Funk ${A.id}`, '„Er hat mich rausgedrückt! Keine Autobreite Platz!“'),
     ev('radio', `Funk ${B.id}`, r.chance(0.5) ? '„Ich war vorne, das ist meine Kurve.“' : '„Ganz normales Racing.“'),
+    ev('data', 'Leitlinie', RULE_OUTSIDE),
   ];
   createCase(race, {
     type: 'forcedOff', cars: [B.id, A.id], corner: corner.id,
@@ -161,18 +192,26 @@ function forcedOff(race, A, B, cornerId) {
 function offTrackPass(race, A, B, cornerId) {
   const r = race.rng;
   const corner = race.track.corners.find(c => c.id === cornerId);
-  const voluntary = r.chance(0.4);
+  const legal = r.chance(0.25);              // nur 2–3 Räder draußen → kein Vergehen
+  const wheels = legal ? r.int(2, 3) : 4;
+  const gain = measure(race, legal ? 0.12 : 0.3, 0.12, 0, 0.7);
+  const voluntary = !legal && r.chance(0.4);
   const c = createCase(race, {
     type: 'offTrackPass', cars: [A.id, B.id], corner: corner.id,
-    title: `${A.id} überholt ${B.id} neben der Strecke – ${corner.id}`,
-    summary: `${A.id} überholt ${B.id} in ${cornerLabel(corner)} mit allen vier Rädern jenseits der weißen Linie.`,
+    title: `${A.id} überholt ${B.id} neben der Strecke? – ${corner.id}`,
+    summary: `${A.id} überholt ${B.id} in ${cornerLabel(corner)} weit außen über die Randsteine.`,
     evidence: [
       ev('video', 'TV-Bilder', `${A.id} geht in ${cornerLabel(corner)} außen über die Randsteine und liegt danach vor ${B.id}.`, true),
-      ev('position', 'Streckenbegrenzung', `Alle vier Räder von ${A.id} jenseits der weißen Linie beim Überholen.`),
-      ev('telemetry', 'Mini-Sektor', `${A.id} ist im Abschnitt ${f1(r.range(0.2, 0.5))} s schneller als in den Vorrunden.`),
-      ev('radio', `Funk ${B.id}`, `„Er hat mich neben der Strecke überholt! Er muss den Platz zurückgeben!“`),
+      ev('position', 'Streckenbegrenzung', r.chance(0.25)
+        ? `Kamerawinkel ungünstig – mindestens 2 Räder von ${A.id} jenseits der weißen Linie, mehr nicht erkennbar.`
+        : `${wheels} Räder von ${A.id} jenseits der weißen Linie.`),
+      ev('telemetry', 'Mini-Sektor', `${A.id} ist im Abschnitt ${f1(gain)} s schneller als in den Vorrunden.`),
+      ev('radio', `Funk ${B.id}`, '„Er hat mich neben der Strecke überholt! Er muss den Platz zurückgeben!“'),
+      ev('data', 'Leitlinie', RULE_TRACK),
     ],
-    truth: { offender: A.id, expected: ['giveback', '5s'], points: [0, 1], victim: B.id },
+    truth: legal
+      ? { offender: null, expected: ['none'], points: [0, 0], victim: B.id }
+      : { offender: A.id, expected: ['giveback', '5s'], points: [0, 1], victim: B.id },
   });
   if (voluntary) {
     A.giveBack = { target: B.id, until: race.time + 70, voluntary: true, caseId: c.id };
@@ -182,16 +221,19 @@ function offTrackPass(race, A, B, cornerId) {
 function complaint(race, A, B, cornerId) {
   const r = race.rng;
   const corner = race.track.corners.find(c => c.id === cornerId);
+  const overlap = measure(race, 63, 13, 0, 100);
+  const brake = measure(race, 6, 4, 0, 30);
   createCase(race, {
     type: 'complaint', cars: [A.id, B.id], corner: corner.id,
     title: `Beschwerde ${B.team.name}: ${A.id} gegen ${B.id} – ${corner.id}`,
     summary: `${B.team.name} beschwert sich über das Überholmanöver von ${A.id} in ${cornerLabel(corner)}.`,
     evidence: [
-      ev('video', 'TV-Bilder', `${A.id} überholt ${B.id} innen in ${cornerLabel(corner)}. Beide bleiben auf der Strecke, keine Berührung zu sehen.`, true),
-      ev('position', 'Position beim Einlenken', `${A.id} beim Einlenken mit der Vorderachse vor den Spiegeln von ${B.id}.`),
-      ev('telemetry', `Telemetrie ${A.id}`, `${A.id} bremst ${f1(r.range(2, 6))} m später als in den Vorrunden – im normalen Rahmen.`),
-      ev('telemetry', `Telemetrie ${B.id}`, `${B.id} muss leicht lupfen (−${Math.round(r.range(6, 14))} km/h am Scheitelpunkt).`),
+      ev('video', 'TV-Bilder', `${A.id} überholt ${B.id} innen in ${cornerLabel(corner)}. ${r.chance(0.5) ? 'Beide bleiben auf der Strecke.' : `${B.id} muss leicht ausweichen.`}`, true),
+      ev('position', 'Überlappung beim Einlenken', `Vorderachse von ${A.id} bei etwa ${pct(overlap)} der Fahrzeuglänge von ${B.id}.`),
+      ev('telemetry', `Telemetrie ${A.id}`, `Bremspunkt ${f1(brake)} m später als im Schnitt der Vorrunden.`),
+      ev('telemetry', `Telemetrie ${B.id}`, `${B.id} muss lupfen (−${Math.round(r.range(6, 18))} km/h am Scheitelpunkt).`),
       ev('radio', `Teamfunk ${B.team.name}`, `„${A.id} hat uns abgedrängt, das muss untersucht werden!“`),
+      ev('data', 'Leitlinie', RULE_INSIDE),
     ],
     truth: { offender: null, expected: ['none'], points: [0, 0], victim: B.id },
   });
@@ -277,20 +319,29 @@ export function rollUnsafeRelease(race, car) {
 // ---------- Neutralisierung ----------
 
 export function createYellowPassCase(race, A, B, flag) {
+  const r = race.rng;
   const sector = sectorIndexAt(race.track, A.d) + 1;
   const corner = cornerNear(race.track, A.d);
   const dbl = flag === 'double';
+  const legal = r.chance(0.25);    // B hatte ein Problem → Überholen erlaubt
+  const slowB = measure(race, legal ? 34 : 9, legal ? 12 : 6, 0, 70);
+  const lift = measure(race, legal ? 0.3 : 0.08, 0.12, 0, 0.8);
   createCase(race, {
     type: 'yellowPass', cars: [A.id, B.id], corner: corner.id,
     title: `${A.id} überholt unter ${dbl ? 'Doppelt Gelb' : 'Gelb'} – Sektor ${sector}`,
-    summary: `${A.id} überholt ${B.id} in Sektor ${sector}, obwohl dort ${dbl ? 'Doppelt Gelb' : 'Gelb'} gezeigt wird.`,
+    summary: `${A.id} überholt ${B.id} in Sektor ${sector}, während dort ${dbl ? 'Doppelt Gelb' : 'Gelb'} gezeigt wird.`,
     evidence: [
       ev('data', 'Flaggenstatus', `${dbl ? 'Doppelt Gelb' : 'Gelb'} in Sektor ${sector} aktiv.`, true),
       ev('video', 'TV-Bilder', `${A.id} geht in ${cornerLabel(corner)} an ${B.id} vorbei.`, true),
-      ev('telemetry', `Telemetrie ${A.id}`, `Kein Lupfen erkennbar, Mini-Sektor nur ${f1(race.rng.range(0.0, 0.2))} s langsamer als normal.`),
-      ev('radio', `Funk ${A.id}`, '„Ich habe die Flagge zu spät gesehen.“'),
+      ev('telemetry', `Telemetrie ${B.id}`, `${B.id} ist im Abschnitt ${Math.round(slowB)} km/h langsamer als üblich.`),
+      ev('telemetry', `Telemetrie ${A.id}`, `${A.id} lupft im Sektor ${f1(lift)} s lang.`),
+      ev('radio', `Funk ${A.id}`, legal && r.chance(0.7) ? '„Er war viel zu langsam, ich musste vorbei!“' : r.chance(0.5) ? '„Ich habe die Flagge zu spät gesehen.“' : '„Er war viel zu langsam, ich musste vorbei!“'),
+      ...(legal && r.chance(0.5) ? [ev('radio', `Funk ${B.id}`, '„Ich habe Leistungsverlust!“')] : []),
+      ev('data', 'Leitlinie', RULE_YELLOW),
     ],
-    truth: { offender: A.id, expected: dbl ? ['10s', 'dt'] : ['5s', '10s'], points: dbl ? [2, 3] : [1, 2], victim: B.id },
+    truth: legal
+      ? { offender: null, expected: ['none'], points: [0, 0], victim: B.id }
+      : { offender: A.id, expected: dbl ? ['10s', 'dt'] : ['5s', '10s'], points: dbl ? [2, 3] : [1, 2], victim: B.id },
   });
 }
 

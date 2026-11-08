@@ -32,6 +32,31 @@ export function noFurtherAction(race, c) {
   c.status = 'nfa';
   c.verdict = { carId: null, penalty: 'none', points: 0, time: race.time };
   race.emit('rc', `Fall #${c.id}: Keine weitere Untersuchung – ${c.title}`);
+  reactToVerdict(race, c);
+}
+
+// Teams reagieren per Funk auf Urteile (nicht immer sachlich)
+function reactToVerdict(race, c) {
+  const r = race.rng;
+  const v = c.verdict, t = c.truth;
+  const { verdict } = evaluateCase(race, c);
+  const team = id => race.carById[id].team.name;
+  if (v.carId) {
+    const furious = verdict === 'wrong' || (verdict === 'harsh' && !t.offender) || r.chance(0.2);
+    const text = furious ? r.pick(['„Das ist ein Skandal! Wir prüfen einen Protest.“', '„Völlig unverständlich!“'])
+      : verdict === 'harsh' ? '„Viel zu hart für so etwas.“'
+        : r.pick(['„Wir sehen das anders, akzeptieren es aber.“', '„Schwer nachzuvollziehen.“', '„Verstanden.“']);
+    race.emit('radio', `Teamfunk ${team(v.carId)}: ${text}`, { cars: [v.carId] });
+  }
+  if (t.victim && race.carById[t.victim]) {
+    if (t.offender && (verdict === 'lenient' || !v.carId) && r.chance(0.75)) {
+      race.emit('radio', `Teamfunk ${team(t.victim)}: „${v.carId ? 'Das ist doch keine angemessene Strafe!' : 'Keine Strafe?! Das kann nicht sein.'}“`, { cars: [t.victim] });
+    } else if (!t.offender && !v.carId && r.chance(0.5)) {
+      race.emit('radio', `Teamfunk ${team(t.victim)}: „Wir hätten uns eine Strafe gewünscht.“`, { cars: [t.victim] });
+    } else if (verdict === 'ok' && v.carId && r.chance(0.4)) {
+      race.emit('radio', `Teamfunk ${team(t.victim)}: „Gerechte Entscheidung.“`, { cars: [t.victim] });
+    }
+  }
 }
 
 export function decide(race, c, { carId, penalty, points }) {
@@ -40,6 +65,7 @@ export function decide(race, c, { carId, penalty, points }) {
     c.status = 'decided';
     c.verdict = { carId: null, penalty: 'none', points: 0, time: race.time };
     race.emit('rc', `Fall #${c.id}: Keine Strafe – ${c.title}`);
+    reactToVerdict(race, c);
     return;
   }
   c.status = 'decided';
@@ -49,6 +75,7 @@ export function decide(race, c, { carId, penalty, points }) {
   const pts = points ? `, ${points} Strafpunkt${points > 1 ? 'e' : ''}` : '';
   race.emit('rc', `STRAFE: ${PENALTIES[penalty].name} für ${carId}${pts} – ${c.typeName}`, { cars: [carId] });
   applyPenalty(race, car, penalty, c);
+  reactToVerdict(race, c);
 }
 
 function applyPenalty(race, car, penalty, c) {
