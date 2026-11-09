@@ -19,15 +19,28 @@ const CAT = {
   radio: 'radio',
 };
 export const FEED_FILTERS = [
-  { id: 'all', label: 'Alle' },
-  { id: 'rc', label: 'Rennleitung' },
-  { id: 'track', label: 'Strecke' },
-  { id: 'radio', label: 'Funk' },
+  { id: 'all', label: 'ALL' },
+  { id: 'rc', label: 'RACE CONTROL' },
+  { id: 'track', label: 'TRACK' },
+  { id: 'radio', label: 'RADIO' },
 ];
 
-const ICONS = {
-  info: 'ℹ️', start: '🚦', overtake: '↗', fastest: '⏱', pit: '🔧', chequered: '🏁', finish: '🏁',
-  marshal: WARN_ICON, radio: '📻', rc: '🚩', case: '⚖️', tl: '📏', weather: '🌦',
+// Kürzel statt bunter Symbole (wie im Race-Control-Protokoll)
+const TAGS = {
+  info: ['INF', ''], start: ['STA', 'g'], overtake: ['OVT', ''], fastest: ['FL', 'p'], pit: ['PIT', 'b'],
+  chequered: ['FIN', ''], finish: ['FIN', ''], radio: ['RAD', ''], rc: ['RC', 'w'], case: ['DOC', 'y'],
+  tl: ['TL', 'y'], weather: ['WX', 'b'],
+};
+const tagHtml = type => {
+  if (type === 'marshal') return WARN_ICON;
+  const [t, c] = TAGS[type] || ['•', ''];
+  return `<span class="msg-tag ${c}">${t}</span>`;
+};
+const clock = t => {
+  if (t === undefined || t < 0) return 'PRE';
+  t = Math.floor(t);
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60;
+  return `${h ? `${h}:${String(m).padStart(2, '0')}` : m}:${String(sec).padStart(2, '0')}`;
 };
 
 export class Feed {
@@ -49,7 +62,7 @@ export class Feed {
       <li class="msg-fk${team ? ' team' : ''}" data-cat="radio">
         <span class="fk-bar" style="background:${col}"></span>
         <div class="fk-body">
-          <div class="fk-who"><b>${team ? HEADSET_ICON : HELMET_ICON}${who}</b><span>${e.seg ? e.seg : e.lap ? 'R' + e.lap : ''}</span></div>
+          <div class="fk-who"><b>${team ? HEADSET_ICON : HELMET_ICON}${who}</b><span>${clock(e.t)}${e.lap ? ` · L${e.lap}` : ''}</span></div>
           <div class="fk-txt">„${escapeHtml(m[4])}“</div>
         </div>
       </li>`;
@@ -67,8 +80,8 @@ export class Feed {
     this.lastId = fresh[fresh.length - 1].id;
     const html = fresh.reverse().map(e => (e.type === 'radio' && this.radioHtml(e)) || `
       <li class="msg msg-${e.type}" data-cat="${CAT[e.type] || 'rc'}">
-        <span class="msg-lap">${e.seg ? e.seg : e.lap ? 'R' + e.lap : '–'}</span>
-        <span class="msg-icon">${ICONS[e.type] || '•'}</span>
+        <span class="msg-lap">${clock(e.t)}<small>${e.seg ? e.seg : e.lap ? 'L' + e.lap : ''}</small></span>
+        <span class="msg-icon">${tagHtml(e.type)}</span>
         <span class="msg-text">${escapeHtml(e.text)}</span>
       </li>`).join('');
     this.el.insertAdjacentHTML('afterbegin', html);

@@ -43,14 +43,15 @@
         <button id="labelsBtn" class="map-btn" aria-label="Kürzel anzeigen">ABC</button>
       </div>
       <div class="paused-tag">PAUSE</div>
+      <div class="mon-label">TRACK MAP · LIVE</div>
       <button id="alertBanner" class="alert hidden"></button>
     </section>
 
     <div id="dragHandle" class="drag-handle" aria-label="Bereich verkleinern oder vergrößern"><span></span></div>
     <nav class="tabs">
-      <button class="tab active" data-tab="timing">Zeiten</button>
-      <button class="tab" data-tab="feed">Meldungen <span id="feedBadge" class="badge-count hidden">0</span></button>
-      <button class="tab" data-tab="cases">Entscheidungen <span id="casesBadge" class="badge-count hidden">0</span></button>
+      <button class="tab active" data-tab="timing">TIMING</button>
+      <button class="tab" data-tab="feed">RC LOG <span id="feedBadge" class="badge-count hidden">0</span></button>
+      <button class="tab" data-tab="cases">DECISIONS <span id="casesBadge" class="badge-count hidden">0</span></button>
     </nav>
 
     <main class="panels">
@@ -77,10 +78,13 @@
     </main>
 
     <footer class="actions">
-      <button id="flagBtn" class="act act-flag act-live">Flagge</button>
-      <button id="vscBtn" class="act act-vsc act-live">VSC</button>
-      <button id="scBtn" class="act act-sc act-live">SC</button>
-      <button id="redBtn" class="act act-red act-live">ROT</button>
+      <button id="flagBtn" class="act act-flag act-live"><i class="act-led"></i>FLAGS</button>
+      <button id="vscBtn" class="act act-vsc act-live"><i class="act-led"></i>VSC</button>
+      <button id="scBtn" class="act act-sc act-live"><i class="act-led"></i>SC</button>
+      <div class="act-cover-wrap">
+        <button id="redBtn" class="act act-red act-live"><i class="act-led"></i>RED</button>
+        <button id="redCover" class="act-cover" aria-label="Schutzklappe der roten Flagge öffnen"><span>LIFT COVER</span></button>
+      </div>
     </footer>
   </div>
 
@@ -100,10 +104,10 @@
   <div id="flagSheet" class="flag-sheet hidden">
     <div class="flag-sheet-head">
       <div>
-        <div class="flag-sheet-title">Flaggen</div>
+        <div id="flagTitle" class="flag-sheet-title">FLAG CONTROL</div>
         <div class="flag-sheet-sub">Marshal-Sektoren · Tippe auf die Strecke, um einen Sektor zu wählen</div>
       </div>
-      <button id="flagCloseBtn" class="pill-btn">Fertig</button>
+      <button id="flagCloseBtn" class="pill-btn">ESC</button>
     </div>
     <div id="flagList" class="flag-list"></div>
     <div class="flag-sheet-foot">
@@ -117,7 +121,7 @@
         <div id="ctlTitle" class="flag-sheet-title"></div>
         <div id="ctlSub" class="flag-sheet-sub"></div>
       </div>
-      <button id="ctlCloseBtn" class="pill-btn">Fertig</button>
+      <button id="ctlCloseBtn" class="pill-btn">ESC</button>
     </div>
     <div id="ctlBody" class="ctl-body"></div>
   </div>
@@ -152,7 +156,7 @@
       <button id="startBtn" class="primary-btn">Rennen starten</button>
       <button id="seasonBtn" class="secondary-btn season-btn hidden">🏆 Saison-Übersicht</button>
       <div id="history" class="history"></div>
-      <div class="app-version">Version 20</div>
+      <div class="app-version">Version 21</div>
       <details class="options">
         <summary>Optionen</summary>
         <label id="trackLabel">Strecke (Einzelrennen)

@@ -3,13 +3,19 @@ import { PENALTIES } from '../control/stewards.js';
 import { ScenePlayer } from './scenePlayer.js';
 
 const STATUS = {
-  new: ['NEU', 'st-new'],
-  investigating: ['IN UNTERSUCHUNG', 'st-inv'],
-  post: ['NACH DEM RENNEN', 'st-post'],
-  hearing: ['ANHÖRUNG', 'st-hear'],
-  decided: ['ENTSCHIEDEN', 'st-done'],
-  nfa: ['KEINE UNTERSUCHUNG', 'st-nfa'],
+  new: ['NOTED', 'st-new'],
+  investigating: ['INVESTIGATION', 'st-inv'],
+  post: ['POST-RACE', 'st-post'],
+  hearing: ['HEARING', 'st-hear'],
+  decided: ['DECISION', 'st-done'],
+  nfa: ['NFA', 'st-nfa'],
 };
+// Überschrift des Dokuments je Stand des Verfahrens
+const DOC_TITLE = {
+  new: 'INCIDENT NOTED', investigating: 'UNDER INVESTIGATION', post: 'SUMMONS',
+  hearing: 'HEARING', decided: 'DECISION', nfa: 'NO FURTHER ACTION',
+};
+const SESSION = { race: 'Rennen', sprint: 'Sprint', quali: 'Qualifying', sq: 'Sprint-Qualifying', fp: 'Freies Training' };
 const EV_ICON = { video: '🎥', telemetry: '📊', position: '📍', radio: '📻', data: '📋', hearing: '🗣️' };
 
 export class CasesPanel {
@@ -83,36 +89,54 @@ export class CasesPanel {
 
   card(race, c, finished) {
     let [label, cls] = STATUS[c.status];
-    if (c.status === 'post' && finished) label = 'ANHÖRUNG OFFEN';
+    if (c.status === 'post' && finished) label = 'HEARING DUE';
     const open = this.open.has(c.id);
     let body = '';
     if (open) {
       const showAll = c.status !== 'new';
       const evs = c.evidence.filter(e => showAll || e.early);
-      const evHtml = evs.map(e => `
-        <div class="ev"><span class="ev-icon">${EV_ICON[e.kind] || '•'}</span>
-          <div><div class="ev-label">${e.label}</div><div>${e.text}</div></div></div>`).join('');
-      const hearing = c.hearing ? `
-        <div class="hearing-title">Anhörung bei der Rennleitung</div>
-        ${c.hearing.map(e => `
-          <div class="ev ev-hearing"><span class="ev-icon">${EV_ICON[e.kind] || '•'}</span>
-            <div><div class="ev-label">${e.label}</div><div>${e.text}</div></div></div>`).join('')}` : '';
-      const more = !showAll && c.evidence.length > evs.length
-        ? `<div class="ev-more">Weitere Beweise (Telemetrie, Positionen, Funk) nach Untersuchungsbeginn.</div>` : '';
+      let n = 0;
+      const exhibit = e => `
+        <div class="exhibit"><div class="ex-label">EXHIBIT ${++n} · ${e.label}</div><div>${e.text}</div></div>`;
       const scene = c.scene ? `
-          <div class="scene-box" data-scene="${c.id}"></div>
-          <div class="scene-hint">${c.status === 'new' ? '🎥 TV-Bild – genauere Übersicht mit Hilfslinien nach „Untersuchen“' : '🎥 Nachstellung aus Daten und Kameras – Hilfslinien zur Bewertung'}</div>` : '';
+          <div class="exhibit"><div class="ex-label">EXHIBIT ${++n} · CCTV ${c.scene.corner}${c.status === 'new' ? ' (TV)' : ''}</div>
+            <div class="scene-box" data-scene="${c.id}"></div>
+            <div class="scene-hint">${c.status === 'new' ? 'TV-Bild – genauere Übersicht mit Hilfslinien nach „Untersuchen“' : 'Nachstellung aus Daten und Kameras – Hilfslinien zur Bewertung'}</div></div>` : '';
+      const evHtml = evs.map(exhibit).join('');
+      const hearing = c.hearing ? `<div class="doc-sub">HEARING</div>${c.hearing.map(exhibit).join('')}` : '';
+      const more = !showAll && c.evidence.length > evs.length
+        ? '<div class="ev-more">Weitere Beweise (Telemetrie, Positionen, Funk) nach Untersuchungsbeginn.</div>' : '';
+      const cars = c.cars.map(id => race.carById[id]).filter(Boolean);
+      const row = (k, v) => `<tr><td>${k}</td><td>${v}</td></tr>`;
+      const v = c.verdict;
+      const decision = v ? row('DECISION', v.carId
+        ? `<b>${PENALTIES[v.penalty].name} für ${v.carId}${v.points ? ` · ${v.points} Strafpunkt${v.points > 1 ? 'e' : ''}` : ''}</b>`
+        : `<b>${c.status === 'nfa' ? 'Keine weitere Untersuchung' : 'Keine Strafe'}</b>`) : '';
+      const stamp = v ? `<div class="doc-stamp ${v.carId ? 'pen' : 'ok'}">${v.carId ? 'PENALTY' : c.status === 'nfa' ? 'NFA' : 'NO PENALTY'}</div>` : '';
       body = `
         <div class="case-body">
-          <p class="case-summary">${c.summary}</p>${scene}
-          <div class="evidence">${evHtml}${more}${hearing}</div>
+          <div class="doc">
+            <div class="doc-hd"><div><b>RACE CONTROL – STEWARDS</b><small>${race.track.def.grandPrix} · ${SESSION[race.kind] || ''}</small></div>
+              <div class="doc-no"><small>DOCUMENT</small><b>${c.id}</b></div></div>
+            <div class="doc-title">${DOC_TITLE[c.status]}</div>
+            <table class="doc-table">
+              ${cars.map(car => row('NO / DRIVER', `${car.driver.number} – ${car.driver.first} ${car.driver.last}`)).join('')}
+              ${row('COMPETITOR', [...new Set(cars.map(car => car.team.name))].join(', '))}
+              ${row('TIME / LAP', c.when || (c.lap ? `Runde ${c.lap}` : 'Vor dem Start'))}
+              ${row('FACT', c.summary)}
+              ${row('OFFENCE', c.typeName)}
+              ${decision}
+            </table>
+            ${scene}${evHtml}${more}${hearing}
+            ${stamp}
+          </div>
           ${this.actions(race, c, finished)}
         </div>`;
     }
     return `
       <div class="case ${cls}-card${open ? ' open' : ''}" data-id="${c.id}">
         <button class="case-head" data-act="toggle">
-          <span class="case-no">#${c.id}</span>
+          <span class="case-no">DOC<b>${c.id}</b></span>
           <span class="case-main">
             <span class="case-title">${c.title}</span>
             <span class="case-meta">${c.when || (c.lap ? `Runde ${c.lap}` : 'Vor dem Start')} · ${c.typeName}${c.verdict && c.verdict.carId ? ` · ${PENALTIES[c.verdict.penalty].short} ${c.verdict.carId}` : ''}</span>
@@ -146,9 +170,7 @@ export class CasesPanel {
     }
     if (c.status === 'investigating' || c.status === 'hearing') return this.form(c, finished);
     const v = c.verdict;
-    if (!v || !v.carId) return '<div class="verdict">Urteil: <b>Keine Strafe</b></div>';
-    const pts = v.points ? ` · ${v.points} Strafpunkt${v.points > 1 ? 'e' : ''}` : '';
-    return `<div class="verdict">Urteil: <b>${PENALTIES[v.penalty].name}</b> für <b>${v.carId}</b>${pts}</div>`;
+    return '';
   }
 
   form(c, finished) {

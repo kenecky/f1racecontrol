@@ -4,7 +4,9 @@ import { sectorIndexAt } from '../sim/trackModel.js';
 import { WARN_ICON } from './feed.js';
 import { hazardProgress, hazardWhere } from '../sim/hazards.js';
 
-const TITLES = { vsc: 'Virtual Safety Car', sc: 'Safety Car', red: 'Rote Flagge', start: 'Start' };
+const TITLES = { vsc: 'VIRTUAL SAFETY CAR', sc: 'SAFETY CAR', red: 'RED FLAG', start: 'START PROCEDURE' };
+// Auslösende Aktionen brauchen zwei Drücke: ARM (scharf schalten) → DEPLOY
+const ARMED = new Set(['vsc-on', 'sc-on', 'red-on']);
 
 function mmss(t) {
   t = Math.max(0, Math.floor(t));
@@ -19,9 +21,20 @@ export class ControlPanel {
     this.body = body;
     this.kind = null;
     this.sig = '';
+    this.armed = null;
     body.addEventListener('click', e => {
       const b = e.target.closest('[data-action]');
-      if (b && !b.disabled) onAction(b.dataset.action);
+      if (!b || b.disabled) return;
+      const a = b.dataset.action;
+      if (ARMED.has(a) && (!this.armed || this.armed.action !== a || performance.now() > this.armed.until)) {
+        this.armed = { action: a, until: performance.now() + 4000 };
+        this.sig = '';
+        this.lastRace && this.render(this.lastRace);
+        setTimeout(() => { if (this.armed && performance.now() > this.armed.until) { this.armed = null; this.sig = ''; this.lastRace && this.render(this.lastRace); } }, 4100);
+        return;
+      }
+      this.armed = null;
+      onAction(a);
     });
   }
 
@@ -57,6 +70,7 @@ export class ControlPanel {
 
   render(race) {
     if (!this.isOpen || !race) return;
+    this.lastRace = race;
     const n = race.neutral;
     const kind = this.kind;
     const active = race.hazards.filter(h => !h.ended && h.type !== 'spin');
@@ -66,6 +80,7 @@ export class ControlPanel {
       race.cars.filter(c => c.unlap).length, race.cars.filter(c => c.redQueued).length,
       active.map(h => Math.round(hazardProgress(h) * 50)), canRestart(race),
       race.phase, race.startIssue && race.startIssue.carId, race.startIssue && race.startIssue.released, race.laps,
+      this.armed && this.armed.action,
     ]);
     if (sig === this.sig) return;
     this.sig = sig;
@@ -176,6 +191,10 @@ export class ControlPanel {
     }
 
     this.subEl.textContent = sub;
-    this.body.innerHTML = html + `<div class="ctl-section">Lage auf der Strecke</div>${this.hazardsHtml(race)}`;
+    // Scharf geschaltete Taste hervorheben
+    if (this.armed) {
+      html = html.replace(new RegExp(`(<button class="ctl-btn[^"]*)("[^>]*data-action="${this.armed.action}"[^>]*>)([^<]*)`), '$1 armed$2ARMED – ZUM AUSLÖSEN ERNEUT DRÜCKEN');
+    }
+    this.body.innerHTML = html + `<div class="ctl-section">TRACK STATUS</div>${this.hazardsHtml(race)}`;
   }
 }

@@ -4,7 +4,7 @@
 // Wichtig: Andere Apps auf kenecky.github.io (z. B. Reise-Ausgaben) teilen sich den
 // Cache-Speicher mit uns. Deshalb nur eigene Caches (Präfix 'f1rc-') löschen.
 const PREFIX = 'f1rc-';
-const CACHE = PREFIX + 'v20';
+const CACHE = PREFIX + 'v21';
 const ASSETS = [
   './',
   'index.html',
@@ -72,6 +72,8 @@ const ASSETS = [
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/icon-maskable-512.png',
+  'fonts/JetBrainsMono-Regular.ttf',
+  'fonts/JetBrainsMono-Bold.ttf',
   'icons/apple-touch-icon.png',
 ];
 

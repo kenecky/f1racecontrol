@@ -47,6 +47,8 @@ export class FlagPanel {
     ]);
     if (sig === this.sig) return;
     this.sig = sig;
+    const title = document.getElementById('flagTitle');
+    if (title) title.textContent = this.focus !== null ? `FLAG CONTROL · MARSHAL SECTOR ${this.focus + 1}` : 'FLAG CONTROL · ALL SECTORS';
 
     this.list.innerHTML = race.track.sectors.map((sec, i) => {
       const flag = race.flags[i];
@@ -62,9 +64,9 @@ export class FlagPanel {
       return `
         <div class="frow${this.focus === i ? ' focus' : ''}" data-sector="${i}">
           <div class="frow-top">
-            <span class="sec-badge">${sec.id}</span>
+            <span class="sec-badge led-${flag}">${sec.id}</span>
             <div>
-              <div class="sec-name">Sektor ${sec.id}</div>
+              <div class="sec-name">MS ${String(sec.id).padStart(2, '0')}</div>
               <div class="sec-corners">${corners}</div>
             </div>
             <div class="fbtns">${btns}</div>

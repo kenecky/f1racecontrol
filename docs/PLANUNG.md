@@ -466,3 +466,10 @@ Alle Geräusche werden im Browser erzeugt (Web Audio, keine Dateien): Motoren de
 Startaufstellung, Formationsrunde, Aufheulen beim Start, leiser unter SC/VSC), Startampel-Töne, Funk-Knacken,
 Hinweise für neue Vorfälle/Entscheidungen, VSC/SC/Rot, Zielflagge. Schalter „Ton“ im Tempo-Menü.
 Option für später: echte Aufnahmen (z. B. CC0-Lizenz von freesound.org) für realistischere Motoren.
+
+### Kontrollraum-Design (umgesetzt)
+Grundlook wie Timing-Software (Monitore, Festbreitenschrift JetBrains Mono, Farbe nur als Status),
+Statusanzeige auf Englisch (TRACK GREEN, YELLOW S7, SAFETY CAR, RED FLAG …), RC LOG im Stil der
+Race-Control-Messages (Uhrzeit, Kürzel, Großbuchstaben). Pult mit beleuchteten Tastern (leuchten bei aktiver
+Maßnahme), rote Flagge unter Schutzklappe, VSC/SC/Rot mit ARM → zweiter Druck löst aus.
+Menüs als Konsolen zwischen Karte und Pult. Entscheidungen als Stewards-Dokumente mit Exhibits und Stempel.

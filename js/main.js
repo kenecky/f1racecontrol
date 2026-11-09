@@ -686,8 +686,8 @@ function updateStatus() {
     lapEl.textContent = race.phase === 'pre' ? 'Start' : race.phase === 'finished' ? 'Ende'
       : race.segState === 'break' ? `Pause ${mm}` : `${race.segment.id} · ${mm}`;
   } else {
-    $('lapLabel').textContent = race.phase === 'formation' ? 'Formation' : race.preStart ? 'Start' : race.kind === 'sprint' ? 'Sprint · Runde' : 'Runde';
-    if (race.preStart) lapEl.textContent = `${race.laps} Rd`;
+    $('lapLabel').textContent = race.phase === 'formation' ? 'FORMATION' : race.preStart ? 'START' : race.kind === 'sprint' ? 'SPRINT LAP' : 'LAP';
+    if (race.preStart) lapEl.textContent = `${race.laps} LAPS`;
     else lapEl.textContent = `${race.leaderLap}/${race.laps}`;
   }
   const running = race.phase === 'running' || race.phase === 'chequered' || race.phase === 'finished';
@@ -698,24 +698,28 @@ function updateStatus() {
   const flag = $('flag');
   const status = trackStatus(race);
   const n = race.neutral;
-  if (race.phase === 'chequered' || race.phase === 'finished') { flag.textContent = 'ZIEL'; flag.className = 'flag-chip flag-chequered'; }
-  else if (n && n.type === 'red' && n.phase === 'grid') { flag.textContent = 'NEUSTART'; flag.className = 'flag-chip flag-start'; }
-  else if (n && n.type === 'red') { flag.textContent = 'ROT'; flag.className = 'flag-chip flag-red'; }
-  else if (n && n.type === 'sc') { flag.textContent = n.go ? 'SC NEUSTART' : n.phase === 'in' ? 'SC IN' : 'SAFETY CAR'; flag.className = 'flag-chip flag-sc'; }
-  else if (n && n.type === 'vsc') { flag.textContent = n.phase === 'ending' ? 'VSC ENDET' : 'VSC'; flag.className = 'flag-chip flag-vsc'; }
-  else if (race.startIssue) { flag.textContent = 'HALT'; flag.className = 'flag-chip flag-double'; }
+  // Statusanzeige wie in der Rennleitung (englische Begriffe)
+  const yellowSecs = race.flags.map((f, i) => (f === 'yellow' || f === 'double' ? i + 1 : null)).filter(Boolean);
+  const ms = yellowSecs.length === 1 ? ` S${yellowSecs[0]}` : '';
+  if (race.phase === 'chequered' || race.phase === 'finished') { flag.textContent = 'CHEQUERED'; flag.className = 'flag-chip flag-chequered'; }
+  else if (n && n.type === 'red' && n.phase === 'grid') { flag.textContent = 'RESTART'; flag.className = 'flag-chip flag-start'; }
+  else if (n && n.type === 'red') { flag.textContent = 'RED FLAG'; flag.className = 'flag-chip flag-red'; }
+  else if (n && n.type === 'sc') { flag.textContent = n.go ? 'SC RESTART' : n.phase === 'in' ? 'SC IN' : 'SAFETY CAR'; flag.className = 'flag-chip flag-sc'; }
+  else if (n && n.type === 'vsc') { flag.textContent = n.phase === 'ending' ? 'VSC ENDING' : 'VSC'; flag.className = 'flag-chip flag-vsc'; }
+  else if (race.startIssue) { flag.textContent = 'START HOLD'; flag.className = 'flag-chip flag-double'; }
   else if (race.phase === 'formation') { flag.textContent = 'FORMATION'; flag.className = 'flag-chip flag-start'; }
   else if (race.preStart) { flag.textContent = 'START'; flag.className = 'flag-chip flag-start'; }
-  else if (status === 'double') { flag.textContent = 'GELB ×2'; flag.className = 'flag-chip flag-double'; }
-  else if (status === 'yellow') { flag.textContent = 'GELB'; flag.className = 'flag-chip flag-yellow'; }
-  else if (status === 'slippery') { flag.textContent = 'RUTSCHIG'; flag.className = 'flag-chip flag-slippery'; }
-  else { flag.textContent = 'GRÜN'; flag.className = 'flag-chip flag-green'; }
+  else if (status === 'double') { flag.textContent = `DBL YELLOW${ms}`; flag.className = 'flag-chip flag-double'; }
+  else if (status === 'yellow') { flag.textContent = `YELLOW${ms}`; flag.className = 'flag-chip flag-yellow'; }
+  else if (status === 'slippery') { flag.textContent = 'SURFACE'; flag.className = 'flag-chip flag-slippery'; }
+  else { flag.textContent = 'TRACK GREEN'; flag.className = 'flag-chip flag-green'; }
 
   const lights = $('lights');
   lights.classList.toggle('hidden', race.lightsOn === 0);
   $('vscBtn').classList.toggle('on', Boolean(n && n.type === 'vsc'));
   $('scBtn').classList.toggle('on', Boolean(n && n.type === 'sc'));
   $('redBtn').classList.toggle('on', Boolean(n && n.type === 'red'));
+  $('flagBtn').classList.toggle('on', race.flags.some(f => f !== 'clear'));
   [...lights.children].forEach((el, i) => el.classList.toggle('on', i < race.lightsOn));
 
   $('gapHead').textContent = settings.gapMode === 'interval' ? 'Intervall' : 'Abstand';
@@ -803,8 +807,23 @@ function setSpeed(v) {
 
 // ---------- Flaggen-Panel ----------
 
+// Konsolen (Flaggen, VSC/SC/Rot, Start) liegen über dem unteren Bereich zwischen Karte und Pult
+function placeConsoles() {
+  const app = appEl.getBoundingClientRect();
+  const mapBottom = mapWrap.getBoundingClientRect().bottom;
+  const deckTop = document.querySelector('.actions').getBoundingClientRect().top;
+  const top = Math.max(mapBottom - 1, app.top + window.innerHeight * 0.38);
+  for (const id of ['flagSheet', 'controlSheet']) {
+    const el = $(id);
+    el.style.top = `${Math.min(top, deckTop - 220)}px`;
+    el.style.bottom = `${window.innerHeight - deckTop}px`;
+  }
+}
+window.addEventListener('resize', () => { if (flagPanel.isOpen || controlPanel.isOpen) placeConsoles(); });
+
 function openFlags(idx = null) {
   if (!race) return;
+  placeConsoles();
   closeControl();
   map.showSectors = true;
   map.highlightSector = idx;
@@ -815,6 +834,7 @@ function openControl(kind) {
   if (!race) return;
   closeFlags();
   if (controlPanel.isOpen && controlPanel.kind === kind) { closeControl(); return; }
+  placeConsoles();
   controlPanel.open(race, kind);
 }
 
@@ -1326,7 +1346,21 @@ $('alertBanner').addEventListener('click', () => {
 });
 $('vscBtn').addEventListener('click', () => openControl('vsc'));
 $('scBtn').addEventListener('click', () => openControl('sc'));
-$('redBtn').addEventListener('click', () => openControl(race && race.preStart && race.phase !== 'pre' && !race.isSession ? 'start' : 'red'));
+$('redBtn').addEventListener('click', () => {
+  coverClose();
+  openControl(race && race.preStart && race.phase !== 'pre' && !race.isSession ? 'start' : 'red');
+});
+// Schutzklappe der roten Flagge: erst öffnen, dann drücken (schließt sich nach 5 s wieder)
+let coverTimer = null;
+function coverClose() {
+  clearTimeout(coverTimer);
+  $('redCover').parentElement.classList.remove('open');
+}
+$('redCover').addEventListener('click', () => {
+  $('redCover').parentElement.classList.add('open');
+  clearTimeout(coverTimer);
+  coverTimer = setTimeout(coverClose, 5000);
+});
 $('ctlCloseBtn').addEventListener('click', closeControl);
 
 document.querySelectorAll('.act[data-soon]').forEach(b => b.addEventListener('click', () => {
