@@ -1061,3 +1061,13 @@ body { background: var(--bg); }
 .alert.alert-ok { color: var(--st-green); border-color: var(--st-green); box-shadow: inset 4px 0 var(--st-green), 0 4px 14px rgba(0,0,0,.5); background: rgba(4,14,8,.92); }
 .alert.alert-ok .alert-go { color: var(--st-green); }
 .mon-label { left: auto; right: 8px; bottom: 38px; }
+
+/* Nach dem Rennen: Entscheidungen nacheinander */
+.post-sheet { max-width: 600px; }
+.post-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.post-progress { font: 700 11px var(--mono); letter-spacing: .1em; color: var(--st-yellow); white-space: nowrap; }
+.post-intro { margin: 4px 0 8px; }
+.post-steps { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.post-step { font: 700 10px var(--mono); letter-spacing: .08em; padding: 3px 7px; border: 1px solid var(--line); color: var(--muted); border-radius: 2px; }
+.post-step.now { color: var(--bg); background: var(--st-yellow); border-color: var(--st-yellow); }
+#postBody .case-head { cursor: default; }

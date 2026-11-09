@@ -205,6 +205,97 @@ export function sceneOffTrackPass(race, { A, B, corner, wheels }) {
   });
 }
 
+// ---------- Unsichere Freigabe in der Boxengasse ----------
+// Boxengasse liegt neben der Strecke: Fahrgasse und Arbeitsgasse vor den Garagen.
+export const PIT = { wall: HALF_W + 4, fast: HALF_W + 8, work: HALF_W + 12.5, garage: HALF_W + 16 };
+export function sceneUnsafeRelease(race, { A, B, box, side, gap, contact }) {
+  const vLim = 22.2;                 // 80 km/h
+  const tRel = 1.4;                  // Freigabe von A
+  const n = 61;
+  const fA = [], fB = [];
+  // A: steht in der Box, beschleunigt, zieht in die Fahrgasse
+  for (let i = 0; i < n; i++) {
+    const t = i * DT;
+    const tt = Math.max(0, t - tRel);
+    const v = Math.min(vLim, 6.5 * tt);
+    const sA = tt < vLim / 6.5 ? 0.5 * 6.5 * tt * tt : 0.5 * vLim * vLim / 6.5 + vLim * (tt - vLim / 6.5);
+    const latA = side * lerp(PIT.work, PIT.fast, smooth(sA / 10));
+    fA.push([sA, latA, tt === 0 ? -side * 0.35 : -side * 0.35 * (1 - smooth(sA / 10)), v]);
+  }
+  // B: kommt in der Fahrgasse; Abstand beim Einfädeln = gap Sekunden
+  const iJoin = fA.findIndex(f => f[0] >= 8);
+  const sB0 = fA[iJoin][0] - gap * vLim - (iJoin * DT) * vLim;
+  let sB = sB0, vB = vLim;
+  let contactI = -1;
+  for (let i = 0; i < n; i++) {
+    const ahead = fA[i][0] - sB;
+    const sameLane = Math.abs(fA[i][1] - side * PIT.fast) < 1.6;
+    if (sameLane && ahead > 0 && ahead < CAR_LEN + 6) {
+      // B muss bremsen – bei Berührung erst knapp danach
+      const minGap = contact && contactI < 0 ? CAR_LEN * 0.92 : CAR_LEN + 1.2;
+      if (ahead < minGap + 0.3 && contact && contactI < 0) contactI = i;
+      vB = Math.max(fA[i][3] * 0.9, vB - 9 * DT);
+      if (ahead - vB * DT < minGap) sB = fA[i][0] - minGap; else sB += vB * DT;
+    } else {
+      vB = Math.min(vLim, vB + 4 * DT);
+      sB += vB * DT;
+    }
+    const swerve = sameLane && ahead > 0 && ahead < 12 ? -side * 0.9 * (1 - ahead / 12) : 0;
+    fB.push([sB, side * PIT.fast + swerve, 0]);
+  }
+  for (const f of fA) f.length = 3;
+  return {
+    type: 'unsafeRelease', d0: box, turn: 1, corner: 'PIT', dt: DT, dur: (n - 1) * DT, pit: { side },
+    cars: [{ ...teamLook(A), f: fA }, { ...teamLook(B), f: fB }],
+    contact: contactI >= 0 ? contactI * DT : null,
+    overlay: { kind: 'release', t: iJoin * DT, a: 0, b: 1, label: 'Abstand beim Einfädeln' },
+  };
+}
+
+// ---------- Unsichere Rückkehr auf die Strecke ----------
+export function sceneUnsafeRejoin(race, { A, B, d0, cid, side, unsafe, v, contact }) {
+  const n = 61;
+  const vB = clamp(v, 25, 75);
+  const tGo = 1.2;                       // A fährt los
+  const fA = [], fB = [];
+  const off = side * (HALF_W + 7);       // Position neben der Strecke
+  const line = unsafe ? -side * 1.5 : side * (HALF_W - 1.5);   // unsicher: quer auf die Ideallinie
+  for (let i = 0; i < n; i++) {
+    const t = i * DT;
+    const tt = Math.max(0, t - tGo);
+    const vA = Math.min(unsafe ? 30 : 20, 7 * tt);
+    const sA = 0.5 * 7 * Math.min(tt, (unsafe ? 30 : 20) / 7) ** 2 + Math.max(0, tt - (unsafe ? 30 : 20) / 7) * (unsafe ? 30 : 20);
+    const k = smooth(sA / (unsafe ? 14 : 30));
+    const latA = lerp(off, line, k);
+    const ang = tt === 0 ? -side * 0.9 : -side * 0.9 * (1 - smooth(sA / (unsafe ? 16 : 24)));
+    fA.push([sA, latA, ang]);
+  }
+  // B: kommt mit Renntempo; Treffpunkt kurz nach der Rückkehr
+  const iMeet = Math.min(n - 1, Math.round((tGo + (unsafe ? 1.6 : 2.6)) / DT));
+  let sB = fA[iMeet][0] - CAR_LEN * (unsafe ? 0.6 : -3) - vB * iMeet * DT;
+  let vb = vB, contactI = -1, lat = -side * 1;
+  for (let i = 0; i < n; i++) {
+    const ahead = fA[i][0] - sB;
+    let target = -side * 1;
+    if (unsafe && ahead > -3 && ahead < 45) {
+      // B muss bremsen und auf die andere Seite ausweichen
+      vb = Math.max(vB * 0.5, vb - 22 * DT);
+      target = side * (HALF_W - 1.3);
+      if (contact && contactI < 0 && ahead < CAR_LEN && ahead > -1 && Math.abs(lat - fA[i][1]) < 2.3) contactI = i;
+    } else vb = Math.min(vB, vb + 6 * DT);
+    lat += clamp(target - lat, -0.45, 0.45);
+    sB += vb * DT;
+    fB.push([sB, lat, 0]);
+  }
+  separate(fA, fB, contactI >= 0 ? [contactI] : []);
+  return {
+    type: 'unsafeRejoin', d0, turn: side, corner: cid, dt: DT, dur: (n - 1) * DT,
+    cars: [{ ...teamLook(A), f: fA }, { ...teamLook(B), f: fB }],
+    contact: contactI >= 0 ? contactI * DT : null,
+    overlay: { kind: 'rejoin', t: iMeet * DT, a: 0, b: 1, label: 'Abstand bei der Rückkehr' },
+  };
+}
+
 // Position eines Autos zur Zeit t (interpoliert)
 export function sceneCarAt(scene, car, t) {
   const f = car.f;

@@ -1,6 +1,6 @@
 // Wiedergabe der Rennszenen (Draufsicht) in der Entscheidungskarte, im Vollbild und auf der Karte.
 import { pointAt, wrapD } from '../sim/trackModel.js';
-import { sceneCarAt, CAR_LEN, HALF_W } from '../sim/scenes.js';
+import { sceneCarAt, CAR_LEN, HALF_W, PIT } from '../sim/scenes.js';
 
 const UNIT = CAR_LEN / 63;   // Zeichen-Einheiten des Autos → Meter
 
@@ -101,7 +101,7 @@ export class ScenePlayer {
       this.last = now;
       if (this.hold > 0) this.hold -= dt;           // Standbild am Messzeitpunkt
       else if (this.playing) {
-        const ovT = this.sharp && this.scene.overlay && this.scene.overlay.kind === 'overlap' ? this.scene.overlay.t : null;
+        const ovT = this.sharp && this.scene.overlay && this.scene.overlay.t !== undefined ? this.scene.overlay.t : null;
         const before = this.t;
         this.t += dt * this.rate;
         if (ovT !== null && before < ovT && this.t >= ovT) { this.t = ovT; this.hold = 1.6; }
@@ -213,6 +213,16 @@ export class ScenePlayer {
       ctx.lineWidth = ro.width * k;
       ctx.stroke();
     }
+    // Boxengasse: Mauer, Fahrgasse, Arbeitsgasse, Garagen
+    if (scene.pit) {
+      const sd = scene.pit.side;
+      path(sd * (PIT.wall + 6.5)); ctx.strokeStyle = '#2f333a'; ctx.lineWidth = 13 * k; ctx.stroke();
+      path(sd * (PIT.garage + 3)); ctx.strokeStyle = '#3a3f48'; ctx.lineWidth = 6 * k; ctx.stroke();
+      ctx.setLineDash([3 * k, 2 * k]); ctx.strokeStyle = '#1b1e24'; ctx.lineWidth = 5.6 * k; ctx.stroke(); ctx.setLineDash([]);
+      path(sd * PIT.wall); ctx.strokeStyle = '#c8ced8'; ctx.lineWidth = Math.max(1.5, 0.8 * k); ctx.stroke();
+      path(sd * (PIT.fast + 2.2)); ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = Math.max(1, 0.18 * k);
+      ctx.setLineDash([2 * k, 1.5 * k]); ctx.stroke(); ctx.setLineDash([]);
+    }
     // Asphalt, weiße Linien
     path(0); ctx.strokeStyle = '#2b2f37'; ctx.lineWidth = HALF_W * 2 * k; ctx.stroke();
     ctx.strokeStyle = '#e8e8e8'; ctx.lineWidth = Math.max(1, 0.25 * k);
@@ -281,6 +291,25 @@ export class ScenePlayer {
       ctx.fillRect(bx, by, w, 20 * dpr);
       ctx.fillStyle = '#ffd12e';
       ctx.fillText(txt, bx + 6 * dpr, by + 14 * dpr);
+    } else if (ov.kind === 'release' || ov.kind === 'rejoin') {
+      if (Math.abs(this.t - ov.t) > 0.25) return;
+      const A = carPose(track, scene, scene.cars[ov.a], this.t), B = carPose(track, scene, scene.cars[ov.b], this.t);
+      const B2 = carPose(track, scene, scene.cars[ov.b], Math.max(0, this.t - 0.2));
+      const vB = Math.max(1, (B.s - B2.s) / 0.2);
+      const gapM = (A.s - CAR_LEN / 2) - (B.s + CAR_LEN / 2);
+      const [x1, y1] = P(B.s + CAR_LEN / 2, B.lat), [x2, y2] = P(A.s - CAR_LEN / 2, B.lat);
+      ctx.strokeStyle = '#ffd12e'; ctx.lineWidth = 2 * dpr; ctx.setLineDash([5 * dpr, 3 * dpr]);
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.setLineDash([]);
+      const bId = scene.cars[ov.b].id;
+      const passed = B.s > A.s + 1;
+      const txt = passed ? `${ov.label}: ${bId} ist bereits vorbei`
+        : gapM <= 0.3 ? `${ov.label}: Berührung / überlappend`
+          : `${ov.label}: ${gapM.toFixed(1).replace('.', ',')} m ≈ ${(gapM / vB).toFixed(2).replace('.', ',')} s`;
+      ctx.fillStyle = 'rgba(0,0,0,.65)';
+      const w = ctx.measureText(txt).width + 12 * dpr;
+      ctx.fillRect(6 * dpr, 26 * dpr, w, 20 * dpr);
+      ctx.fillStyle = '#ffd12e';
+      ctx.fillText(txt, 12 * dpr, 40 * dpr);
     } else if (ov.kind === 'edge') {
       const car = scene.cars[ov.a];
       let maxOut = 0, side = 1;

@@ -156,7 +156,7 @@
       <button id="startBtn" class="primary-btn">Rennen starten</button>
       <button id="seasonBtn" class="secondary-btn season-btn hidden">🏆 Saison-Übersicht</button>
       <div id="history" class="history"></div>
-      <div class="app-version">Version 21</div>
+      <div class="app-version">Version 22</div>
       <details class="options">
         <summary>Optionen</summary>
         <label id="trackLabel">Strecke (Einzelrennen)
@@ -238,6 +238,17 @@
     </div>
   </div>
 
+  <div id="postScreen" class="overlay hidden">
+    <div class="sheet post-sheet">
+      <div class="post-head">
+        <h2 class="sheet-title">POST-RACE · STEWARDS</h2>
+        <div id="postProgress" class="post-progress"></div>
+      </div>
+      <p class="ctl-small post-intro">Vor dem Ergebnis: offene Entscheidungen und Anhörungen nacheinander abarbeiten, danach die technische Abnahme.</p>
+      <div id="postSteps" class="post-steps"></div>
+      <div id="postBody"></div>
+    </div>
+  </div>
   <div id="resultScreen" class="overlay hidden">
     <div class="sheet">
       <h2 id="resultTitle" class="sheet-title">🏁 Rennergebnis</h2>

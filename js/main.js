@@ -148,8 +148,7 @@ const controlPanel = new ControlPanel({
   },
 });
 
-const casesPanel = new CasesPanel($('cases'), {
-  onAction: (act, id, form) => {
+function caseAction(act, id, form) {
     const c = id ? race.cases.find(x => x.id === id) : null;
     if (act === 'scene-full') { openSceneFull(c, form.t); return; }
     if (act === 'scene-map') { startMapReplay(c); return; }
@@ -159,12 +158,15 @@ const casesPanel = new CasesPanel($('cases'), {
     else if (act === 'nfa') noFurtherAction(race, c);
     else if (act === 'post') postpone(race, c);
     else if (act === 'decide') decide(race, c, { carId: form.carId, penalty: form.penalty || 'none', points: form.points });
-    else if (act === 'results') { showResults(); return; }
+    else if (act === 'results') { finishFlow(); return; }
     casesPanel.render(race);
     updateCasesBadge();
     if (act !== 'render') { renderTiming($('timing'), race, timingOpts()); autosave(); }
-  },
-});
+    if (postOpen()) renderPost(act === 'render');
+}
+const casesPanel = new CasesPanel($('cases'), { onAction: caseAction });
+// Nach dem Rennen: offene Entscheidungen einzeln abarbeiten
+const postPanel = new CasesPanel($('postBody'), { onAction: caseAction, single: true });
 
 let race = null;
 let savedRace = null;   // gespeichertes Rennen, das fortgesetzt werden kann
@@ -542,7 +544,7 @@ function frame(now) {
       refreshUi();
       const added = feed.update(race.events);
       if (added && activeTab !== 'feed') { unread += added; updateBadge(); }
-      if (race.phase === 'finished' && !resultShown) showResults();
+      if (race.phase === 'finished' && !resultShown) finishFlow();
     }
   }
   requestAnimationFrame(frame);
@@ -1039,14 +1041,14 @@ function scrutinyHtml() {
     </details>`;
 }
 
-$('resultBody').addEventListener('click', e => {
+function scrutinyClick(e) {
   const pick = e.target.closest('[data-scr-pick]');
   if (pick) {
     const id = pick.dataset.scrPick;
     if (scrutinyPick.has(id)) scrutinyPick.delete(id);
     else if (scrutinyPick.size < EXTRA_CHECKS) scrutinyPick.add(id);
     else toast(`Höchstens ${EXTRA_CHECKS} zusätzliche Autos`);
-    showResults();
+    if (postOpen()) renderPost(); else showResults();
     return;
   }
   if (e.target.closest('[data-scr-run]')) {
@@ -1054,10 +1056,64 @@ $('resultBody').addEventListener('click', e => {
     scrutinyPick = new Set();
     seenCases = race.cases.length;
     updateCasesBadge();
-    toast(created.length ? `Technische Abnahme: ${created.length} Auffälligkeit${created.length > 1 ? 'en' : ''} – siehe Entscheidungen` : 'Technische Abnahme: alles in Ordnung');
-    showResults();
+    autosave();
+    toast(created.length ? `Technische Abnahme: ${created.length} Auffälligkeit${created.length > 1 ? 'en' : ''}` : 'Technische Abnahme: alles in Ordnung');
+    if (postOpen()) renderPost(); else showResults();
   }
-});
+}
+$('resultBody').addEventListener('click', scrutinyClick);
+$('postBody').addEventListener('click', scrutinyClick);
+
+// ---------- Nach dem Rennen: Anhörungen, offene Entscheidungen, technische Abnahme ----------
+// Kommt automatisch vor dem Ergebnis. Es wird immer nur das Nächste gezeigt.
+let postDone = [];
+function postOpen() { return !$('postScreen').classList.contains('hidden'); }
+function postPending() {
+  return openCases(race).length > 0 || Boolean(race.scrutiny && !race.scrutiny.done);
+}
+function finishFlow() {
+  resultShown = true;
+  closeFlags();
+  closeControl();
+  if (postPending()) { postDone = []; $('resultScreen').classList.add('hidden'); $('postScreen').classList.remove('hidden'); renderPost(); }
+  else showResults();
+}
+function renderPost(keepScroll = false) {
+  const open = openCases(race).sort((a, b) => a.id - b.id);
+  const cur = open[0];
+  const body = $('postBody');
+  if (cur) {
+    // Anhörung startet sofort – Fahrer sind bereits vorgeladen
+    if (cur.status === 'post') startHearing(race, cur);
+    if (postPanel.onlyId !== cur.id) {
+      if (postPanel.onlyId && !postDone.includes(postPanel.onlyId)) postDone.push(postPanel.onlyId);
+      postPanel.onlyId = cur.id;
+      postPanel.sig = '';
+      keepScroll = false;
+    }
+    const total = postDone.length + open.length;
+    $('postProgress').textContent = `ENTSCHEIDUNG ${postDone.length + 1} / ${total}`;
+    $('postSteps').innerHTML = open.map((c, i) => `<span class="post-step${i === 0 ? ' now' : ''}">DOC ${c.id}</span>`).join('')
+      + (race.scrutiny && !race.scrutiny.done ? '<span class="post-step">TECHNIK</span>' : '');
+    if (!body.querySelector('.case')) postPanel.sig = '';
+    postPanel.render(race);
+    if (!keepScroll) $('postScreen').querySelector('.sheet').scrollTop = 0;
+    return;
+  }
+  if (postPanel.onlyId && !postDone.includes(postPanel.onlyId)) postDone.push(postPanel.onlyId);
+  postPanel.onlyId = null;
+  if (race.scrutiny && !race.scrutiny.done) {
+    $('postProgress').textContent = 'TECHNISCHE ABNAHME';
+    $('postSteps').innerHTML = '<span class="post-step now">TECHNIK</span>';
+    for (const p of postPanel.players.values()) p.destroy();
+    postPanel.players.clear();
+    body.innerHTML = scrutinyHtml();
+    return;
+  }
+  // alles erledigt → Ergebnis
+  $('postScreen').classList.add('hidden');
+  showResults();
+}
 
 function formatMin(t) {
   t = Math.round(t);
@@ -1370,6 +1426,7 @@ document.querySelectorAll('.act[data-soon]').forEach(b => b.addEventListener('cl
 $('newRaceBtn').addEventListener('click', () => newRace());
 $('closeResultBtn').addEventListener('click', () => $('resultScreen').classList.add('hidden'));
 $('openCasesBtn').addEventListener('click', () => {
+  if (race && race.phase === 'finished') { $('resultScreen').classList.add('hidden'); finishFlow(); return; }
   $('resultScreen').classList.add('hidden');
   setCollapsed(false);
   setTab('cases');

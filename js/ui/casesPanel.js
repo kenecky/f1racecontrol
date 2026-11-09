@@ -19,9 +19,11 @@ const SESSION = { race: 'Rennen', sprint: 'Sprint', quali: 'Qualifying', sq: 'Sp
 const EV_ICON = { video: '🎥', telemetry: '📊', position: '📍', radio: '📻', data: '📋', hearing: '🗣️' };
 
 export class CasesPanel {
-  constructor(el, { onAction }) {
+  constructor(el, { onAction, single = false }) {
     this.el = el;
     this.onAction = onAction;
+    this.single = single;     // nur ein Fall (Nachbereitung nach dem Rennen), immer aufgeklappt
+    this.onlyId = null;
     this.open = new Set();
     this.forms = {};
     this.sig = '';
@@ -32,6 +34,7 @@ export class CasesPanel {
       const card = b.closest('.case');
       const id = card ? Number(card.dataset.id) : null;
       const act = b.dataset.act;
+      if (act === 'toggle' && this.single) return;
       if (act === 'toggle') {
         this.open.has(id) ? this.open.delete(id) : this.open.add(id);
         this.sig = '';
@@ -51,7 +54,7 @@ export class CasesPanel {
   render(race) {
     const finished = race.phase === 'finished';
     const sig = JSON.stringify([
-      finished, [...this.open], this.forms,
+      finished, [...this.open], this.forms, this.onlyId,
       race.cases.map(c => [c.id, c.status, c.evidence.length, c.verdict && c.verdict.penalty, c.hearing ? c.hearing.length : 0]),
     ]);
     if (sig === this.sig) return;
@@ -61,10 +64,12 @@ export class CasesPanel {
       this.el.innerHTML = `<div class="empty"><div class="empty-icon">⚖️</div>Noch keine Entscheidungen.<br>Vorfälle zwischen Fahrern und Regelverstöße erscheinen hier.</div>`;
       return;
     }
-    const head = finished
+    const head = finished && !this.single
       ? '<div class="cases-bar"><span>Rennen beendet</span><button class="pill-btn" data-act="results">Ergebnis anzeigen</button></div>'
       : '';
-    const list = [...race.cases].reverse().map(c => this.card(race, c, finished)).join('');
+    const cases = this.single ? race.cases.filter(c => c.id === this.onlyId) : [...race.cases].reverse();
+    if (this.single) this.open = new Set([this.onlyId]);
+    const list = cases.map(c => this.card(race, c, finished)).join('');
     const times = new Map([...this.players].map(([id, p]) => [id, { t: p.t, playing: p.playing }]));
     for (const p of this.players.values()) p.destroy();
     this.players.clear();
@@ -81,7 +86,7 @@ export class CasesPanel {
       const p = new ScenePlayer(box, {
         track: race.track, scene: c.scene, sharp: c.status !== 'new', t: prev ? prev.t : 0, autoplay: prev ? prev.playing : true,
         onFull: t => this.onAction('scene-full', id, { t }),
-        onMap: () => this.onAction('scene-map', id, {}),
+        onMap: this.single ? null : () => this.onAction('scene-map', id, {}),
       });
       this.players.set(id, p);
     }
@@ -151,17 +156,17 @@ export class CasesPanel {
     if (c.status === 'new') {
       return `
         <div class="case-actions">
-          <button class="ctl-btn ctl-sc" data-act="investigate">Untersuchen</button>
+          <button class="ctl-btn ctl-sc" data-act="investigate">UNDER INVESTIGATION</button>
           <div class="case-actions-row">
-            <button class="ctl-btn ctl-ghost" data-act="nfa">Keine Untersuchung</button>
-            ${finished ? '' : '<button class="ctl-btn ctl-ghost" data-act="post">Nach dem Rennen</button>'}
+            <button class="ctl-btn ctl-ghost" data-act="nfa">NO FURTHER ACTION</button>
+            ${finished ? '' : '<button class="ctl-btn ctl-ghost" data-act="post">AFTER THE RACE</button>'}
           </div>
         </div>`;
     }
     if (c.status === 'post' && !finished) {
       return `
         <p class="ctl-small">Nach dem Rennen werden die beteiligten Fahrer zur Anhörung vorgeladen. Erst danach wird entschieden.</p>
-        <button class="ctl-btn ctl-ghost" data-act="investigate-now">Doch jetzt untersuchen</button>`;
+        <button class="ctl-btn ctl-ghost" data-act="investigate-now">INVESTIGATE NOW</button>`;
     }
     if (c.status === 'post') {
       return `
@@ -185,8 +190,8 @@ export class CasesPanel {
         <div class="vf-label">Verantwortlich</div><div class="chips">${cars}</div>
         ${f.carId ? `<div class="vf-label">Strafe</div><div class="chips">${pens}</div>
         <div class="vf-label">Strafpunkte (Superlizenz)</div><div class="chips">${pts}</div>` : ''}
-        <button class="ctl-btn ctl-red" data-act="decide" ${ready ? '' : 'disabled'}>Urteil verkünden</button>
-        ${c.status === 'investigating' && !finished ? '<button class="ctl-btn ctl-ghost" data-act="post">Nach dem Rennen entscheiden</button>' : ''}
+        <button class="ctl-btn ctl-red" data-act="decide" ${ready ? '' : 'disabled'}>ISSUE DECISION</button>
+        ${c.status === 'investigating' && !finished ? '<button class="ctl-btn ctl-ghost" data-act="post">DECIDE AFTER THE RACE</button>' : ''}
       </div>`;
   }
 }

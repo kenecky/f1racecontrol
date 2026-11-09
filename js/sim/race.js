@@ -8,7 +8,7 @@ import {
 } from './hazards.js';
 import {
   rollBattleIncident, onGiveBackDone, rollTrackLimits, rollPitSpeeding, rollUnsafeRelease,
-  createYellowPassCase, rollVscDelta, rollPileup, checkPileup, createIgnoredOrderCase,
+  createYellowPassCase, rollVscDelta, rollPileup, checkPileup, createIgnoredOrderCase, rollUnsafeRejoin,
 } from './incidents.js';
 import { unservedSecs } from '../control/stewards.js';
 import {
@@ -265,7 +265,11 @@ export class Race {
       if (car.redQueued || car.pitHold) { car.v = 0; continue; }
       if (car.offTrack) {
         car.v = 0;
-        if (this.time >= car.offTrack.until) endOffTrack(this, car);
+        if (this.time >= car.offTrack.until) {
+          const side = car.offTrack.lateral;
+          endOffTrack(this, car);
+          if (!car.retired) rollUnsafeRejoin(this, car, { side });
+        }
         continue;
       }
       if (car.stopTimer > 0) {

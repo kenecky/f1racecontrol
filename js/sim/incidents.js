@@ -4,7 +4,7 @@
 import { startSpin, stopCarAfterIncident, createDebris, cornerNear, cornerLabel, createHazard, retireCar } from './hazards.js';
 import { sectorIndexAt, wrapD } from './trackModel.js';
 import { aggressionOf, errorsOf } from './race.js';
-import { sceneCollision, sceneForcedOff, sceneOffTrackPass } from './scenes.js';
+import { sceneCollision, sceneForcedOff, sceneOffTrackPass, sceneUnsafeRelease, sceneUnsafeRejoin } from './scenes.js';
 
 export const CASE_TYPES = {
   collision:     { name: 'Kollision',                     options: ['warning', '5s', '10s', 'dt', 'sg', 'grid3', 'grid5', 'grid10', 'dsq'] },
@@ -15,6 +15,7 @@ export const CASE_TYPES = {
   trackLimits:   { name: 'Track Limits',                  options: ['warning', 'bw', '5s', '10s'] },
   pitSpeeding:   { name: 'Zu schnell in der Boxengasse',  options: ['warning', '5s', '10s', 'dt'] },
   unsafeRelease: { name: 'Unsichere Boxenfreigabe',       options: ['warning', '5s', '10s'] },
+  unsafeRejoin:  { name: 'Unsichere Rückkehr auf die Strecke', options: ['warning', '5s', '10s', 'dt'] },
   yellowPass:    { name: 'Überholen unter Gelb',          options: ['warning', '5s', '10s', 'dt', 'sg', 'grid3', 'grid5'] },
   vscDelta:      { name: 'VSC-Delta unterschritten',      options: ['warning', '5s', '10s', 'dt'] },
   ignoredOrder:  { name: 'Anordnung nicht befolgt',       options: ['warning', '5s', '10s', 'dt', 'sg', 'grid5', 'dsq'] },
@@ -334,19 +335,75 @@ export function rollUnsafeRelease(race, car) {
   if (!race.rng.chance(0.015)) return;
   const other = race.cars.find(c => c !== car && c.inPit && !c.retired && !c.redQueued);
   if (!other) return;
-  const contact = race.rng.chance(0.3);
-  createCase(race, {
+  const r = race.rng;
+  // Wahrheit: wirklich zu knapp losgelassen – oder hatte der andere genug Platz?
+  const unsafe = r.chance(0.7);
+  const contact = unsafe && r.chance(0.35);
+  const gap = unsafe ? (contact ? r.range(0.05, 0.25) : r.range(0.25, 0.6)) : r.range(0.75, 1.4);   // Sekunden beim Einfädeln
+  const lift = measure(race, unsafe ? (contact ? 24 : 16) : 6, 5, 0, 40);
+  const gapSeen = measure(race, gap, 0.18, 0.02, 2);
+  const c = createCase(race, {
     type: 'unsafeRelease', cars: [car.id, other.id],
-    title: `Unsichere Freigabe ${car.id}`,
-    summary: `${car.team.name} schickt ${car.id} vor ${other.id} in die Fahrgasse.`,
+    title: `Unsichere Freigabe ${car.id}?`,
+    summary: `${car.team.name} schickt ${car.id} aus der Box, während ${other.id} in der Fahrgasse kommt.`,
     evidence: [
       ev('video', 'Boxengassen-Kamera', contact
-        ? `${car.id} wird direkt vor ${other.id} losgelassen – leichte Berührung der Räder.`
-        : `${car.id} wird vor ${other.id} losgelassen, ${other.id} muss abbremsen.`, true),
-      ev('data', 'Geschwindigkeit', `${other.id} verliert ${Math.round(race.rng.range(8, 25))} km/h.`),
+        ? `${car.id} fährt direkt vor ${other.id} in die Fahrgasse – Berührung der Räder.`
+        : `${car.id} fährt vor ${other.id} in die Fahrgasse.${tvImpression(race,
+          unsafe ? `${other.id} muss deutlich vom Gas.` : `${other.id} scheint genug Platz zu haben.`,
+          unsafe ? `${other.id} scheint genug Platz zu haben.` : `${other.id} muss deutlich vom Gas.`)}`, true),
+      ev('data', 'Abstand beim Einfädeln', `${f1(gapSeen)} s zwischen ${other.id} und ${car.id} (Messung Boxengasse).`),
+      ev('telemetry', `Telemetrie ${other.id}`, `${other.id} verliert ${Math.round(lift)} km/h.`),
+      ev('radio', `Teamfunk ${other.team.name}`, unsafe ? '„Unsafe Release! Die haben ihn direkt vor uns rausgelassen!“' : '„Das war knapp, oder?“'),
+      ev('data', 'Leitlinie', 'Ein Auto darf nur freigegeben werden, wenn es sicher in die Fahrgasse einfädeln kann. Muss ein anderes Auto deutlich bremsen oder kommt es zur Berührung, ist das eine unsichere Freigabe (üblich: 5 s, mit Berührung auch 10 s).'),
     ],
-    truth: { offender: car.id, expected: contact ? ['5s', '10s'] : ['warning', '5s'], points: [0, 0], victim: other.id },
+    truth: unsafe
+      ? { offender: car.id, expected: contact ? ['5s', '10s'] : ['warning', '5s'], points: [0, 0], victim: other.id }
+      : { offender: null, expected: ['none'], points: [0, 0], victim: other.id },
   });
+  c.scene = sceneUnsafeRelease(race, { A: car, B: other, box: race.track.pit.box, side: race.track.pit.side || 1, gap, contact });
+}
+
+// Rückkehr nach einem Ausritt: schneidet der Fahrer jemandem den Weg ab?
+export function rollUnsafeRejoin(race, car, h) {
+  if (race.neutral || race.phase !== 'running' || race.isSession) return;
+  const tr = race.track;
+  const behind = race.onTrackCars()
+    .filter(c => c !== car)
+    .map(c => ({ c, gap: wrapD(tr, car.d - c.d) }))
+    .filter(x => x.gap > 5 && x.gap < 160)
+    .sort((a, b) => a.gap - b.gap)[0];
+  if (!behind) return;
+  const r = race.rng;
+  if (!r.chance(0.3 * (race.incScale || 1))) return;
+  const B = behind.c;
+  const unsafe = r.chance(0.6);
+  const contact = unsafe && r.chance(0.25);
+  const side = Math.sign(car.offTrack ? car.offTrack.lateral : (h && h.side) || 1) || 1;
+  const corner = cornerNear(tr, car.d);
+  const lift = measure(race, unsafe ? 42 : 12, 12, 0, 90);
+  const angle = measure(race, unsafe ? 28 : 12, 7, 2, 60);
+  if (contact) { B.damage = r.chance(0.5) ? 'wing' : 'puncture'; }
+  const c = createCase(race, {
+    type: 'unsafeRejoin', cars: [car.id, B.id], corner: corner.id,
+    title: `Unsichere Rückkehr ${car.id}? – ${corner.id}`,
+    summary: `${car.id} fährt nach dem Ausritt in ${cornerLabel(corner)} zurück auf die Strecke, ${B.id} kommt von hinten.`,
+    evidence: [
+      ev('video', 'TV-Bilder', `${car.id} kommt aus dem Auslauf zurück, ${B.id} ist ${contact ? 'nicht mehr ausgewichen – leichte Berührung' : 'dicht dahinter'}.${tvImpression(race,
+        unsafe ? `${car.id} zieht quer über die Ideallinie.` : `${car.id} bleibt am Rand, bis ${B.id} vorbei ist.`,
+        unsafe ? `${car.id} bleibt am Rand, bis ${B.id} vorbei ist.` : `${car.id} zieht quer über die Ideallinie.`)}`, true),
+      ev('telemetry', `Telemetrie ${B.id}`, `${B.id} verliert ${Math.round(lift)} km/h, Lenkkorrektur ${f1(measure(race, unsafe ? 4 : 1.5, 1.4, 0, 10))}°.`),
+      ev('position', 'Winkel beim Auffahren', `${car.id} fährt in einem Winkel von etwa ${Math.round(angle)}° auf die Strecke.`),
+      ev('radio', `Funk ${B.id}`, unsafe ? `„${car.id} ist mir direkt vors Auto gefahren!“` : '„Der kam da plötzlich raus.“'),
+      ev('radio', `Funk ${car.id}`, '„Ich habe in den Spiegel geschaut, da war genug Platz.“'),
+      ev('data', 'Leitlinie', 'Wer neben die Strecke gerät, muss sicher und ohne Vorteil zurückfahren. Wird ein anderer Fahrer behindert oder gefährdet, ist das eine unsichere Rückkehr (üblich: 5 oder 10 s, bei Unfall auch mehr).'),
+    ],
+    truth: unsafe
+      ? { offender: car.id, expected: contact ? ['10s', 'dt'] : ['5s', '10s'], points: contact ? [1, 2] : [0, 1], victim: B.id }
+      : { offender: null, expected: ['none'], points: [0, 0], victim: B.id },
+  });
+  c.scene = sceneUnsafeRejoin(race, { A: car, B, d0: wrapD(tr, car.d), cid: corner.id, side, unsafe, contact, v: Math.min(B.v || 50, 70) });
+  if (unsafe) B.slowUntil = race.time + 1.5;
 }
 
 // ---------- Neutralisierung ----------

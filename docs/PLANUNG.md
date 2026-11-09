@@ -473,3 +473,8 @@ Statusanzeige auf Englisch (TRACK GREEN, YELLOW S7, SAFETY CAR, RED FLAG …), R
 Race-Control-Messages (Uhrzeit, Kürzel, Großbuchstaben). Pult mit beleuchteten Tastern (leuchten bei aktiver
 Maßnahme), rote Flagge unter Schutzklappe, VSC/SC/Rot mit ARM → zweiter Druck löst aus.
 Menüs als Konsolen zwischen Karte und Pult. Entscheidungen als Stewards-Dokumente mit Exhibits und Stempel.
+
+### Nach dem Rennen (umgesetzt)
+Vor dem Ergebnis erscheint automatisch „POST-RACE · STEWARDS“: alle offenen Entscheidungen einzeln
+nacheinander (verschobene Fälle direkt als Anhörung), danach die technische Abnahme, dann das Ergebnis mit Bewertung.
+Neue Fälle mit Rennszene: unsichere Boxenfreigabe (jetzt auch mit „kein Vergehen“) und unsichere Rückkehr auf die Strecke.
