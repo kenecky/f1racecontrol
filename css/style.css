@@ -1119,3 +1119,5 @@ body { background: var(--bg); }
 #wxSlider { width: 100%; margin: 10px 0 6px; accent-color: var(--st-yellow); }
 .wx-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 11px; color: var(--muted); }
 .wx-legend i { display: inline-block; width: 12px; height: 12px; margin-right: 4px; vertical-align: -2px; border-radius: 2px; }
+.start-ctl { top: 8px; bottom: auto; white-space: nowrap; max-width: calc(100% - 186px); overflow: hidden; text-overflow: ellipsis; }
+.is-paused .start-ctl { top: 40px; }

@@ -713,8 +713,8 @@ function doStartLights() {
 
 function startCtlState() {
   if (!race || race.isSession || !race.preStart || race.phase === 'pre') return null;
-  if (race.phase === 'ready') return { cls: 'go', text: '🏁 Formationsrunde freigeben', act: 'formation' };
-  if (race.phase === 'formation' || race.phase === 'grid') return { cls: 'amber', text: '🚦 Startampel einschalten', act: 'lights' };
+  if (race.phase === 'ready') return { cls: 'go', text: '🏁 FORMATION FREIGEBEN', act: 'formation' };
+  if (race.phase === 'formation' || race.phase === 'grid') return { cls: 'amber', text: '🚦 AMPEL EINSCHALTEN', act: 'lights' };
   if (race.phase === 'lights') {
     if (race.lightsTimer < ALL_ON) {
       const n = race.lightsOn;
@@ -733,6 +733,9 @@ function updateStartCtl() {
   el.dataset.key = key;
   el.classList.toggle('hidden', !st);
   if (!st) return;
+  // nicht unter dem Warnbanner verschwinden
+  const al = $('alertBanner');
+  el.style.top = al.classList.contains('hidden') ? '' : `${al.offsetTop + al.offsetHeight + 6}px`;
   el.className = `start-ctl start-${st.cls}`;
   el.textContent = st.text;
   el.disabled = !st.act;
