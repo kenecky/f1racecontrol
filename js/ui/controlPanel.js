@@ -4,9 +4,13 @@ import { sectorIndexAt } from '../sim/trackModel.js';
 import { WARN_ICON } from './feed.js';
 import { hazardProgress, hazardWhere } from '../sim/hazards.js';
 
-const TITLES = { vsc: 'VIRTUAL SAFETY CAR', sc: 'SAFETY CAR', red: 'RED FLAG', start: 'START PROCEDURE' };
+const TITLES = {
+  vsc: 'VIRTUAL SAFETY CAR', sc: 'SAFETY CAR', red: 'RED FLAG', start: 'START PROCEDURE',
+  medical: 'MEDICAL CAR', sweeper: 'SWEEPER', crane: 'RECOVERY CRANE', pit: 'PIT LANE',
+};
 // Auslösende Aktionen brauchen zwei Drücke: ARM (scharf schalten) → DEPLOY
-const ARMED = new Set(['vsc-on', 'sc-on', 'red-on']);
+const ARMED = new Set(['vsc-on', 'sc-on', 'red-on', 'med-go', 'sweep-go', 'crane-go', 'pit-close']);
+const armKey = a => a.split(':')[0];
 
 function mmss(t) {
   t = Math.max(0, Math.floor(t));
@@ -22,11 +26,14 @@ export class ControlPanel {
     this.kind = null;
     this.sig = '';
     this.armed = null;
+    this.sel = {};          // gewählter Sektor je Konsole
     body.addEventListener('click', e => {
+      const pick = e.target.closest('[data-sec]');
+      if (pick) { this.sel[this.kind] = Number(pick.dataset.sec); this.sig = ''; this.render(this.lastRace); return; }
       const b = e.target.closest('[data-action]');
       if (!b || b.disabled) return;
       const a = b.dataset.action;
-      if (ARMED.has(a) && (!this.armed || this.armed.action !== a || performance.now() > this.armed.until)) {
+      if (ARMED.has(armKey(a)) && (!this.armed || this.armed.action !== a || performance.now() > this.armed.until)) {
         this.armed = { action: a, until: performance.now() + 4000 };
         this.sig = '';
         this.lastRace && this.render(this.lastRace);
@@ -80,7 +87,8 @@ export class ControlPanel {
       race.cars.filter(c => c.unlap).length, race.cars.filter(c => c.redQueued).length,
       active.map(h => Math.round(hazardProgress(h) * 50)), canRestart(race),
       race.phase, race.startIssue && race.startIssue.carId, race.startIssue && race.startIssue.released, race.laps,
-      this.armed && this.armed.action,
+      this.armed && this.armed.action, this.sel[kind],
+      race.svc && [!!race.svc.medical, race.svc.medical && race.svc.medical.phase, !!race.svc.sweeper, race.svc.cranes.map(c => c.sector), race.svc.pitClosed],
     ]);
     if (sig === this.sig) return;
     this.sig = sig;
@@ -136,6 +144,41 @@ export class ControlPanel {
       } else {
         html = '<p class="ctl-text">Nicht verfügbar während der roten Flagge.</p>';
       }
+    }
+
+    if (kind === 'medical' || kind === 'sweeper' || kind === 'crane') {
+      const sv = race.svc || { cranes: [] };
+      const needKey = { medical: 'medical', sweeper: 'needsSweeper', crane: 'needsCrane' }[kind];
+      const needSecs = new Set(race.hazards.filter(h => !h.ended && !h.global && h[needKey] && !(kind === 'medical' && h.medicalDone)).map(h => h.sector));
+      if (this.sel[kind] === undefined) this.sel[kind] = needSecs.size ? [...needSecs][0] : 0;
+      const sel = this.sel[kind];
+      const busy = new Set(kind === 'crane' ? sv.cranes.map(c => c.sector) : []);
+      const grid = race.track.sectors.map((sec, i) => `<button class="sec-pick${needSecs.has(i) ? ' need' : ''}${busy.has(i) ? ' busy' : ''}${i === sel ? ' sel' : ''}" data-sec="${i}">${i + 1}</button>`).join('');
+      const scNote = '<p class="ctl-small">Regel: Vorher muss das Safety Car (oder Rot) draußen sein. Sonst gibt es Abzug bei der Sicherheit.</p>';
+      sub = { medical: 'Zur Unfallstelle – Fahrer untersuchen', sweeper: 'Kies und Schmutz von der Fahrbahn räumen', crane: 'Steht im jeweiligen Streckenabschnitt bereit' }[kind];
+      html = `<div class="ctl-small">Sektor wählen (gelb = dort wird ${kind === 'medical' ? 'das Medical Car' : kind === 'sweeper' ? 'eine Kehrmaschine' : 'ein Kran'} gebraucht):</div><div class="sec-grid">${grid}</div>`;
+      if (kind === 'medical') {
+        const m = sv.medical;
+        html += m ? `<div class="ctl-status">Medical Car im Einsatz – ${m.phase === 'out' ? `unterwegs zu Sektor ${m.sector + 1}` : m.phase === 'onsite' ? `an der Unfallstelle in Sektor ${m.sector + 1}` : 'zurück zur Box'}</div>`
+          : `<button class="ctl-btn ctl-vsc" data-action="med-go:${sel}" ${running ? '' : 'disabled'}>MEDICAL CAR → SEKTOR ${sel + 1}</button>${scNote}`;
+      } else if (kind === 'sweeper') {
+        html += sv.sweeper ? `<div class="ctl-status">Kehrmaschine räumt Sektor ${sv.sweeper.sector + 1}</div>`
+          : `<button class="ctl-btn ctl-vsc" data-action="sweep-go:${sel}" ${running ? '' : 'disabled'}>KEHRMASCHINE → SEKTOR ${sel + 1}</button>${scNote}`;
+      } else {
+        html += busy.has(sel)
+          ? `<div class="ctl-status">Kran in Sektor ${sel + 1} im Einsatz</div><button class="ctl-btn ctl-ghost" data-action="crane-off:${sel}">KRAN ABZIEHEN</button>`
+          : `<button class="ctl-btn ctl-vsc" data-action="crane-go:${sel}" ${running ? '' : 'disabled'}>KRAN IN SEKTOR ${sel + 1} EINSETZEN</button>`;
+        html += '<p class="ctl-small">Ein Kran neben der Strecke braucht mindestens Doppelt Gelb in diesem Sektor (bei Nässe Safety Car). Ein Kran im falschen Sektor kostet Punkte.</p>';
+      }
+    }
+
+    if (kind === 'pit') {
+      const closed = race.svc && race.svc.pitClosed;
+      sub = 'Einfahrt in die Boxengasse sperren oder freigeben';
+      html = closed
+        ? `<div class="ctl-status">Boxengasse ist GESCHLOSSEN</div><button class="ctl-btn ctl-green" data-action="pit-open">BOXENGASSE ÖFFNEN</button>`
+        : `<div class="ctl-status">Boxengasse ist offen</div><button class="ctl-btn ctl-red" data-action="pit-close" ${running ? '' : 'disabled'}>BOXENGASSE SCHLIESSEN</button>`;
+      html += '<p class="ctl-small">Bei einem Unfall in der Boxengasse, an der Ein- oder Ausfahrt sofort schließen. Wer trotzdem hineinfährt, bekommt eine Entscheidung.</p>';
     }
 
     if (kind === 'start') {

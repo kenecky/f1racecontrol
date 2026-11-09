@@ -44,6 +44,14 @@ export function rateRace(race) {
     if (s.type === 'lights' && s.action === 'early') safety -= 40;   // Ampel, obwohl noch Autos fahren
   }
 
+  // Einsatzfahrzeuge: Regeln der Rennleitung
+  const svcLog = race.svc ? race.svc.log : [];
+  for (const e of svcLog) {
+    if (e.type === 'medicalNoSC' || e.type === 'sweeperNoSC') safety -= 10;
+    if (e.type === 'craneUnsafe') safety -= e.wet ? 15 : 10;
+  }
+  const svcWrong = svcLog.filter(e => e.type === 'craneWrong' || e.type === 'sweeperWrong').length;
+
   // Fairness
   let fairness = 100;
   for (const it of sr.items) {
@@ -72,7 +80,7 @@ export function rateRace(race) {
   // Lichter aus: üblich bis 3 s nach dem fünften Licht – länger macht die Fahrer nervös
   const lateLights = startLog.filter(s => s.type === 'lights' && s.action === 'out')
     .reduce((sum, s) => sum + (s.auto ? 25 : Math.min(25, Math.max(0, s.hold - 3) * 8)), 0);
-  const flow = 100 - fr.idleFlagTime / 10 - fr.neutral.idle / 6 - 8 * over - 10 * needless - lateLights;
+  const flow = 100 - 8 * svcWrong - fr.idleFlagTime / 10 - fr.neutral.idle / 6 - 8 * over - 10 * needless - lateLights;
 
   const scores = {
     safety: Math.round(clamp(safety, 0, 100)),
@@ -111,6 +119,12 @@ function buildVoices(race, fr, sr, scores, total, over) {
     } else if (it.verdict === 'lenient' && t.victim) {
       say(`Teamchef ${team(t.victim)}`, `„Bei Entscheidung #${c.id} kommt ${t.offender} viel zu billig davon.“`, 'neg');
     }
+  }
+  for (const e of race.svc ? race.svc.log : []) {
+    if (e.type === 'medicalNoSC') say('Fahrervereinigung (GPDA)', '„Das Medical Car fuhr ohne Safety Car auf die Strecke – das ist gegen die Regeln.“', 'neg');
+    if (e.type === 'sweeperNoSC') say('Fahrer', '„Eine Kehrmaschine auf der Strecke ohne Safety Car? Brandgefährlich.“', 'neg');
+    if (e.type === 'craneWrong') say('Presse', `„Der Bergungskran rückte in Sektor ${e.sector + 1} aus – dort war gar nichts.“`, 'neg');
+    if (e.type === 'craneUnsafe') say('Fahrervereinigung (GPDA)', `„Ein Kran neben der Strecke in Sektor ${e.sector + 1}${e.wet ? ' bei Regen' : ''} ohne ausreichende Absicherung – das darf nie wieder passieren.“`, 'neg');
   }
   for (const s of race.startLog || []) {
     if (s.action === 'released') {

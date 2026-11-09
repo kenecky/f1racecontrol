@@ -77,14 +77,35 @@
       </div>
     </main>
 
-    <footer class="actions">
-      <button id="flagBtn" class="act act-flag act-live"><i class="act-led"></i>FLAGS</button>
-      <button id="vscBtn" class="act act-vsc act-live"><i class="act-led"></i>VSC</button>
-      <button id="scBtn" class="act act-sc act-live"><i class="act-led"></i>SC</button>
-      <div class="act-cover-wrap">
-        <button id="redBtn" class="act act-red act-live"><i class="act-led"></i>RED</button>
-        <button id="redCover" class="act-cover" aria-label="Schutzklappe der roten Flagge öffnen"><span>LIFT COVER</span></button>
+    <!-- Kontrollpult: klappt über der Leiste auf -->
+    <div id="deck" class="deck hidden">
+      <div class="deck-title">RACE CONTROL · DESK</div>
+      <div class="deck-grid">
+        <button id="flagBtn" class="act act-flag act-live"><i class="act-led"></i>FLAGS</button>
+        <button id="vscBtn" class="act act-vsc act-live"><i class="act-led"></i>VSC</button>
+        <button id="scBtn" class="act act-sc act-live"><i class="act-led"></i>SC</button>
+        <div class="act-cover-wrap">
+          <button id="redBtn" class="act act-red act-live"><i class="act-led"></i>RED</button>
+          <button id="redCover" class="act-cover" aria-label="Schutzklappe der roten Flagge öffnen"><span>LIFT COVER</span></button>
+        </div>
+        <button id="medBtn" class="act act-med act-live"><i class="act-led"></i>MEDICAL</button>
+        <button id="sweepBtn" class="act act-svc act-live"><i class="act-led"></i>SWEEPER</button>
+        <button id="craneBtn" class="act act-svc act-live"><i class="act-led"></i>CRANE</button>
+        <button id="pitBtn" class="act act-pit act-live"><i class="act-led"></i>PIT LANE</button>
       </div>
+    </div>
+    <footer class="actions">
+      <button id="deckBtn" class="deck-btn" aria-expanded="false">
+        <span class="deck-lamps">
+          <span id="lampFlag" class="lamp-s"><i></i>FLAG</span>
+          <span id="lampVsc" class="lamp-s"><i></i>VSC</span>
+          <span id="lampSc" class="lamp-s"><i></i>SC</span>
+          <span id="lampRed" class="lamp-s"><i></i>RED</span>
+          <span id="lampMed" class="lamp-s"><i></i>MED</span>
+          <span id="lampPit" class="lamp-s"><i></i>PIT</span>
+        </span>
+        <span class="deck-open">CONTROL <b>▲</b></span>
+      </button>
     </footer>
   </div>
 
@@ -193,7 +214,7 @@
       <button id="startBtn" class="primary-btn">Rennen starten</button>
       <button id="seasonBtn" class="secondary-btn season-btn hidden">🏆 Saison-Übersicht</button>
       <div id="history" class="history"></div>
-      <div class="app-version">Version 26</div>
+      <div class="app-version">Version 27</div>
       <details class="options">
         <summary>Optionen</summary>
         <label>Rennen-Nr. (gleiche Nr. = gleiches Rennen)

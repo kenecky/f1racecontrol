@@ -1124,3 +1124,40 @@ body { background: var(--bg); }
 .sheet-head-x { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .x-btn { width: 36px; height: 36px; border: 1px solid #3a4352; border-radius: 2px; color: var(--text); font-size: 16px; background: transparent; flex: none; }
 .tw-row.out { cursor: default; }
+
+/* Kontrollpult (aufklappbar) */
+.actions { display: block; padding: 7px 8px calc(7px + var(--safe-bottom)); }
+.deck-btn { width: 100%; height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-radius: 5px;
+  background: #1b1f26; border: 2px solid #050607; box-shadow: inset 0 1px 0 #2c323b, 0 3px 0 #050607; color: #c8ced8; }
+.deck-lamps { display: flex; gap: 8px; flex: 1; flex-wrap: wrap; }
+.lamp-s { display: inline-flex; align-items: center; gap: 4px; font: 700 9.5px var(--mono); letter-spacing: .08em; color: #5f6878; }
+.lamp-s i { width: 9px; height: 9px; border-radius: 50%; background: #2b2f36; box-shadow: inset 0 0 2px #000; }
+.lamp-s.on { color: var(--text); }
+#lampFlag.on i { background: var(--st-yellow); box-shadow: 0 0 6px var(--st-yellow); }
+#lampVsc.on i { background: var(--st-amber); box-shadow: 0 0 6px var(--st-amber); }
+#lampSc.on i { background: var(--st-orange); box-shadow: 0 0 6px var(--st-orange); }
+#lampRed.on i { background: var(--st-red); box-shadow: 0 0 6px var(--st-red); animation: blink 1s steps(2) infinite; }
+#lampMed.on i { background: #60a5fa; box-shadow: 0 0 6px #60a5fa; }
+#lampPit.on i { background: var(--st-red); box-shadow: 0 0 6px var(--st-red); }
+.deck-open { font: 800 12px var(--mono); letter-spacing: .1em; white-space: nowrap; }
+.deck-btn[aria-expanded="true"] .deck-open b { display: inline-block; transform: rotate(180deg); }
+.deck { position: fixed; left: 0; right: 0; max-width: 600px; margin: 0 auto; z-index: 8; background: linear-gradient(#161a20, #0f1216);
+  border-top: 2px solid #050608; box-shadow: 0 -10px 24px rgba(0,0,0,.6); padding: 8px 8px 10px; animation: consoleIn .14s ease-out; }
+.deck-title { font: 600 9.5px var(--mono); letter-spacing: .14em; color: var(--muted); margin: 0 2px 8px; }
+.deck-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.deck-grid .act { height: 58px; font-size: 11.5px; }
+.act-med { color: #7fb2f0; } .act-med .act-led { background: #1c2c44; }
+.act-med.on { color: #93c5fd; border-color: #60a5fa; box-shadow: 0 0 12px rgba(96,165,250,.5), 0 3px 0 #050607; }
+.act-med.on .act-led { background: #60a5fa; box-shadow: 0 0 8px #60a5fa; }
+.act-svc { color: #b8c0cc; }
+.act-svc.on { color: #fff; border-color: #cbd5e1; box-shadow: 0 0 10px rgba(203,213,225,.35), 0 3px 0 #050607; }
+.act-svc.on .act-led { background: #e2e8f0; box-shadow: 0 0 8px #e2e8f0; }
+.act-pit { color: #d24a4a; }
+.act-pit.on { color: #fff; border-color: var(--st-red); box-shadow: 0 0 12px rgba(239,68,68,.5), 0 3px 0 #050607; }
+.act-pit.on .act-led { background: var(--st-red); box-shadow: 0 0 8px var(--st-red); }
+/* Sektorwahl in Konsolen */
+.sec-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin: 6px 0 10px; }
+.sec-pick { height: 40px; border: 1px solid #3a4352; border-radius: 2px; font: 700 12px var(--mono); color: #9aa4b2; position: relative; background: transparent; }
+.sec-pick.need { color: var(--st-yellow); border-color: rgba(250,204,21,.6); }
+.sec-pick.sel { background: var(--text); color: var(--bg); border-color: var(--text); }
+.sec-pick.busy::after { content: ''; position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 50%; background: #e2e8f0; }

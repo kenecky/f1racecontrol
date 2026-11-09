@@ -21,6 +21,7 @@ import { CasesPanel } from './ui/casesPanel.js';
 import { renderTower } from './ui/tower.js';
 import { ScenePlayer } from './ui/scenePlayer.js';
 import { Sound } from './ui/sound.js';
+import { deployMedical, deploySweeper, deployCrane, recallCrane, setPitClosed } from './sim/services.js';
 import { WeatherPanel } from './ui/weatherPanel.js';
 import { hazardProgress, hazardWhere } from './sim/hazards.js';
 import { weatherLabel } from './sim/weather.js';
@@ -158,10 +159,17 @@ const controlPanel = new ControlPanel({
       'restart-sc': () => restartRace(race, 'sc'),
       'restart-standing': () => restartRace(race, 'standing'),
       'start-abort': () => abortStart(race),
+      'med-go': n => deployMedical(race, n),
+      'sweep-go': n => deploySweeper(race, n),
+      'crane-go': n => deployCrane(race, n),
+      'crane-off': n => recallCrane(race, n),
+      'pit-close': () => setPitClosed(race, true),
+      'pit-open': () => setPitClosed(race, false),
       'start-lights': () => doStartLights(),
       'start-sc': () => startFromGridBehindSC(race),
     };
-    if (actions[action]) actions[action]();
+    const [name, arg] = action.split(':');
+    if (actions[name]) actions[name](arg !== undefined ? Number(arg) : undefined);
     controlPanel.sig = '';
     refreshUi();
   },
@@ -866,6 +874,18 @@ function updateStatus() {
   $('scBtn').classList.toggle('on', Boolean(n && n.type === 'sc'));
   $('redBtn').classList.toggle('on', Boolean(n && n.type === 'red'));
   $('flagBtn').classList.toggle('on', race.flags.some(f => f !== 'clear'));
+  const sv = race.svc || { cranes: [] };
+  $('medBtn').classList.toggle('on', Boolean(sv.medical));
+  $('sweepBtn').classList.toggle('on', Boolean(sv.sweeper));
+  $('craneBtn').classList.toggle('on', sv.cranes.length > 0);
+  $('pitBtn').classList.toggle('on', Boolean(sv.pitClosed));
+  const lamp = (id, on) => $(id).classList.toggle('on', Boolean(on));
+  lamp('lampFlag', race.flags.some(f => f !== 'clear'));
+  lamp('lampVsc', n && n.type === 'vsc');
+  lamp('lampSc', n && n.type === 'sc');
+  lamp('lampRed', n && n.type === 'red');
+  lamp('lampMed', sv.medical || sv.startMed);
+  lamp('lampPit', sv.pitClosed);
   [...lights.children].forEach((el, i) => el.classList.toggle('on', i < race.lightsOn));
 
   $('gapHead').textContent = settings.gapMode === 'interval' ? 'Intervall' : 'Abstand';
@@ -1566,6 +1586,27 @@ $('redCover').addEventListener('click', () => {
   coverTimer = setTimeout(coverClose, 5000);
 });
 $('ctlCloseBtn').addEventListener('click', closeControl);
+$('medBtn').addEventListener('click', () => openControl('medical'));
+$('sweepBtn').addEventListener('click', () => openControl('sweeper'));
+$('craneBtn').addEventListener('click', () => openControl('crane'));
+$('pitBtn').addEventListener('click', () => openControl('pit'));
+
+// Kontrollpult auf-/zuklappen; eine Konsole öffnen klappt es wieder zu
+function setDeck(open) {
+  const deck = $('deck');
+  if (open) {
+    deck.style.bottom = `${window.innerHeight - document.querySelector('.actions').getBoundingClientRect().top}px`;
+    closeFlags();
+    closeControl();
+  }
+  deck.classList.toggle('hidden', !open);
+  $('deckBtn').setAttribute('aria-expanded', String(open));
+}
+$('deckBtn').addEventListener('click', () => setDeck($('deck').classList.contains('hidden')));
+$('deck').addEventListener('click', e => {
+  const b = e.target.closest('.act');
+  if (b && b.id !== 'redCover') setTimeout(() => setDeck(false), 0);
+});
 
 document.querySelectorAll('.act[data-soon]').forEach(b => b.addEventListener('click', () => {
   toast(`${b.dataset.label}: kommt in Meilenstein ${b.dataset.soon}`);

@@ -533,6 +533,33 @@ export class TrackMap {
       }
     }
     this.drawSafetyCar(ctx, race);
+    this.drawServices(ctx, race);
+  }
+
+  // Einsatzfahrzeuge (nur sichtbar, solange im Einsatz)
+  drawServices(ctx, race) {
+    const s = race.svc;
+    if (!s) return;
+    const tag = (d, lat, text, bg, fg = '#000') => {
+      const [x, y] = this.pos(d, lat);
+      ctx.font = '900 8.5px system-ui, sans-serif';
+      const w = Math.max(18, ctx.measureText(text).width + 8), h = 12;
+      ctx.fillStyle = bg; ctx.strokeStyle = '#000'; ctx.lineWidth = 1.3;
+      ctx.beginPath(); ctx.roundRect(x - w / 2, y - h / 2, w, h, 3); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = fg; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(text, x, y + 0.5);
+    };
+    const pitLat = this.track.pit.side * PIT_OFFSET_PX * this.widthScale();
+    if (s.medical) tag(s.medical.d, 0, 'MED', '#e8ecf2', '#1d4ed8');
+    if (s.startMed && s.startMed.phase === 'go') tag(s.startMed.d, 0, 'MED', '#e8ecf2', '#1d4ed8');
+    if (s.sweeper) tag(s.sweeper.d, 0, 'SWEEP', '#9ca3af');
+    for (const c of s.cranes) tag(c.d, 13 * this.widthScale(), 'KRAN', '#facc15');
+    if (s.pitClosed) {
+      const [x, y] = this.pos(this.track.pit.entry, pitLat);
+      ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(x - 6, y - 6); ctx.lineTo(x + 6, y + 6); ctx.moveTo(x + 6, y - 6); ctx.lineTo(x - 6, y + 6); ctx.stroke();
+      tag(this.track.pit.entry, pitLat + 14, 'PIT CLOSED', '#ef4444', '#fff');
+    }
   }
 
   // Nasse Strecke (Glanz) und Regen

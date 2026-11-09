@@ -5,6 +5,7 @@ import { sectorIndexAt, wrapD } from './trackModel.js';
 import { neutralLevel } from './neutral.js';
 import { errorsOf } from './race.js';
 import { pickText } from './texts.js';
+import { craneIn } from './services.js';
 import { wetLoss, bestCompound } from './tyres.js';
 
 export const FLAG_FACTOR = { clear: 1, slippery: 0.97, yellow: 0.92, double: 0.8 };
@@ -151,6 +152,7 @@ export function endOffTrack(race, car) {
     retireCar(race, car, 'Im Kiesbett festgefahren', off.lateral);
     const exposed = race.rng.chance(0.5);
     h.type = 'stopped';
+    h.needsCrane = true;      // im Kies festgefahren
     h.need = exposed ? 'double' : 'yellow';
     h.work = h.workTotal = race.rng.range(70, 160);
     h.desc = `${car.id} steckt fest – ${exposed ? 'Auto steht ungeschützt direkt neben der Fahrbahn' : 'Auto steht weit im Auslauf'}`;
@@ -175,7 +177,7 @@ export function startFailure(race, car, formation = false) {
     double: 'ungeschützt direkt neben der Fahrbahn',
     vsc: 'quer am Streckenrand – der Bergungskran muss dafür auf die Strecke',
   }[need];
-  const h = createHazard(race, { type: 'stopped', carId: car.id, d: car.d, need, work: r.range(70, 170) });
+  const h = createHazard(race, { type: 'stopped', carId: car.id, d: car.d, need, work: r.range(70, 170), needsCrane: need !== 'yellow' && r.chance(0.7) });
   h.desc = `${car.id} hat ein Problem und stellt das Auto ab – ${where}`;
   race.emit('radio', `Funk ${car.id}: „${pickText(race, 'failureRadio')}“`, { cars: [car.id] });
   if (r.chance(0.5)) race.emit('radio', `Teamfunk ${car.team.name}: „${pickText(race, 'failureTeam')}“`, { cars: [car.id] });
@@ -242,7 +244,10 @@ function startCrash(race, car, corner) {
     need: barrier ? 'red' : 'sc',
     work: barrier ? r.range(360, 600) : r.range(150, 240),
     okAt: race.time + r.range(6, 12),
+    needsCrane: true,
+    medical: r.chance(0.55),
   });
+  h.medicalText = r.pick(['er ist in Ordnung', 'er steigt selbst aus und ist okay', 'er wird zur Vorsicht ins Medical Centre gebracht']);
   h.desc = barrier
     ? `Schwerer Unfall ${car.id} – Barriere stark beschädigt, muss repariert werden`
     : `Schwerer Unfall ${car.id} – Wrack und Trümmerfeld auf der Strecke`;
@@ -267,6 +272,7 @@ export function stopCarAfterIncident(race, car, reason) {
   retireCar(race, car, reason, (r.chance(0.5) ? 1 : -1) * 12);
   const h = createHazard(race, {
     type: 'stopped', carId: car.id, d: car.d, need: exposed ? 'double' : 'yellow', work: r.range(70, 160),
+    needsCrane: r.chance(0.6),
   });
   h.desc = `${car.id} steht nach dem Vorfall – ${exposed ? 'ungeschützt direkt neben der Fahrbahn' : 'sicher hinter der Leitplanke'}`;
   race.emit('marshal', `Sektor ${h.sector + 1}: ${car.id} kann nicht weiterfahren und steht in ${cornerLabel(h.corner)} – ${exposed ? 'ungeschützt direkt neben der Fahrbahn.' : 'sicher hinter der Leitplanke.'}`, { hazard: h.id, sector: h.sector, cars: [car.id] });
@@ -331,8 +337,22 @@ export function updateHazards(race, dt) {
       race.emit('marshal', `Sektor ${h.sector + 1}: ${text}`, { sector: h.sector });
     }
 
-    // Bergung
-    if (h.work !== null) h.work -= dt * WORK_RATE[h.need][resp];
+    // Bergung – manche Gefahren brauchen Kran, Kehrmaschine oder zuerst das Medical Car
+    let rate = WORK_RATE[h.need][resp];
+    const age = t - h.start;
+    if (h.needsCrane && !craneIn(race, h.sector)) {
+      rate *= 0.12;
+      if (!h.craneHint && age > 20) { h.craneHint = true; race.emit('marshal', `Sektor ${h.sector + 1}: Wir brauchen einen Bergungskran, das Auto lässt sich so nicht wegbringen.`, { sector: h.sector }); }
+    }
+    if (h.needsSweeper && !h.swept) {
+      if (h.work !== null && h.work < h.workTotal * 0.4) rate = 0;
+      if (!h.sweepHint && age > 20) { h.sweepHint = true; race.emit('marshal', `Sektor ${h.sector + 1}: Ohne Kehrmaschine bekommen wir das nicht sauber.`, { sector: h.sector }); }
+    }
+    if (h.medical && !h.medicalDone) {
+      if (h.work !== null && h.work < h.workTotal * 0.5) rate = 0;
+      if (!h.medHint && age > 12) { h.medHint = true; race.emit('marshal', `Sektor ${h.sector + 1}: Der Fahrer muss vom Medical Car untersucht werden.`, { sector: h.sector }); }
+    }
+    if (h.work !== null) h.work -= dt * rate;
     const done = h.endAt !== null ? t >= h.endAt : h.work !== null && h.work <= 0;
     if (done) {
       h.ended = true;

@@ -5,6 +5,7 @@ import { speedAt, wrapD, crossed } from './trackModel.js';
 import { updateHazards, startSpin, endOffTrack, startFailure, createHazard, retireCar } from './hazards.js';
 import { createJumpStartCase, createGridBoxCase } from './incidents.js';
 import { startBehindSC, trackNeutralUse } from './neutral.js';
+import { startLapMedical } from './services.js';
 
 const F_SPEED = 0.8;    // Tempo in der Formationsrunde (Anteil der Renngeschwindigkeit)
 const F_VMAX = 70;      // m/s (250 km/h)
@@ -321,6 +322,7 @@ function goGreen(race) {
   race.time = 0;
   race.phase = 'running';
   race.emit('start', 'Lichter aus – das Rennen ist gestartet!');
+  startLapMedical(race);     // Medical Car folgt dem Feld in der ersten Runde
   const issue = race.startIssue;
   race.startIssue = null;
   if (issue && issue.released) stalledAtStart(race, race.carById[issue.carId]);

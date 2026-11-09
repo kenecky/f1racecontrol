@@ -24,6 +24,7 @@ import { createWeather, updateWeather } from './weather.js';
 import { stepFormation, stepGrid, stepLights, releasePitStarters, stepRestart, PRESTART } from './start.js';
 import { prepareScrutiny } from './scrutiny.js';
 import { ambientRadio, T } from './texts.js';
+import { updateServices, svc } from './services.js';
 export { COMPOUNDS };
 
 // Vorsicht nach Strafen: weniger Risiko und Fehler, aber auch etwas langsamer (0 … 1)
@@ -371,6 +372,7 @@ export class Race {
     }
 
     afterMove(this, DT);
+    updateServices(this, DT);
     updateWeather(this, DT);
     ambientRadio(this, DT, () => this.chatRand());
     // Massenunfall: neue Führungsrunde → würfeln, dann an einer Gruppe auslösen
@@ -569,6 +571,8 @@ export class Race {
     if (!car.inPit && this.phase === 'running' && crossed(tr, prev, car.d, tr.pit.entry)) {
       const next = car.plan[car.planIdx];
       let decision = this.isSession ? this.sessionPitDecision(car) : pitDecision(this, car, next);
+      // Boxengasse geschlossen: nur Rot führt hinein
+      if (this.svc && this.svc.pitClosed && decision !== 'red') { car.pitWanted = true; decision = 'closed'; }
       if (decision === 'garage') {
         car.inPit = true;
         car.pass = null;
@@ -577,7 +581,8 @@ export class Race {
         decision = null;
       }
       const neutralNow = this.neutral && this.neutral.type !== 'red';
-      if (decision !== 'red' && car.serve.length && !neutralNow) decision = 'serve';
+      if (decision === 'closed') decision = null;
+      else if (decision !== 'red' && car.serve.length && !neutralNow) decision = 'serve';
       else if (decision !== 'red' && car.damage) decision = 'damage';
       else if (decision !== 'red' && car.weatherStop && car.lap < this.laps - 1) decision = 'weather';
       if (decision === 'serve') {

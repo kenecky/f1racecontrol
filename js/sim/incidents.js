@@ -295,7 +295,8 @@ export function rollTrackLimits(race, car) {
   if (race.neutral || race.phase !== 'running') return;
   const r = race.rng;
   if (!r.chance(0.012 * (errorsOf(car) / 28) * (race.incScale || 1))) return;
-  const corner = r.pick(['T9', 'T10', 'T10', 'T1', 'T6']);
+  const tlc = race.track.def.tlCorners || race.track.corners.slice(-3).map(c => c.id).concat(race.track.corners[0].id);
+  const corner = r.pick(tlc);
   car.tl = (car.tl || 0) + 1;
   car.tlLog = car.tlLog || [];
   car.tlLog.push(`Runde ${car.lap}, ${corner}`);
@@ -521,7 +522,9 @@ function startPileup(race, cars) {
     type: 'crash', carId: A.id, carIds: out, d: A.d,
     need: barrier ? 'red' : 'sc',
     work: barrier ? r.range(420, 660) : r.range(200, 300),
+    needsCrane: true, medical: true,
   });
+  h.medicalText = r.pick(['alle Fahrer sind in Ordnung', 'alle Beteiligten sind okay, einer wird zur Kontrolle ins Medical Centre gebracht']);
   const names = cars.map(c => c.id).join(', ');
   h.desc = `Massenunfall mit ${cars.length} Autos (${names})${barrier ? ' – Barriere beschädigt' : ' – großes Trümmerfeld'}`;
   race.emit('marshal', `Sektor ${h.sector + 1}: MASSENUNFALL in ${cornerLabel(corner)}! Beteiligt: ${names}. Ausgeschieden: ${out.join(', ')}.${barrier ? ' Die Barriere ist beschädigt.' : ' Trümmer auf der gesamten Fahrbahn.'}`, { hazard: h.id, sector: h.sector, cars: cars.map(c => c.id) });
