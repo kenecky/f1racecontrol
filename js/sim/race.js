@@ -26,6 +26,7 @@ import { prepareScrutiny } from './scrutiny.js';
 import { ambientRadio, T } from './texts.js';
 import { updateServices, svc } from './services.js';
 import { rollRaceEvents, updateEvents, rollLooseWheel } from './events.js';
+import { rollBlueFlag, rollNeutralCases, rollChicaneCut, rollPitLine, rollPitClosedEntry } from './cases2.js';
 export { COMPOUNDS };
 
 // Vorsicht nach Strafen: weniger Risiko und Fehler, aber auch etwas langsamer (0 … 1)
@@ -375,6 +376,7 @@ export class Race {
     afterMove(this, DT);
     updateServices(this, DT);
     updateEvents(this, DT);
+    rollNeutralCases(this, DT);
     updateWeather(this, DT);
     ambientRadio(this, DT, () => this.chatRand());
     // Massenunfall: neue Führungsrunde → würfeln, dann an einer Gruppe auslösen
@@ -435,6 +437,7 @@ export class Race {
         if (lapping && !underYellow && !banned) {
           // Überrundung: blaue Flagge, Hinterbänkler macht Platz
           this.startPass(B, A, { blue: true });
+          rollBlueFlag(this, A, B);
           if (!this.isSession && this.chatRand() < 0.04) this.emit('radio', `Funk ${B.id}: „${this.chatPick('blueFlag')}“`, { cars: [B.id] });
           continue;
         }
@@ -574,7 +577,7 @@ export class Race {
       const next = car.plan[car.planIdx];
       let decision = this.isSession ? this.sessionPitDecision(car) : pitDecision(this, car, next);
       // Boxengasse geschlossen: nur Rot führt hinein
-      if (this.svc && this.svc.pitClosed && decision !== 'red') { car.pitWanted = true; decision = 'closed'; }
+      if (this.svc && this.svc.pitClosed && decision !== 'red' && !rollPitClosedEntry(this, car)) { car.pitWanted = true; decision = 'closed'; }
       if (decision === 'garage') {
         car.inPit = true;
         car.pass = null;
@@ -651,7 +654,7 @@ export class Race {
           this.emit('rc', `${car.id} hat die Durchfahrtsstrafe abgesessen.`, { cars: [car.id] });
           car.serving = null;
         }
-        if (!car.redBound && !car.pitStart) rollPitSpeeding(this, car);
+        if (!car.redBound && !car.pitStart) { rollPitSpeeding(this, car); rollPitLine(this, car, true); }
         car.pitStart = false;
       }
     }
@@ -702,6 +705,7 @@ export class Race {
       } else {
         rollLapIncidents(this, car);
         rollTrackLimits(this, car);
+        rollChicaneCut(this, car);
         this.weatherTyreDecision(car);
       }
     }

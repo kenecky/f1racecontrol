@@ -2,6 +2,7 @@
 import { speedAt, wrapD, crossed, sectorIndexAt } from './trackModel.js';
 import { COMPOUNDS, bestCompound } from './tyres.js';
 import { beginRestartFormation } from './start.js';
+import { rollRestartCase, rollRedWork } from './cases2.js';
 
 export const VSC_FACTOR = 0.62;   // Delta-Tempo unter VSC (Anteil der Renngeschwindigkeit)
 const SC_SPEED = 0.6;             // Tempo des Safety Cars
@@ -285,6 +286,8 @@ export function afterMove(race, dt) {
         n.headId = head.id;
         for (const c of race.cars) if (!c.retired && !c.finished) c.restartHold = true;
         race.emit('rc', `Neustart! ${head.id} gibt Gas – Überholen erst nach der Ziellinie`);
+        const st = race.standings().filter(c => !c.retired && !c.finished && !c.inPit);
+        rollRestartCase(race, head, st[st.indexOf(head) + 1]);
       }
     }
   }
@@ -336,6 +339,7 @@ export function enterPitUnderRed(race, car) {
 // In der Warteschlange angekommen: freier Reifenwechsel
 export function arriveInQueue(race, car) {
   car.redQueued = true;
+  rollRedWork(race, car);
   car.v = 0;
   const remaining = (race.laps - car.lap) * (race.wear || 1);   // Reifenverschleiß bis ins Ziel
   const used = car.usedCompounds;

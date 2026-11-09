@@ -5,6 +5,7 @@ import { startSpin, stopCarAfterIncident, createDebris, cornerNear, cornerLabel,
 import { sectorIndexAt, wrapD } from './trackModel.js';
 import { aggressionOf, errorsOf } from './race.js';
 import { markWingDamage } from './events.js';
+import { rollDefending } from './cases2.js';
 import { sceneCollision, sceneForcedOff, sceneOffTrackPass, sceneUnsafeRelease, sceneUnsafeRejoin, scenePileup } from './scenes.js';
 
 export const CASE_TYPES = {
@@ -22,6 +23,19 @@ export const CASE_TYPES = {
   ignoredOrder:  { name: 'Anordnung nicht befolgt',       options: ['warning', '5s', '10s', 'dt', 'sg', 'grid5', 'dsq'] },
   tlLap:         { name: 'Track Limits (Rundenzeit)',     options: ['deleteLap'] },
   impeding:      { name: 'Behinderung',                   options: ['warning', 'grid3', 'grid5', 'grid10'] },
+  blueFlag:      { name: 'Blaue Flaggen missachtet',       options: ['warning', '5s', '10s', 'dt'] },
+  weaving:       { name: 'Mehrfacher Richtungswechsel',    options: ['warning', 'bw', '5s', '10s'] },
+  brakeTest:     { name: 'Bremstest',                       options: ['warning', '5s', '10s', 'dt', 'grid3', 'grid5'] },
+  scContact:     { name: 'Berührung hinter dem Safety Car', options: ['warning', '5s', '10s', 'dt'] },
+  neutralPass:   { name: 'Überholen unter SC/VSC',          options: ['warning', 'giveback', '5s', '10s'] },
+  scGap:         { name: 'Zu großer Abstand zum Safety Car', options: ['warning', '5s', '10s'] },
+  restartIrreg:  { name: 'Unregelmäßiger Neustart',         options: ['warning', '5s', '10s'] },
+  chicaneCut:    { name: 'Schikane abgekürzt',              options: ['warning', 'giveback', '5s', '10s'] },
+  unsafeParking: { name: 'Auto unsicher abgestellt',        options: ['warning', 'grid3', 'grid5'] },
+  pitLine:       { name: 'Linie an der Boxengasse überfahren', options: ['warning', '5s', '10s'] },
+  pitClosedEntry: { name: 'Einfahrt in die geschlossene Boxengasse', options: ['warning', '10s', 'dt', 'sg'] },
+  redWork:       { name: 'Unerlaubte Arbeiten unter Rot',   options: ['warning', '10s', 'dt', 'sg'] },
+  pitQueue:      { name: 'Behinderung in der Boxengasse',   options: ['warning', 'grid3', 'grid5'] },
   yellowIgnored: { name: 'Gelb missachtet',               options: ['warning', '5s', '10s', 'dt', 'grid3', 'grid5'] },
   jumpStart:     { name: 'Fehlstart',                     options: ['warning', '5s', '10s', 'dt'] },
   gridBox:       { name: 'Falsche Startposition',         options: ['warning', '5s', '10s'] },
@@ -85,6 +99,7 @@ export function rollBattleIncident(race, attacker, defender, zoneCorner, success
     else if (roll < 0.8) offTrackPass(race, attacker, defender, zoneCorner);
     else if (attacker.team !== defender.team) complaint(race, attacker, defender, zoneCorner); // Teams beschweren sich nicht über eigene Fahrer
   } else {
+    rollDefending(race, attacker, defender, zoneCorner);
     if (!r.chance(0.0015 * aggr)) return;
     if (r.chance(0.6)) forcedOff(race, attacker, defender, zoneCorner);
     else collision(race, attacker, defender, zoneCorner);

@@ -5,6 +5,7 @@ import { COMPOUNDS, bestCompound } from './tyres.js';
 import { rollLapIncidents } from './hazards.js';
 import { createLapCase, createImpedingCase } from './incidents.js';
 import { sessionDurations } from './length.js';
+import { rollPitQueue } from './cases2.js';
 
 export const SESSION_INFO = {
   fp:    { name: 'Freies Training',   short: 'FP', segments: [{ id: 'FP', dur: 1200 }] },
@@ -252,7 +253,8 @@ export class Session extends Race {
     car.stopTimer = 0;
     car.stoppedThisVisit = true;
     car.prog.phase = 'out';
-    car.outStartD = car.d;   // Aufwärmrunde zählt erst ab einer vollen Runde
+    car.outStartD = car.d;
+    rollPitQueue(this, car);   // Aufwärmrunde zählt erst ab einer vollen Runde
     car.prog.pushLeft = run.push;
     car.compromised = false;
   }
