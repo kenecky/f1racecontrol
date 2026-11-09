@@ -200,7 +200,7 @@ function newRace(seed = randomSeed()) {
   if (map.follow) { map.follow = null; map.resetView(); $('driverCard').classList.add('hidden'); followRestore = null; }
   let gridPenalties = {}, drivers = DRIVERS, roundNo = null, gridOrder = null, laps = null;
   const caution = {};   // Fahrer mit vielen Strafen fahren vorsichtiger
-  let kind = settings.singleKind || 'race';
+  let kind = 'race';
   if (settings.mode === 'season') {
     season = getSeason();
     if (!season) season = newSeason();
@@ -222,7 +222,14 @@ function newRace(seed = randomSeed()) {
     }
     saveSeason(season);
   } else {
+    // Einzelrennen: gewählte Teile des Wochenendes nacheinander
     track = getTrack(settings.trackId);
+    const wk = singleWeekend();
+    kind = wk.sessions[wk.idx];
+    if (kind === 'race' || kind === 'sprint') {
+      gridOrder = kind === 'race' ? wk.raceGrid : wk.sprintGrid;
+      gridPenalties = { ...wk.pending[kind] };
+    }
   }
   // Renndistanz nach Einstellung „Dauer“
   let fullLaps = null;
@@ -234,6 +241,7 @@ function newRace(seed = randomSeed()) {
   };
   race = ['fp', 'quali', 'sq'].includes(kind) ? new Session(opts) : new Race(opts);
   if (roundNo !== null) { race.seasonRound = roundNo; race.weekendIdx = season.weekend.idx; }
+  else race.singleIdx = settings.singleWk.idx;
   renderForecast();
   renderEventCard();
   paused = true;
@@ -270,32 +278,30 @@ function renderEventCard() {
   const isSeason = settings.mode === 'season';
   $('modeSingle').classList.toggle('active', !isSeason);
   $('modeSeason').classList.toggle('active', isSeason);
-  $('trackLabel').classList.toggle('hidden', isSeason);
   $('seasonBtn').classList.toggle('hidden', !isSeason);
-  $('kindLabel').classList.toggle('hidden', isSeason);
+  $('singleSetup').classList.toggle('hidden', isSeason);
+  $('sessionBox').classList.toggle('hidden', isSeason);
+  $('seasonCard').classList.toggle('hidden', !isSeason);
   const entry = isSeason && season ? currentRound(season) : null;
-  const wk = entry ? season.weekend : null;
+  const wk = isSeason ? (entry ? season.weekend : null) : settings.singleWk;
+  $('startBtn').disabled = false;
   if (isSeason && !entry) {
     $('evRound').textContent = `Saison ${season.year} beendet`;
     $('evGp').textContent = 'Alle Rennen gefahren';
     $('evTrack').textContent = 'Öffne die Saison-Übersicht für die Endwertung.';
-    $('weekendSteps').innerHTML = '';
     $('startBtn').disabled = true;
-  } else {
-    $('evRound').textContent = entry
-      ? `Saison ${season.year} · Rennen ${entry.round}/${SEASON_2026.length} · ${new Date(roundDate(season, entry)).toLocaleDateString('de-DE')}`
-      : `Einzelrennen · ${KIND_NAME[race.kind]}`;
+  } else if (isSeason) {
+    $('evRound').textContent = `Saison ${season.year} · Rennen ${entry.round}/${SEASON_2026.length} · ${new Date(roundDate(season, entry)).toLocaleDateString('de-DE')}`;
     $('evGp').textContent = def.grandPrix;
     $('evTrack').textContent = `${def.name} · ${def.country}`;
-    $('weekendSteps').innerHTML = wk ? wk.sessions.map((k, i) => `<span class="wstep${i < wk.idx ? ' done' : i === wk.idx ? ' now' : ''}">${i < wk.idx ? '✓ ' : ''}${KIND_SHORT[k]}</span>`).join('<span class="wsep">›</span>') : '';
-    $('startBtn').disabled = false;
+    $('evLaps').textContent = race.isSession ? Math.round(race.info.segments.reduce((s, x) => s + x.dur, 0) / 60) : race.laps;
+    $('evLapsLabel').textContent = race.isSession ? 'Minuten' : 'Runden';
+    $('evKm').textContent = (def.lengthM / 1000).toFixed(3).replace('.', ',');
+  } else {
+    renderSingleSetup();
   }
+  $('weekendSteps').innerHTML = wk && wk.sessions.length > 1 ? wk.sessions.map((k, i) => `<span class="wstep${i < wk.idx ? ' done' : i === wk.idx ? ' now' : ''}">${i < wk.idx ? '✓ ' : ''}${KIND_SHORT[k]}</span>`).join('<span class="wsep">›</span>') : '';
   if (!savedRace) $('startBtn').textContent = `${KIND_NAME[race.kind]} starten`;
-  $('evLaps').textContent = race.isSession
-    ? Math.round(race.info.segments.reduce((s, x) => s + x.dur, 0) / 60) : race.laps;
-  $('evLapsLabel').textContent = race.isSession ? 'Minuten' : 'Runden';
-  $('evKm').textContent = (def.lengthM / 1000).toFixed(3).replace('.', ',');
-  $('evDrivers').textContent = race ? race.cars.length : 22;
 }
 
 function setMode(mode) {
@@ -305,13 +311,112 @@ function setMode(mode) {
   newRace();
 }
 
-function fillTrackSelect() {
-  $('trackSel').innerHTML = SEASON_2026.map(e => {
-    const t = TRACKS[e.track];
-    return `<option value="${t.id}">${e.round}. ${t.grandPrix.replace('Großer Preis ', 'GP ')} – ${t.name}</option>`;
-  }).join('');
-  $('trackSel').value = TRACKS[settings.trackId] ? settings.trackId : 'redbullring';
+// ---------- Einzelrennen: Auswahl und Wochenend-Ablauf ----------
+
+const SINGLE_ORDER = ['fp', 'sprint', 'quali', 'race'];
+function singleParts() {
+  const p = (settings.singleParts || ['race']).filter(x => SINGLE_ORDER.includes(x));
+  return p.length ? p : ['race'];
 }
+// Reihenfolge wie an einem echten Wochenende: FP › SQ › Sprint › Q › Rennen
+function singleSessionList() {
+  const p = singleParts();
+  const out = [];
+  if (p.includes('fp')) out.push('fp');
+  if (p.includes('sprint')) out.push('sq', 'sprint');
+  if (p.includes('quali')) out.push('quali');
+  if (p.includes('race')) out.push('race');
+  return out;
+}
+function singleWeekend() {
+  const sessions = singleSessionList();
+  const key = `${settings.trackId}|${sessions.join(',')}`;
+  let wk = settings.singleWk;
+  if (!wk || wk.key !== key || wk.idx >= sessions.length) {
+    wk = settings.singleWk = { key, sessions, idx: 0, raceGrid: null, sprintGrid: null, pending: { sprint: {}, race: {} } };
+    saveSettings(settings);
+  }
+  return wk;
+}
+function resetSingleWeekend() {
+  settings.singleWk = null;
+  saveSettings(settings);
+}
+// Session fertig → Startaufstellung und Strafen an die nächste Session weitergeben
+function advanceSingle(r) {
+  const wk = settings.singleWk;
+  if (!wk || wk.idx !== r.singleIdx) return false;
+  const target = wk.sessions.slice(wk.idx + 1).find(k => k === 'sprint' || k === 'race');
+  if (target) for (const g of r.carryOver || []) wk.pending[target][g.carId] = (wk.pending[target][g.carId] || 0) + g.places;
+  if (r.kind === 'quali') wk.raceGrid = r.resultOrder();
+  if (r.kind === 'sq') wk.sprintGrid = r.resultOrder();
+  wk.idx++;
+  saveSettings(settings);
+  return true;
+}
+
+function renderSingleSetup() {
+  const list = $('gpList');
+  if (!list.children.length) {
+    list.innerHTML = SEASON_2026.map(e => {
+      const t = TRACKS[e.track];
+      return `<button class="gp-item" data-track="${t.id}" role="option"><span class="gp-no">${String(e.round).padStart(2, '0')}</span><span><b>${t.country}</b><small>${t.name}</small></span></button>`;
+    }).join('');
+  }
+  for (const b of list.children) b.classList.toggle('on', b.dataset.track === settings.trackId);
+  const on = list.querySelector('.gp-item.on');
+  if (on && !list.dataset.scrolled) { list.scrollTop = on.offsetTop - list.offsetTop - 40; list.dataset.scrolled = '1'; }
+  drawTrackPreview($('trackPreview'), track);
+  const def = track.def;
+  const parts = singleParts();
+  const race_ = distanceFor(track, 'race', settings.length).laps;
+  const sprint_ = distanceFor(track, 'sprint', settings.length).laps;
+  $('gpInfo').innerHTML = `<b>${def.grandPrix.replace('Großer Preis ', 'GP ')}</b>
+    <div><span>${parts.includes('race') ? race_ : sprint_}</span> Runden${parts.includes('race') && parts.includes('sprint') ? ` <small>(Sprint ${sprint_})</small>` : ''}</div>
+    <div><span>${(def.lengthM / 1000).toFixed(3).replace('.', ',')}</span> km</div>`;
+  for (const cb of $('sessionChecks').querySelectorAll('input')) cb.checked = parts.includes(cb.value);
+}
+
+// Kleine Streckenvorschau (Umriss mit Start/Ziel)
+function drawTrackPreview(cv, tr) {
+  const r = cv.getBoundingClientRect();
+  if (!r.width) return;
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, r.width, r.height);
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (let i = 0; i < tr.N; i += 4) { minX = Math.min(minX, tr.xs[i]); maxX = Math.max(maxX, tr.xs[i]); minY = Math.min(minY, tr.ys[i]); maxY = Math.max(maxY, tr.ys[i]); }
+  const pad = 10;
+  const k = Math.min((r.width - 2 * pad) / (maxX - minX), (r.height - 2 * pad) / (maxY - minY));
+  const ox = (r.width - (maxX - minX) * k) / 2 - minX * k, oy = (r.height - (maxY - minY) * k) / 2 - minY * k;
+  ctx.beginPath();
+  for (let i = 0; i <= tr.N; i += 2) { const j = i % tr.N; const x = ox + tr.xs[j] * k, y = oy + tr.ys[j] * k; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+  ctx.closePath();
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#3a4352'; ctx.lineWidth = 6; ctx.stroke();
+  ctx.strokeStyle = '#d8dde6'; ctx.lineWidth = 2.2; ctx.stroke();
+  const x0 = ox + tr.xs[0] * k, y0 = oy + tr.ys[0] * k;
+  ctx.fillStyle = '#ef4444'; ctx.fillRect(x0 - 3, y0 - 3, 6, 6);
+}
+
+$('gpList').addEventListener('click', e => {
+  const b = e.target.closest('[data-track]');
+  if (!b || b.dataset.track === settings.trackId) return;
+  settings.trackId = b.dataset.track;
+  resetSingleWeekend();
+  saveSettings(settings);
+  newRace();
+});
+$('sessionChecks').addEventListener('change', () => {
+  const sel = [...$('sessionChecks').querySelectorAll('input:checked')].map(x => x.value);
+  if (!sel.length) { toast('Mindestens einen Teil auswählen'); renderSingleSetup(); return; }
+  settings.singleParts = sel;
+  resetSingleWeekend();
+  saveSettings(settings);
+  newRace();
+});
 
 // ---------- Saison-Übersicht ----------
 
@@ -493,7 +598,7 @@ function startRace() {
   savedRace = null;
   renderResume();
   $('startScreen').classList.add('hidden');
-  race.start(settings.startMode);
+  race.start('standing');
   paused = false;
   updatePauseBtn();
   requestWakeLock();
@@ -939,13 +1044,15 @@ function showResults() {
   const sBtn = $('applySeasonBtn');
   const seasonNow = getSeason();
   const wkNow = seasonNow && seasonNow.weekend;
-  const canApply = race.seasonRound !== undefined && !race.seasonApplied && seasonNow && seasonNow.round === race.seasonRound
-    && wkNow && wkNow.idx === race.weekendIdx;
+  const sWk = settings.mode !== 'season' ? settings.singleWk : null;
+  const singleNext = sWk && race.singleIdx === sWk.idx && sWk.idx < sWk.sessions.length - 1;
+  const canApply = singleNext || (race.seasonRound !== undefined && !race.seasonApplied && seasonNow && seasonNow.round === race.seasonRound
+    && wkNow && wkNow.idx === race.weekendIdx);
   sBtn.classList.toggle('hidden', !canApply);
   sBtn.disabled = open > 0 || techOpen;
-  const nextKind = wkNow ? wkNow.sessions[wkNow.idx + 1] : null;
+  const nextKind = singleNext ? sWk.sessions[sWk.idx + 1] : wkNow ? wkNow.sessions[wkNow.idx + 1] : null;
   sBtn.textContent = techOpen ? 'Erst technische Abnahme durchführen' : open > 0 ? 'Erst alle Entscheidungen treffen'
-    : race.kind === 'race' ? 'In die Saison übernehmen' : `Weiter: ${KIND_NAME[nextKind] || 'Rennen'}`;
+    : race.kind === 'race' && !singleNext ? 'In die Saison übernehmen' : `Weiter: ${KIND_NAME[nextKind] || 'Rennen'}`;
   // Gesamtbewertung
   const rating = rateRace(race);
   const stars = '★'.repeat(rating.stars) + '☆'.repeat(5 - rating.stars);
@@ -1423,7 +1530,12 @@ document.querySelectorAll('.act[data-soon]').forEach(b => b.addEventListener('cl
   toast(`${b.dataset.label}: kommt in Meilenstein ${b.dataset.soon}`);
 }));
 
-$('newRaceBtn').addEventListener('click', () => newRace());
+$('newRaceBtn').addEventListener('click', () => {
+  // Einzelrennen: nach der letzten Session beginnt das Wochenende neu
+  const wk = settings.singleWk;
+  if (settings.mode !== 'season' && wk && race && race.phase === 'finished' && race.singleIdx === wk.sessions.length - 1) resetSingleWeekend();
+  newRace();
+});
 $('closeResultBtn').addEventListener('click', () => $('resultScreen').classList.add('hidden'));
 $('openCasesBtn').addEventListener('click', () => {
   if (race && race.phase === 'finished') { $('resultScreen').classList.add('hidden'); finishFlow(); return; }
@@ -1446,10 +1558,6 @@ $('weatherSel').addEventListener('change', e => {
   saveSettings(settings);
   if (race && race.phase === 'pre') newRace(race.seed);
 });
-$('startSel').addEventListener('change', e => {
-  settings.startMode = e.target.value;
-  saveSettings(settings);
-});
 $('lengthSel').addEventListener('change', e => {
   settings.length = e.target.value;
   saveSettings(settings);
@@ -1457,16 +1565,6 @@ $('lengthSel').addEventListener('change', e => {
 });
 $('modeSingle').addEventListener('click', () => setMode('single'));
 $('modeSeason').addEventListener('click', () => setMode('season'));
-$('trackSel').addEventListener('change', e => {
-  settings.trackId = e.target.value;
-  saveSettings(settings);
-  newRace();
-});
-$('kindSel').addEventListener('change', e => {
-  settings.singleKind = e.target.value;
-  saveSettings(settings);
-  newRace();
-});
 $('seasonBtn').addEventListener('click', () => showSeason());
 $('seasonCloseBtn').addEventListener('click', () => $('seasonScreen').classList.add('hidden'));
 document.querySelectorAll('.stab').forEach(b => b.addEventListener('click', () => { seasonTab = b.dataset.stab; renderSeasonTab(); }));
@@ -1484,6 +1582,14 @@ $('seasonResetBtn').addEventListener('click', () => {
   showSeason();
 });
 $('applySeasonBtn').addEventListener('click', () => {
+  if (settings.mode !== 'season') {
+    if (openCases(race).length || !advanceSingle(race)) return;
+    clearRaceState();
+    savedRace = null;
+    $('resultScreen').classList.add('hidden');
+    newRace();
+    return;
+  }
   season = getSeason();
   if (!season || race.seasonApplied || race.seasonRound !== season.round || openCases(race).length) return;
   if (!season.weekend || season.weekend.idx !== race.weekendIdx) return;
@@ -1528,9 +1634,6 @@ document.addEventListener('touchmove', e => {
 
 $('speedBtn').textContent = `${settings.speed}×`;
 $('weatherSel').value = settings.weatherMode;
-fillTrackSelect();
-$('kindSel').value = settings.singleKind || 'race';
-$('startSel').value = settings.startMode;
 $('lengthSel').value = LENGTHS[settings.length] ? settings.length : 'medium';
 appEl.classList.toggle('collapsed', settings.panelCollapsed);
 applyTower();

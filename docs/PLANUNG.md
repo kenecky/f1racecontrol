@@ -478,3 +478,8 @@ Menüs als Konsolen zwischen Karte und Pult. Entscheidungen als Stewards-Dokumen
 Vor dem Ergebnis erscheint automatisch „POST-RACE · STEWARDS“: alle offenen Entscheidungen einzeln
 nacheinander (verschobene Fälle direkt als Anhörung), danach die technische Abnahme, dann das Ergebnis mit Bewertung.
 Neue Fälle mit Rennszene: unsichere Boxenfreigabe (jetzt auch mit „kein Vergehen“) und unsichere Rückkehr auf die Strecke.
+
+### Startbildschirm Einzelrennen (umgesetzt)
+Grand-Prix-Liste (scrollbar) mit Streckenvorschau, Runden und km; darunter Wetter, Teile des Wochenendes
+(FP, Qualifying, Sprint inkl. Sprint-Qualifying, Rennen – laufen nacheinander, Startaufstellung und Strafen
+werden weitergegeben) und Dauer. Start immer stehend.

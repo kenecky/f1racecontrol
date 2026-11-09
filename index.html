@@ -139,63 +139,67 @@
         <button id="modeSingle" class="mode-btn">Einzelrennen</button>
         <button id="modeSeason" class="mode-btn">Saison 2026</button>
       </div>
-      <div class="event-card">
+      <!-- Einzelrennen: Rennen aus der Liste wählen -->
+      <div id="singleSetup" class="setup">
+        <div class="setup-label">GRAND PRIX</div>
+        <div class="setup-top">
+          <div id="gpList" class="gp-list" role="listbox" aria-label="Rennen auswählen"></div>
+          <div class="gp-preview">
+            <canvas id="trackPreview"></canvas>
+            <div id="gpInfo" class="gp-info"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Saison: nächstes Rennen -->
+      <div id="seasonCard" class="event-card">
         <div id="evRound" class="event-round"></div>
         <div id="evGp" class="event-gp"></div>
         <div id="evTrack" class="event-track"></div>
-        <div id="weekendSteps" class="weekend-steps"></div>
         <div class="event-facts">
           <div><b id="evLaps"></b><span id="evLapsLabel">Runden</span></div>
           <div><b id="evKm"></b><span>km</span></div>
-          <div><b id="evDrivers"></b><span>Fahrer</span></div>
         </div>
-        <div id="forecast" class="forecast"></div>
       </div>
-      <p class="intro">Du bist der Rennleiter. Beobachte das Rennen und greif ein, wenn es nötig ist. Fahrer und Teams agieren selbstständig.</p>
-      <div id="resumeBox"></div>
-      <button id="startBtn" class="primary-btn">Rennen starten</button>
-      <button id="seasonBtn" class="secondary-btn season-btn hidden">🏆 Saison-Übersicht</button>
-      <div id="history" class="history"></div>
-      <div class="app-version">Version 22</div>
-      <details class="options">
-        <summary>Optionen</summary>
-        <label id="trackLabel">Strecke (Einzelrennen)
-          <select id="trackSel"></select>
-        </label>
-        <label id="kindLabel">Session (Einzelrennen)
-          <select id="kindSel">
-            <option value="race">Rennen</option>
-            <option value="quali">Qualifying</option>
-            <option value="fp">Freies Training</option>
-            <option value="sq">Sprint-Qualifying</option>
-            <option value="sprint">Sprint</option>
-          </select>
-        </label>
-        <label>Rennen-Nr. (gleiche Nr. = gleiches Rennen)
-          <input id="seedInput" type="number" inputmode="numeric" placeholder="zufällig">
-        </label>
-        <div id="seedInfo" class="seed-info"></div>
-        <label>Wetter
+      <div class="setup-opts">
+        <label class="setup-row"><span class="setup-label">WETTER</span>
           <select id="weatherSel">
-            <option value="random">Zufällig</option>
+            <option value="random">Zufällig (je nach Strecke)</option>
             <option value="dry">Trocken</option>
-            <option value="rain">Regen</option>
-            <option value="changeable">Wechselhaft (Schauer möglich)</option>
+            <option value="rain">Regen (trocknet ab, evtl. weiterer Schauer)</option>
+            <option value="changeable">Wechselhaft (Schauer im Rennen)</option>
           </select>
         </label>
-        <label>Dauer
+        <div id="forecast" class="forecast"></div>
+        <div id="sessionBox" class="setup-row">
+          <span class="setup-label">RENNWOCHENENDE</span>
+          <div id="sessionChecks" class="sess-checks">
+            <label><input type="checkbox" value="fp"> Freies Training</label>
+            <label><input type="checkbox" value="quali"> Qualifying</label>
+            <label><input type="checkbox" value="sprint"> Sprint <small>(mit Sprint-Qualifying)</small></label>
+            <label><input type="checkbox" value="race"> Rennen</label>
+          </div>
+        </div>
+        <div id="weekendSteps" class="weekend-steps"></div>
+        <label class="setup-row"><span class="setup-label">DAUER</span>
           <select id="lengthSel">
             <option value="short">Kurz – ¼ Renndistanz, kurze Sessions</option>
             <option value="medium">Mittel – ½ Renndistanz</option>
             <option value="full">Lang – volle Renndistanz</option>
           </select>
         </label>
-        <label>Startart
-          <select id="startSel">
-            <option value="standing">Stehender Start (Startampel)</option>
-            <option value="sc">Start hinter dem Safety Car</option>
-          </select>
+      </div>
+      <p class="intro">Du bist der Rennleiter. Beobachte das Rennen und greif ein, wenn es nötig ist. Fahrer und Teams agieren selbstständig.</p>
+      <div id="resumeBox"></div>
+      <button id="startBtn" class="primary-btn">Rennen starten</button>
+      <button id="seasonBtn" class="secondary-btn season-btn hidden">🏆 Saison-Übersicht</button>
+      <div id="history" class="history"></div>
+      <div class="app-version">Version 23</div>
+      <details class="options">
+        <summary>Optionen</summary>
+        <label>Rennen-Nr. (gleiche Nr. = gleiches Rennen)
+          <input id="seedInput" type="number" inputmode="numeric" placeholder="zufällig">
         </label>
+        <div id="seedInfo" class="seed-info"></div>
       </details>
     </div>
   </div>
