@@ -4,7 +4,7 @@ import { createRng } from '../util/rng.js';
 import { speedAt, wrapD, inRange, crossed, accelAt, sectorIndexAt } from './trackModel.js';
 import {
   FLAG_FACTOR, isYellow, rollLapIncidents, checkPendingIncident, endOffTrack,
-  updateHazards,
+  updateHazards, updateLimp, limpRetire,
 } from './hazards.js';
 import {
   rollBattleIncident, onGiveBackDone, rollTrackLimits, rollPitSpeeding, rollUnsafeRelease,
@@ -21,7 +21,7 @@ const MS_LEN = 100;              // Mini-Sektor-Länge (m) für Abstandsberechnu
 
 import { COMPOUNDS, wetLoss, bestCompound } from './tyres.js';
 import { createWeather, updateWeather } from './weather.js';
-import { stepFormation, stepGrid, stepLights, releasePitStarters, PRESTART } from './start.js';
+import { stepFormation, stepGrid, stepLights, releasePitStarters, stepRestart, PRESTART } from './start.js';
 import { prepareScrutiny } from './scrutiny.js';
 import { ambientRadio, T } from './texts.js';
 export { COMPOUNDS };
@@ -212,7 +212,7 @@ export class Race {
 
   get lightsOn() {
     const n = this.neutral;
-    if (n && n.type === 'red' && n.phase === 'grid') return Math.min(5, Math.floor(n.lightsTimer) + 1);
+    if (n && n.type === 'red' && n.restart) return n.phase === 'lights' && n.lightsTimer >= PRESTART ? Math.min(5, Math.floor(n.lightsTimer - PRESTART) + 1) : 0;
     if (this.phase !== 'lights' || this.lightsTimer < PRESTART) return 0;
     return Math.min(5, Math.floor(this.lightsTimer - PRESTART) + 1);
   }
@@ -250,6 +250,9 @@ export class Race {
     if (this.phase === 'formation') { stepFormation(this, DT); return; }
     if (this.phase === 'grid') { stepGrid(this, DT); return; }
     if (this.phase === 'lights') { stepLights(this, DT); return; }
+    // Neustart nach roter Flagge: Formationsrunde, Startaufstellung, Ampel
+    const nr = this.neutral;
+    if (nr && nr.type === 'red' && nr.restart) { stepRestart(this, DT); return; }
 
     this.time += DT;
     const tr = this.track;
@@ -294,6 +297,7 @@ export class Race {
           const flag = this.flags[sectorIndexAt(tr, car.d)];
           vt *= FLAG_FACTOR[flag];
           if (car.damage === 'puncture') vt *= 0.55;           // Reifenschaden: langsam zur Box
+          if (car.limp) vt = Math.min(vt, speedAt(tr, car.d) * car.limp.factor);   // Defekt: rollt zur Box
           if (this.time < car.slowUntil) vt *= 0.7;            // nach Ausritt
           if (car.giveBack) {
             const gb = car.giveBack;
@@ -335,6 +339,7 @@ export class Race {
       if (car.finished) continue;
       this.handleCrossings(car, prev);
       checkPendingIncident(this, car, prev);
+      if (car.limp && !car.retired) updateLimp(this, car);
       if (car.redBound && car.inPit && !car.redQueued && car.queueD !== null && car.d >= car.queueD - 0.01) {
         arriveInQueue(this, car);
       }
@@ -552,6 +557,14 @@ export class Race {
     const tr = this.track;
     const L = tr.L;
 
+    // Defektes Auto: in die Box und dort abstellen
+    if (car.limp && !car.inPit && crossed(tr, prev, car.d, tr.pit.entry)) {
+      car.inPit = true;
+      car.stoppedThisVisit = false;
+      car.limpIn = true;
+      return;
+    }
+    if (car.limpIn && car.inPit && crossed(tr, prev, car.d, tr.pit.box)) { car.limpIn = false; limpRetire(this, car); return; }
     // Boxengasse
     if (!car.inPit && this.phase === 'running' && crossed(tr, prev, car.d, tr.pit.entry)) {
       const next = car.plan[car.planIdx];

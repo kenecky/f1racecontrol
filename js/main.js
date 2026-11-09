@@ -35,7 +35,7 @@ import {
   saveRaceState, loadRaceState, clearRaceState, loadSeason, saveSeason,
 } from './storage.js';
 import { serializeRace, restoreRace } from './sim/persist.js';
-import { abortStart, startFromGridBehindSC, releaseFormation, startLights, lightsOut, ALL_ON } from './sim/start.js';
+import { abortStart, startFromGridBehindSC, releaseFormation, startLights, lightsOut, restartLights, restartLightsOut, ALL_ON } from './sim/start.js';
 import { distanceFor, LENGTHS } from './sim/length.js';
 import { runScrutiny, TECH_CHECKS, EXTRA_CHECKS } from './sim/scrutiny.js';
 import { rateRace, AXES } from './control/rating.js';
@@ -70,8 +70,16 @@ function updateSound(now) {
     else if (race.phase === 'lights') { level = 0.8; rpm = 0.38 + 0.25 * Math.abs(Math.sin(now / 230)); }
     else if (race.phase === 'running' || race.phase === 'chequered') {
       level = 0.75 * crowd;
-      rpm = n && n.type === 'red' ? 0.1 : n ? 0.42 : 0.66 + 0.06 * Math.sin(now / 900);
-      if (n && n.type === 'red') level = 0.15;
+      rpm = n ? 0.42 : 0.66 + 0.06 * Math.sin(now / 900);
+      // Rote Flagge: Autos fahren noch langsam in die Box – Stille erst, wenn alle stehen
+      if (n && n.type === 'red') {
+        const moving = race.cars.filter(c => !c.retired && !c.finished && !c.redQueued).length;
+        if (n.restart && n.phase === 'formation') { level = 0.55; rpm = 0.3; }
+        else if (n.restart && n.phase === 'grid') { level = 0.35; rpm = 0.12; }
+        else if (n.restart && n.phase === 'lights') { level = 0.8; rpm = 0.38 + 0.25 * Math.abs(Math.sin(now / 230)); }
+        else if (moving) { level = 0.25 + 0.5 * Math.min(1, moving / 16); rpm = 0.3; }
+        else level = 0;
+      }
     }
     if (sound.launchUntil && sound.ctx.currentTime < sound.launchUntil) { level = 1; rpm = 0.95; }
   }
@@ -81,6 +89,9 @@ function updateSound(now) {
   if (lo > snd.lights) sound.light();
   snd.lights = lo;
   if (snd.phase === 'lights' && race.phase === 'running') sound.lightsOut();
+  const rl = Boolean(race.neutral && race.neutral.restart && race.neutral.phase === 'lights');
+  if (snd.rl && !race.neutral) sound.lightsOut();
+  snd.rl = rl;
   snd.phase = race.phase;
   // Neutralisierungen
   const nt = n ? n.type : null;
@@ -99,6 +110,7 @@ function updateSound(now) {
 const weatherPanel = new WeatherPanel({ root: $('wxScreen'), body: $('wxBody'), getRace: () => race });
 $('wxOpen').addEventListener('click', () => { if (race) weatherPanel.open(); });
 $('wxCloseBtn').addEventListener('click', () => weatherPanel.close());
+$('wxScreen').addEventListener('click', e => { if (e.target.id === 'wxScreen') weatherPanel.close(); });
 
 const feed = new Feed($('feed'), { colorOf: id => (race && race.carById[id] ? race.carById[id].team.color : null) });
 
@@ -702,7 +714,8 @@ function startMapReplay(c) {
 
 let speedBeforeLights = null;
 function doStartLights() {
-  if (!startLights(race)) return;
+  const n = race.neutral;
+  if (!(n && n.type === 'red' && n.restart ? restartLights(race) : startLights(race))) return;
   if (settings.speed > 1) {
     speedBeforeLights = settings.speed;
     setSpeed(1);
@@ -712,6 +725,14 @@ function doStartLights() {
 }
 
 function startCtlState() {
+  const n = race && race.neutral;
+  if (n && n.type === 'red' && n.restart) {
+    if (n.phase === 'formation' || n.phase === 'grid') return { cls: 'amber', text: '🚦 AMPEL EINSCHALTEN', act: 'lights' };
+    if (n.phase === 'lights') {
+      if (n.lightsTimer < ALL_ON) { const k = race.lightsOn; return { cls: 'wait', text: k ? `${'●'.repeat(k)}${'○'.repeat(5 - k)}` : 'Pre-Start …', act: null }; }
+      return { cls: 'red', text: 'LICHTER AUS', act: 'out' };
+    }
+  }
   if (!race || race.isSession || !race.preStart || race.phase === 'pre') return null;
   if (race.phase === 'ready') return { cls: 'go', text: '🏁 FORMATION FREIGEBEN', act: 'formation' };
   if (race.phase === 'formation' || race.phase === 'grid') return { cls: 'amber', text: '🚦 AMPEL EINSCHALTEN', act: 'lights' };
@@ -746,7 +767,7 @@ $('startCtl').addEventListener('click', () => {
   const act = $('startCtl').dataset.act;
   if (act === 'formation') releaseFormation(race);
   else if (act === 'lights') doStartLights();
-  else if (act === 'out' && lightsOut(race)) {
+  else if (act === 'out' && (race.neutral && race.neutral.restart ? restartLightsOut(race) : lightsOut(race))) {
     if (speedBeforeLights) { setSpeed(speedBeforeLights); speedBeforeLights = null; }
   }
   updateStartCtl();
@@ -827,7 +848,7 @@ function updateStatus() {
   const yellowSecs = race.flags.map((f, i) => (f === 'yellow' || f === 'double' ? i + 1 : null)).filter(Boolean);
   const ms = yellowSecs.length === 1 ? ` S${yellowSecs[0]}` : '';
   if (race.phase === 'chequered' || race.phase === 'finished') { flag.textContent = 'CHEQUERED'; flag.className = 'flag-chip flag-chequered'; }
-  else if (n && n.type === 'red' && n.phase === 'grid') { flag.textContent = 'RESTART'; flag.className = 'flag-chip flag-start'; }
+  else if (n && n.type === 'red' && n.restart) { flag.textContent = n.phase === 'formation' ? 'FORMATION' : 'RESTART'; flag.className = 'flag-chip flag-start'; }
   else if (n && n.type === 'red') { flag.textContent = 'RED FLAG'; flag.className = 'flag-chip flag-red'; }
   else if (n && n.type === 'sc') { flag.textContent = n.go ? 'SC RESTART' : n.phase === 'in' ? 'SC IN' : 'SAFETY CAR'; flag.className = 'flag-chip flag-sc'; }
   else if (n && n.type === 'vsc') { flag.textContent = n.phase === 'ending' ? 'VSC ENDING' : 'VSC'; flag.className = 'flag-chip flag-vsc'; }
@@ -862,7 +883,8 @@ function updateAlert() {
     el.innerHTML = `<span class="alert-text">⚠ Startaufstellung: ${race.startIssue.carId} steht mit abgestorbenem Motor</span><span class="alert-go">Start ›</span>`;
     return;
   }
-  const open = race.hazards.filter(h => !h.ended && h.adequateAt === null);
+  // offen: noch nie ausreichend abgesichert – oder wanderndes langsames Auto in einem Sektor ohne Gelb
+  const open = race.hazards.filter(h => !h.ended && (h.adequateAt === null || (h.moving && race.flags[h.sector] === 'clear')));
   const h = open[open.length - 1];
   if (h) {
     el.dataset.kind = h.global ? 'sc' : 'flags';
@@ -1339,7 +1361,8 @@ $('towerBtn').addEventListener('click', () => {
 $('tower').addEventListener('pointerdown', () => { touching = true; });
 $('tower').addEventListener('click', e => {
   const row = e.target.closest('.tw-row');
-  if (row) toggleFollow(row.dataset.id);
+  // ausgeschiedene Fahrer lassen sich nicht verfolgen
+  if (row && race && race.carById[row.dataset.id] && !race.carById[row.dataset.id].retired) toggleFollow(row.dataset.id);
 });
 
 // ---------- Fahrer verfolgen (Klick im Tower) ----------

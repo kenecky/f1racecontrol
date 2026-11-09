@@ -429,10 +429,17 @@ export class TrackMap {
     if (car.offTrack) return car.offTrack.lateral * ws;
     if (car.inPit || car.stopTimer > 0) return this.track.pit.side * PIT_OFFSET_PX * ws;
     let lat = 0;
-    if (race.phase === 'formation' && car.fTarget !== undefined && !(race.formation && race.formation.arrived)) {
+    const nr = race.neutral;
+    const restartForm = nr && nr.type === 'red' && nr.restart && nr.phase === 'formation';
+    if (car.gridLat) {
+      // Startaufstellung beim Neustart: versetzt, nach dem Start zur Mitte
+      const g = car.gridLat;
+      lat = g.side * 4 * (g.until === null ? 1 : Math.min(1, Math.max(0, (g.until - car.d) / 120)));
+      if (g.until !== null && car.d > g.until) car.gridLat = null;
+    } else if ((race.phase === 'formation' || restartForm) && car.fTarget !== undefined && !(race.formation && race.formation.arrived)) {
       // Ende der Formationsrunde: schon beim Einrollen versetzt in die eigene Startbox
       const toGo = car.fTarget - car.d;
-      const slot = Math.round((race.track.L - car.fTarget - 6) / 8);
+      const slot = car.fSlot ?? Math.round((race.track.L - car.fTarget - 6) / 8);
       const side = slot % 2 === 0 ? -1 : 1;
       lat = side * 4 * Math.min(1, Math.max(0, (70 - toGo) / 60));
     } else if (car.lap === 0 && car.d < 120) {

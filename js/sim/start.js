@@ -1,10 +1,10 @@
 // Startablauf: Formationsrunde, Startaufstellung, Startampel, Startabbruch,
 // Boxengassenstart und Fehlstart. Vor dem Start läuft race.time schon mit
 // (Bergungen, Flaggen); beim Erlöschen der Lichter wird die Uhr auf 0 gesetzt.
-import { speedAt, wrapD } from './trackModel.js';
+import { speedAt, wrapD, crossed } from './trackModel.js';
 import { updateHazards, startSpin, endOffTrack, startFailure, createHazard, retireCar } from './hazards.js';
 import { createJumpStartCase, createGridBoxCase } from './incidents.js';
-import { startBehindSC } from './neutral.js';
+import { startBehindSC, trackNeutralUse } from './neutral.js';
 
 const F_SPEED = 0.8;    // Tempo in der Formationsrunde (Anteil der Renngeschwindigkeit)
 const F_VMAX = 70;      // m/s (250 km/h)
@@ -30,6 +30,7 @@ export function beginFormation(race) {
     c.v = 0;
     c.move = 0;
     c.fTarget = c.d + L;
+    c.fSlot = slotOf(c.d);
     c.fDepart = 0.8 + i * 0.3 + r.range(0, 0.3);
     c.fIncident = null;
     c.jump = null;
@@ -112,6 +113,7 @@ function moveFormation(race, dt) {
     }
     const toGo = car.fTarget - car.d;
     let vt = Math.min(speedAt(tr, car.d) * F_SPEED, F_VMAX);
+    if (car.inPit) vt = Math.min(vt, tr.pitLaneSpeed);   // Neustart: erst durch die Boxengasse
     vt = Math.min(vt, Math.sqrt(Math.max(0, 2 * 6 * (toGo - 0.2))));
     let room = toGo;
     if (ahead) {
@@ -127,6 +129,7 @@ function moveFormation(race, dt) {
     if (car.move < car.v * dt) car.v = car.move / dt;
     const prev = car.d;
     car.d += car.move;
+    if (car.inPit && crossed(tr, prev, car.d, tr.pit.exit)) car.inPit = false;
     const inc = car.fIncident;
     if (inc && prev < inc.at && car.d >= inc.at) {
       car.fIncident = null;
@@ -143,6 +146,7 @@ function moveFormation(race, dt) {
 function moveToBack(race, car) {
   const f = race.formation;
   f.order = f.order.filter(id => id !== car.id).concat(car.id);
+  car.fSlot = f.backSlot;
   car.fTarget = race.track.L + slotD(f.backSlot++);
   race.emit('rc', `${car.id} hat in der Formationsrunde Plätze verloren und startet vom Ende des Feldes.`, { cars: [car.id] });
 }
@@ -150,6 +154,7 @@ function moveToBack(race, car) {
 function arriveOnGrid(race) {
   const f = race.formation;
   const L = race.track.L;
+  if (f.restart) { arriveRestartGrid(race); return; }
   for (const c of race.cars) {
     if (c.retired || c.pitStart || !f.order.includes(c.id)) continue;
     c.d = c.fTarget - L;
@@ -440,4 +445,111 @@ export function releasePitStarters(race) {
     }
     race.emit('pit', `${c.id} fährt aus der Boxengasse los.`, { cars: [c.id] });
   });
+}
+
+// ---------- Neustart nach roter Flagge ----------
+// Autos verlassen die Boxengasse in Rennreihenfolge, fahren eine Formationsrunde und stellen sich
+// auf. Die Rennleitung schaltet die Ampel ein und löscht die Lichter – wie beim Start.
+
+export function beginRestartFormation(race) {
+  const tr = race.track;
+  const L = tr.L;
+  const queued = race.cars.filter(c => c.redQueued && !c.retired);
+  // In der Boxengasse in Rennreihenfolge aufstellen
+  const spots = queued.map(c => c.d).sort((a, b) => b - a);
+  const order = race.standings().filter(c => queued.includes(c));
+  order.forEach((c, i) => {
+    c.d = spots[i];
+    const exitAbs = c.d + wrapD(tr, tr.pit.exit - c.d);
+    c.fTarget = (Math.floor(exitAbs / L) + 1) * L + slotD(i);
+    c.fSlot = i;
+    c.fDepart = 1 + i * 1.3;
+    c.fIncident = null;
+    c.jump = null;
+    c.redQueued = false;
+    c.redBound = false;
+    c.queueD = null;
+    c.inPit = true;
+    c.v = 0;
+    c.move = 0;
+    c.pass = null;
+    c.restartGrid = i + 1;
+  });
+  race.formation = { n: 1, t: 0, gridT: 0, restart: true, order: order.map(c => c.id), backSlot: order.length, stall: null, gridStall: null, gridBox: null };
+  race.neutral = { ...race.neutral, phase: 'formation', restart: true };
+  race.emit('rc', 'NEUSTART – Boxenausfahrt offen. Formationsrunde, danach Startaufstellung.');
+  return true;
+}
+
+function fillTimingTo(race, car) {
+  const k = Math.floor(car.d / 100);
+  while (car.msK < k) {
+    car.msK++;
+    car.cross[car.msK] = race.time;
+    if (race.firstCross[car.msK] === undefined) race.firstCross[car.msK] = race.time;
+  }
+}
+
+function arriveRestartGrid(race) {
+  const f = race.formation;
+  for (const id of f.order) {
+    const c = race.carById[id];
+    if (c.retired) continue;
+    c.d = c.fTarget;
+    c.v = 0;
+    c.move = 0;
+    c.gridLat = { side: c.fSlot % 2 === 0 ? -1 : 1, until: null };
+    fillTimingTo(race, c);
+  }
+  f.arrived = true;
+  f.gridT = 0;
+  if (race.neutral.phase === 'formation') race.neutral.phase = 'grid';
+  race.emit('info', 'Alle Autos stehen in der Startaufstellung – die Startampel kann eingeschaltet werden.');
+}
+
+export function stepRestart(race, dt) {
+  const n = race.neutral;
+  race.time += dt;
+  if (!race.formation.arrived) moveFormation(race, dt);
+  updateHazards(race, dt);
+  trackNeutralUse(race, dt);
+  if (n.phase === 'lights') {
+    n.lightsTimer += dt;
+    if (n.lightsTimer >= ALL_ON + AUTO_OUT) restartLightsOut(race, true);
+  }
+}
+
+export function restartLights(race) {
+  const n = race.neutral;
+  if (!n || !n.restart || (n.phase !== 'formation' && n.phase !== 'grid')) return false;
+  if (n.phase === 'formation') {
+    race.startLog.push({ type: 'lights', action: 'early', restart: true });
+    race.emit('rc', 'Startampel eingeschaltet – obwohl noch nicht alle Autos in der Startaufstellung stehen!');
+  } else race.emit('rc', 'Startampel eingeschaltet – Pre-Start.');
+  n.phase = 'lights';
+  n.lightsTimer = 0;
+  return true;
+}
+
+export function restartLightsOut(race, auto = false) {
+  const n = race.neutral;
+  if (!n || !n.restart || n.phase !== 'lights' || n.lightsTimer < ALL_ON) return false;
+  race.startLog.push({ type: 'lights', action: 'out', hold: n.lightsTimer - ALL_ON, auto, restart: true });
+  const f = race.formation;
+  for (const id of f.order) {
+    const c = race.carById[id];
+    if (c.retired) continue;
+    const rolling = !f.arrived && c.fTarget - c.d > 0.6;
+    if (rolling) fillTimingTo(race, c);
+    c.reaction = rolling ? 0 : race.time + race.rng.range(0.18, 0.36);
+    c.launch = race.rng.range(0.92, 1.06);
+    c.launchUntil = c.d + 400;
+    c.lapStart = race.time;
+    if (c.gridLat) c.gridLat.until = c.d + 120;
+  }
+  f.arrived = true;
+  race.neutral = null;
+  if (auto) race.emit('rc', 'Die Lichter gehen nach langer Wartezeit automatisch aus.');
+  race.emit('start', 'Lichter aus – Neustart!');
+  return true;
 }

@@ -1,6 +1,7 @@
 // Neutralisierungen: Virtual Safety Car, Safety Car, rote Flagge (inkl. Neustart).
 import { speedAt, wrapD, crossed, sectorIndexAt } from './trackModel.js';
 import { COMPOUNDS, bestCompound } from './tyres.js';
+import { beginRestartFormation } from './start.js';
 
 export const VSC_FACTOR = 0.62;   // Delta-Tempo unter VSC (Anteil der Renngeschwindigkeit)
 const SC_SPEED = 0.6;             // Tempo des Safety Cars
@@ -168,26 +169,8 @@ export function restartRace(race, mode) {
     return true;
   }
 
-  // Stehender Neustart: Formationsrunde, dann Startaufstellung in aktueller Reihenfolge
-  queued.forEach((c, i) => {
-    const k = Math.floor(c.d / L) + 1;
-    const newD = k * L - (6 + i * 8);
-    fillTiming(race, c, newD);
-    c.d = newD;
-    c.v = 0;
-    c.inPit = false;
-    c.redQueued = false;
-    c.redBound = false;
-    c.queueD = null;
-    c.reaction = Infinity;
-    c.launch = race.rng.range(0.92, 1.06);
-    c.launchUntil = newD + 400;
-    c.lapStart = race.time;
-    c.restartGrid = i + 1;
-  });
-  race.neutral = { type: 'red', phase: 'grid', lightsTimer: 0, hold: 5 + race.rng.range(0.4, 2.4) };
-  race.emit('rc', 'STEHENDER NEUSTART – Formationsrunde, Autos in der Startaufstellung');
-  return true;
+  // Stehender Neustart: aus der Boxengasse in die Formationsrunde, Ampel durch die Rennleitung
+  return beginRestartFormation(race);
 }
 
 function fillTiming(race, car, newD) {
@@ -318,14 +301,7 @@ export function afterMove(race, dt) {
       n.clearAnnounced = true;
       race.emit('rc', 'Strecke geräumt – Neustart möglich.');
     }
-    if (n.phase === 'grid') {
-      n.lightsTimer += dt;
-      if (n.lightsTimer >= n.hold) {
-        race.neutral = null;
-        for (const c of race.cars) if (!c.retired && !c.finished) c.reaction = race.time + race.rng.range(0.18, 0.36);
-        race.emit('start', 'Lichter aus – Neustart!');
-      }
-    }
+
   }
 }
 

@@ -186,7 +186,8 @@ export class ControlPanel {
           <button class="ctl-btn ctl-ghost" data-action="restart-standing" ${ok ? '' : 'disabled'}>Stehender Neustart</button>
           ${ok ? '' : '<p class="ctl-small">Neustart erst möglich, wenn die Strecke geräumt ist.</p>'}`;
       } else {
-        html = '<div class="ctl-status">Stehender Neustart – Startaufstellung.</div>';
+        html = `<div class="ctl-status">${n.phase === 'formation' ? 'Formationsrunde zum Neustart läuft' : n.phase === 'grid' ? 'Startaufstellung komplett – Startampel über den Knopf auf der Karte' : 'Startampel läuft'}</div>
+          <p class="ctl-small">Die Autos kommen in Rennreihenfolge aus der Boxengasse, fahren eine Runde und stellen sich auf. Schalte die Ampel erst ein, wenn alle stehen.</p>`;
       }
     }
 

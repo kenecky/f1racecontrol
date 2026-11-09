@@ -1121,3 +1121,6 @@ body { background: var(--bg); }
 .wx-legend i { display: inline-block; width: 12px; height: 12px; margin-right: 4px; vertical-align: -2px; border-radius: 2px; }
 .start-ctl { top: 8px; bottom: auto; white-space: nowrap; max-width: calc(100% - 186px); overflow: hidden; text-overflow: ellipsis; }
 .is-paused .start-ctl { top: 40px; }
+.sheet-head-x { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.x-btn { width: 36px; height: 36px; border: 1px solid #3a4352; border-radius: 2px; color: var(--text); font-size: 16px; background: transparent; flex: none; }
+.tw-row.out { cursor: default; }

@@ -76,7 +76,8 @@ export function rollLapIncidents(race, car) {
     spinP *= 1.5 - car.driver.wet / 200;
   }
   if (r.chance(failP)) {
-    car.pendingIncident = { type: 'failure', at: car.lap * L + r.range(150, L - 300) };
+    // Defekt: entweder sofort stehen bleiben oder langsam zurück an die Box rollen
+    car.pendingIncident = { type: r.chance(0.5) ? 'limp' : 'failure', at: car.lap * L + r.range(150, L - 300) };
   } else if (r.chance(spinP)) {
     const c = r.pick(race.track.corners);
     car.pendingIncident = { type: 'spin', at: car.lap * L + c.d + r.range(-5, 35) };
@@ -91,6 +92,7 @@ export function checkPendingIncident(race, car, prev) {
     car.pendingIncident = null;
     if (car.inPit || race.phase !== 'running' || race.neutral) return;
     if (p.type === 'failure') startFailure(race, car);
+    else if (p.type === 'limp') startLimp(race, car);
     else {
       const corner = cornerNear(race.track, car.d);
       if ((corner.vmax || 0) >= 170 && race.rng.chance(0.35 + 0.25 * race.weather.wetness)) startCrash(race, car, corner);
@@ -180,6 +182,50 @@ export function startFailure(race, car, formation = false) {
   race.emit('marshal', `Sektor ${h.sector + 1}: ${car.id} steht in ${cornerLabel(h.corner)} – ${where}.`, { hazard: h.id, sector: h.sector, cars: [car.id] });
   if (formation) race.emit('rc', `${car.id} fällt in der Formationsrunde aus und kann nicht starten.`, { cars: [car.id] });
   return h;
+}
+
+// Technischer Defekt: Auto rollt langsam zurück an die Box (wandernde Gefahr, Gelb von Sektor zu Sektor)
+const LIMP_TEXT = [
+  '{id} wird plötzlich langsam – offenbar ein technisches Problem',
+  '{id} verliert deutlich an Tempo und rollt Richtung Box',
+  '{id} schleicht mit einem Defekt über die Strecke',
+  '{id} hat ein Problem und fährt langsam weiter',
+];
+const LIMP_RADIO = [
+  'Ich habe keine Leistung mehr, nur noch Notlauf!', 'Getriebe hängt im fünften Gang fest.', 'Etwas stimmt nicht, ich komme rein.',
+  'Hydraulikdruck fällt, ich rolle zur Box.', 'Ich habe kaum noch Antrieb.', 'Der Motor geht in den Notlauf.',
+];
+export function startLimp(race, car) {
+  const r = race.rng;
+  const h = createHazard(race, { type: 'slow', carId: car.id, d: car.d, need: 'yellow', moving: true });
+  h.desc = r.pick(LIMP_TEXT).replace('{id}', car.id);
+  car.limp = { hazardId: h.id, since: race.time, factor: r.range(0.32, 0.5) };
+  car.pass = null;
+  race.emit('radio', `Funk ${car.id}: „${r.pick(LIMP_RADIO)}“`, { cars: [car.id] });
+  race.emit('marshal', `Sektor ${h.sector + 1}: ${h.desc}.`, { hazard: h.id, sector: h.sector, cars: [car.id] });
+}
+
+// Wandernde Gefahr mit dem langsamen Auto mitführen
+export function updateLimp(race, car) {
+  const h = race.hazards.find(x => x.id === car.limp.hazardId);
+  if (!h || h.ended) return;
+  h.d = car.d;
+  const sec = sectorIndexAt(race.track, car.d);
+  if (sec !== h.sector) {
+    h.sector = sec;
+    h.corner = cornerNear(race.track, car.d);
+    race.emit('marshal', `Sektor ${sec + 1}: ${car.id} langsam unterwegs (Defekt).`, { hazard: h.id, sector: sec, cars: [car.id] });
+  }
+}
+
+// In der Box angekommen: Auto wird abgestellt
+export function limpRetire(race, car) {
+  const h = race.hazards.find(x => x.id === car.limp.hazardId);
+  if (h && !h.ended) h.endAt = race.time;
+  retireCar(race, car, 'Technischer Defekt (in der Box abgestellt)', 0);
+  car.wreck = null;
+  car.limp = null;
+  race.emit('pit', `${car.id} fährt in die Box – das Auto wird in der Garage abgestellt. Aus.`, { cars: [car.id] });
 }
 
 function startCrash(race, car, corner) {
@@ -293,6 +339,7 @@ export function updateHazards(race, dt) {
       let text;
       if (h.type === 'spin' && h.rejoined) text = `${h.carId} ist zurück auf der Strecke. Gefahr beseitigt.`;
       else if (h.type === 'stopped') text = `Auto von ${h.carId} ist geborgen. Strecke frei.`;
+      else if (h.type === 'slow') text = `${h.carId} ist in der Boxengasse. Strecke frei.`;
       else if (h.type === 'weather') text = 'Das Wasser ist weitgehend abgeflossen – die Strecke ist wieder befahrbar.';
       else if (h.type === 'crash') text = h.need === 'red' ? 'Unfallstelle geräumt, Barriere repariert. Strecke frei.' : 'Unfallstelle geräumt. Strecke frei.';
       else text = 'Trümmerteile sind beseitigt. Strecke frei.';

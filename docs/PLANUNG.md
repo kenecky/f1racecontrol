@@ -489,3 +489,9 @@ Antippen von Uhr/Wetter oben: aktueller Regen, Streckennässe, Vorhersage +5/+15
 (Strecke als Linie in der Mitte, Regenzellen ziehen mit dem Wind darüber, Farbskala hellblau → rot) mit Zeitregler bis +60 min.
 Das Radar wird aus dem festgelegten Regenverlauf abgeleitet und passt daher zur Vorhersage.
 Außerdem: Massenunfall mit Rennszene, Wochenend-Regeln im Startbildschirm (Rennen immer dabei).
+
+### Neustart nach Rot, Defekt-Rückfahrt (umgesetzt)
+Stehender Neustart: Autos verlassen die Boxengasse in Rennreihenfolge, Formationsrunde, Startaufstellung,
+Ampel und „Lichter aus“ durch die Rennleitung (wie beim Start). Motorengeräusch bei Rot erst aus, wenn alle stehen.
+Technischer Defekt mit Notlauf: Auto rollt langsam zur Box (wandernde Gefahr – Gelb von Sektor zu Sektor),
+wird in der Garage abgestellt.
