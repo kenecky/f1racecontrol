@@ -35,12 +35,20 @@ const RESPONSE_LABEL = ['keine', 'Gelb', 'Doppelt Gelb', 'VSC', 'Safety Car', 'R
 export function flagReport(race) {
   // Kurze Dreher, nach denen das Auto weiterfährt, müssen nicht zwingend abgesichert werden
   const spins = race.hazards.filter(h => h.type === 'spin');
-  const items = race.hazards.filter(h => h.type !== 'spin').map(h => {
+  // Wandernde Gefahr (langsames Auto): jeder Sektor zählt einzeln (sehr kurze Abschnitte ausgenommen)
+  const expand = h => {
+    if (!h.legs) return [h];
+    const legs = h.legs.filter(l => (l.end ?? h.endTime ?? race.time) - l.start >= 4);
+    if (!legs.length) return [h];
+    return legs.map(l => ({ ...h, start: l.start, adequateAt: l.adequateAt, sector: l.sector, desc: `${h.desc} – Sektor ${l.sector + 1}`, weight: 1 / Math.sqrt(legs.length) }));
+  };
+  const items = race.hazards.filter(h => h.type !== 'spin').flatMap(expand).map(h => {
     let verdict, note;
     const need = NEED_LEVEL[h.need];
     if (h.adequateAt === null) {
       verdict = 'missed';
-      note = `Nötig: ${NEED_LABEL[h.need]} – deine höchste Reaktion: ${RESPONSE_LABEL[h.maxResponse]}`;
+      note = h.legs ? 'Kein Gelb, während das langsame Auto in diesem Sektor war'
+        : `Nötig: ${NEED_LABEL[h.need]} – deine höchste Reaktion: ${RESPONSE_LABEL[h.maxResponse]}`;
     } else {
       const rt = h.adequateAt - h.start;
       verdict = rt <= LATE[h.need] ? 'ok' : 'late';
@@ -48,7 +56,7 @@ export function flagReport(race) {
     }
     if (h.maxResponse >= 3 && h.maxResponse - need >= 2) note += ` · ${RESPONSE_LABEL[h.maxResponse]} war überzogen`;
     else if (h.maxResponse === 2 && need === 1 && h.type !== 'debris') note += ' · Doppelt Gelb war nicht nötig';
-    return { h, verdict, note };
+    return { h, verdict, note, weight: h.weight ?? 1 };
   });
   const reacted = items.filter(i => i.h.adequateAt !== null);
   const avgReaction = reacted.length

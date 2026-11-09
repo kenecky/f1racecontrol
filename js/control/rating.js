@@ -32,7 +32,7 @@ export function rateRace(race) {
   let safety = 100;
   for (const it of fr.items) {
     const h = it.h;
-    const w = HAZARD_WEIGHT[h.need];
+    const w = HAZARD_WEIGHT[h.need] * (it.weight ?? 1);
     if (it.verdict === 'missed') safety -= w;
     else if (it.verdict === 'late') safety -= w * clamp((h.adequateAt - h.start - LATE[h.need]) / 60, 0.25, 0.8);
   }

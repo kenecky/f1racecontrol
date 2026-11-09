@@ -200,6 +200,7 @@ export function startLimp(race, car) {
   const h = createHazard(race, { type: 'slow', carId: car.id, d: car.d, need: 'yellow', moving: true });
   h.desc = r.pick(LIMP_TEXT).replace('{id}', car.id);
   car.limp = { hazardId: h.id, since: race.time, factor: r.range(0.32, 0.5) };
+  h.legs = [{ sector: h.sector, start: race.time, end: null, adequateAt: null }];   // jeder Sektor wird einzeln bewertet
   car.pass = null;
   race.emit('radio', `Funk ${car.id}: „${r.pick(LIMP_RADIO)}“`, { cars: [car.id] });
   race.emit('marshal', `Sektor ${h.sector + 1}: ${h.desc}.`, { hazard: h.id, sector: h.sector, cars: [car.id] });
@@ -212,6 +213,9 @@ export function updateLimp(race, car) {
   h.d = car.d;
   const sec = sectorIndexAt(race.track, car.d);
   if (sec !== h.sector) {
+    const leg = h.legs && h.legs[h.legs.length - 1];
+    if (leg) leg.end = race.time;
+    if (h.legs) h.legs.push({ sector: sec, start: race.time, end: null, adequateAt: null });
     h.sector = sec;
     h.corner = cornerNear(race.track, car.d);
     race.emit('marshal', `Sektor ${sec + 1}: ${car.id} langsam unterwegs (Defekt).`, { hazard: h.id, sector: sec, cars: [car.id] });
@@ -298,6 +302,7 @@ export function updateHazards(race, dt) {
     if (resp > 0 && h.firstFlagAt === null) h.firstFlagAt = t;
     if (resp > h.maxResponse) h.maxResponse = resp;
     if (h.adequateAt === null && resp >= need) h.adequateAt = t;
+    if (h.legs) { const leg = h.legs[h.legs.length - 1]; if (leg.adequateAt === null && resp >= need) leg.adequateAt = t; }
 
     if (h.okAt && t >= h.okAt) {
       h.okAt = null;
