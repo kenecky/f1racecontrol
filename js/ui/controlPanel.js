@@ -6,10 +6,10 @@ import { hazardProgress, hazardWhere } from '../sim/hazards.js';
 
 const TITLES = {
   vsc: 'VIRTUAL SAFETY CAR', sc: 'SAFETY CAR', red: 'RED FLAG', start: 'START PROCEDURE',
-  medical: 'MEDICAL CAR', sweeper: 'SWEEPER', crane: 'RECOVERY CRANE', pit: 'PIT LANE',
+  medical: 'MEDICAL CAR', sweeper: 'SWEEPER', crane: 'RECOVERY CRANE', pit: 'PIT LANE', bo: 'BLACK/ORANGE FLAG',
 };
 // Auslösende Aktionen brauchen zwei Drücke: ARM (scharf schalten) → DEPLOY
-const ARMED = new Set(['vsc-on', 'sc-on', 'red-on', 'med-go', 'sweep-go', 'crane-go', 'pit-close']);
+const ARMED = new Set(['vsc-on', 'sc-on', 'red-on', 'med-go', 'sweep-go', 'crane-go', 'pit-close', 'bo-go']);
 const armKey = a => a.split(':')[0];
 
 function mmss(t) {
@@ -170,6 +170,19 @@ export class ControlPanel {
           : `<button class="ctl-btn ctl-vsc" data-action="crane-go:${sel}" ${running ? '' : 'disabled'}>KRAN IN SEKTOR ${sel + 1} EINSETZEN</button>`;
         html += '<p class="ctl-small">Ein Kran neben der Strecke braucht mindestens Doppelt Gelb in diesem Sektor (bei Nässe Safety Car). Ein Kran im falschen Sektor kostet Punkte.</p>';
       }
+    }
+
+    if (kind === 'bo') {
+      sub = 'Beschädigtes Auto muss sofort an die Box';
+      const dmg = race.cars.map((c, i) => ({ c, i })).filter(({ c }) => c.damage === 'wing' && !c.retired && !c.finished && !c.inPit);
+      // Eindruck aus der Onboard-Kamera: bei losen Teilen meist starke Vibration – aber nicht immer eindeutig
+      const vib = c => { const x = Math.sin((c.id.charCodeAt(0) + c.id.charCodeAt(2)) * 7.3) * 0.5 + 0.5; return Math.round((c.wingLoose ? 55 + x * 40 : 15 + x * 45)); };
+      html = dmg.length ? dmg.map(({ c, i }) => `
+        <div class="ctl-hazard"><div><b>${c.id}</b> – Frontflügel beschädigt${c.boShown ? ' · <b>Schwarz-Orange gezeigt</b>' : ''}</div>
+          <div class="ctl-small">Onboard: Vibration am Flügel ${vib(c)} % · ${c.damageStayOut ? 'Team lässt ihn draußen' : 'kommt zur Reparatur'}</div>
+          ${c.boShown ? '' : `<button class="ctl-btn ctl-sc" data-action="bo-go:${i}">SCHWARZ-ORANGE FÜR ${c.id}</button>`}</div>`).join('')
+        : '<div class="ctl-ok">Kein Auto mit losem oder beschädigtem Teil auf der Strecke.</div>';
+      html += '<p class="ctl-small">Nur zeigen, wenn Teile abzufallen drohen (starke Vibration). Fällt ein Teil ab, bevor die Flagge gezeigt wurde, gibt es Abzug – eine unnötige Flagge ist unfair gegenüber dem Team.</p>';
     }
 
     if (kind === 'pit') {

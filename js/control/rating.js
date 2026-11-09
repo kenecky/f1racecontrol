@@ -44,16 +44,22 @@ export function rateRace(race) {
     if (s.type === 'lights' && s.action === 'early') safety -= 40;   // Ampel, obwohl noch Autos fahren
   }
 
+  let fairnessAdj = 0;
   // Einsatzfahrzeuge: Regeln der Rennleitung
   const svcLog = race.svc ? race.svc.log : [];
   for (const e of svcLog) {
     if (e.type === 'medicalNoSC' || e.type === 'sweeperNoSC') safety -= 10;
     if (e.type === 'craneUnsafe') safety -= e.wet ? 15 : 10;
   }
+  for (const b of race.boLog || []) {
+    if (b.late) safety -= 10;                 // Teil abgefallen, bevor Schwarz-Orange gezeigt wurde
+  }
+  const boNeedless = (race.boLog || []).filter(b => b.needed === false).length;
+  fairnessAdj = -5 * boNeedless;
   const svcWrong = svcLog.filter(e => e.type === 'craneWrong' || e.type === 'sweeperWrong').length;
 
   // Fairness
-  let fairness = 100;
+  let fairness = 100 + fairnessAdj;
   for (const it of sr.items) {
     let cost = CASE_COST[it.verdict];
     if (it.verdict === 'harsh' && !it.c.truth.offender) cost = 12;   // Strafe ohne Vergehen

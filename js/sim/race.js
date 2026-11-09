@@ -25,6 +25,7 @@ import { stepFormation, stepGrid, stepLights, releasePitStarters, stepRestart, P
 import { prepareScrutiny } from './scrutiny.js';
 import { ambientRadio, T } from './texts.js';
 import { updateServices, svc } from './services.js';
+import { rollRaceEvents, updateEvents, rollLooseWheel } from './events.js';
 export { COMPOUNDS };
 
 // Vorsicht nach Strafen: weniger Risiko und Fehler, aber auch etwas langsamer (0 … 1)
@@ -373,12 +374,13 @@ export class Race {
 
     afterMove(this, DT);
     updateServices(this, DT);
+    updateEvents(this, DT);
     updateWeather(this, DT);
     ambientRadio(this, DT, () => this.chatRand());
     // Massenunfall: neue Führungsrunde → würfeln, dann an einer Gruppe auslösen
     if (!this.isSession) {
       const leadLap = Math.max(0, ...this.cars.filter(c => !c.retired).map(c => c.lap));
-      if (leadLap > this.maxLeaderLap) { this.maxLeaderLap = leadLap; rollPileup(this, leadLap); }
+      if (leadLap > this.maxLeaderLap) { this.maxLeaderLap = leadLap; rollPileup(this, leadLap); rollRaceEvents(this, leadLap); }
       checkPileup(this);
     }
     rollVscDelta(this, DT);
@@ -583,7 +585,7 @@ export class Race {
       const neutralNow = this.neutral && this.neutral.type !== 'red';
       if (decision === 'closed') decision = null;
       else if (decision !== 'red' && car.serve.length && !neutralNow) decision = 'serve';
-      else if (decision !== 'red' && car.damage) decision = 'damage';
+      else if (decision !== 'red' && car.damage && !car.damageStayOut) decision = 'damage';
       else if (decision !== 'red' && car.weatherStop && car.lap < this.laps - 1) decision = 'weather';
       if (decision === 'serve') {
         car.inPit = true;
@@ -767,6 +769,7 @@ export class Race {
     car.tyreAge = 0;
     car.stops++;
     rollUnsafeRelease(this, car);
+    rollLooseWheel(this, car);
     this.emit('pit', `Boxenstopp ${car.id}: ${from} → ${COMPOUNDS[car.compound].name} (${car.lastStopTime.toFixed(1).replace('.', ',')} s)${cheap}`, { cars: [car.id] });
   }
 

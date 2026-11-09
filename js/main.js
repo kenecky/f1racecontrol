@@ -22,6 +22,7 @@ import { renderTower } from './ui/tower.js';
 import { ScenePlayer } from './ui/scenePlayer.js';
 import { Sound } from './ui/sound.js';
 import { deployMedical, deploySweeper, deployCrane, recallCrane, setPitClosed } from './sim/services.js';
+import { showBlackOrange } from './sim/events.js';
 import { WeatherPanel } from './ui/weatherPanel.js';
 import { hazardProgress, hazardWhere } from './sim/hazards.js';
 import { weatherLabel } from './sim/weather.js';
@@ -165,6 +166,7 @@ const controlPanel = new ControlPanel({
       'crane-off': n => recallCrane(race, n),
       'pit-close': () => setPitClosed(race, true),
       'pit-open': () => setPitClosed(race, false),
+      'bo-go': i => showBlackOrange(race, race.cars[i]),
       'start-lights': () => doStartLights(),
       'start-sc': () => startFromGridBehindSC(race),
     };
@@ -907,12 +909,12 @@ function updateAlert() {
   const open = race.hazards.filter(h => !h.ended && (h.adequateAt === null || (h.moving && race.flags[h.sector] === 'clear')));
   const h = open[open.length - 1];
   if (h) {
-    el.dataset.kind = h.global ? 'sc' : 'flags';
+    el.dataset.kind = h.global ? 'sc' : h.need === 'pit' ? 'pit' : 'flags';
     el.dataset.sector = h.sector;
     // orange: es wurde reagiert, aber (noch) nicht ausreichend
     el.className = `alert${h.maxResponse > 0 ? ' alert-double' : ''}`;
     const prog = h.workTotal ? ` · Bergung ${Math.round(hazardProgress(h) * 100)} %` : '';
-    el.innerHTML = `<span class="alert-text">⚠ ${hazardWhere(h)}: ${h.desc}${prog}</span><span class="alert-go">${h.global ? 'Maßnahmen' : 'Flaggen'} ›</span>`;
+    el.innerHTML = `<span class="alert-text">⚠ ${hazardWhere(h)}: ${h.desc}${prog}</span><span class="alert-go">${h.global ? 'Maßnahmen' : h.need === 'pit' ? 'Boxengasse' : 'Flaggen'} ›</span>`;
     return;
   }
   const n = race.neutral;
@@ -1590,6 +1592,7 @@ $('medBtn').addEventListener('click', () => openControl('medical'));
 $('sweepBtn').addEventListener('click', () => openControl('sweeper'));
 $('craneBtn').addEventListener('click', () => openControl('crane'));
 $('pitBtn').addEventListener('click', () => openControl('pit'));
+$('boBtn').addEventListener('click', () => openControl('bo'));
 
 // Kontrollpult auf-/zuklappen; eine Konsole öffnen klappt es wieder zu
 function setDeck(open) {

@@ -4,6 +4,7 @@
 import { startSpin, stopCarAfterIncident, createDebris, cornerNear, cornerLabel, createHazard, retireCar } from './hazards.js';
 import { sectorIndexAt, wrapD } from './trackModel.js';
 import { aggressionOf, errorsOf } from './race.js';
+import { markWingDamage } from './events.js';
 import { sceneCollision, sceneForcedOff, sceneOffTrackPass, sceneUnsafeRelease, sceneUnsafeRejoin, scenePileup } from './scenes.js';
 
 export const CASE_TYPES = {
@@ -21,6 +22,7 @@ export const CASE_TYPES = {
   ignoredOrder:  { name: 'Anordnung nicht befolgt',       options: ['warning', '5s', '10s', 'dt', 'sg', 'grid5', 'dsq'] },
   tlLap:         { name: 'Track Limits (Rundenzeit)',     options: ['deleteLap'] },
   impeding:      { name: 'Behinderung',                   options: ['warning', 'grid3', 'grid5', 'grid10'] },
+  yellowIgnored: { name: 'Gelb missachtet',               options: ['warning', '5s', '10s', 'dt', 'grid3', 'grid5'] },
   jumpStart:     { name: 'Fehlstart',                     options: ['warning', '5s', '10s', 'dt'] },
   gridBox:       { name: 'Falsche Startposition',         options: ['warning', '5s', '10s'] },
   tech:          { name: 'Technische Abnahme',            options: ['warning', 'dsq'] },
@@ -177,6 +179,7 @@ function collision(race, A, B, cornerId) {
 function applyConsequence(race, victim, consequence, A, B) {
   if (consequence === 'wing') {
     victim.damage = 'wing';
+    markWingDamage(race, victim);
     if (race.rng.chance(0.7)) createDebris(race, A, B);
   } else if (consequence === 'puncture') {
     victim.damage = 'puncture';

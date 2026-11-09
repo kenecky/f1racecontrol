@@ -6,14 +6,15 @@ import { neutralLevel } from './neutral.js';
 import { errorsOf } from './race.js';
 import { pickText } from './texts.js';
 import { craneIn } from './services.js';
+import { oilSpill, carFire, gravelOnTrack } from './events.js';
 import { wetLoss, bestCompound } from './tyres.js';
 
 export const FLAG_FACTOR = { clear: 1, slippery: 0.97, yellow: 0.92, double: 0.8 };
 
 // Stufen: 0 nichts, 1 Gelb, 2 Doppelt Gelb, 3 VSC, 4 Safety Car, 5 Rote Flagge
-export const NEED_LEVEL = { yellow: 1, double: 2, vsc: 3, sc: 4, red: 5 };
+export const NEED_LEVEL = { yellow: 1, double: 2, vsc: 3, sc: 4, red: 5, pit: 1 };
 export const NEED_LABEL = {
-  yellow: 'Gelb', double: 'Doppelt Gelb', vsc: 'VSC', sc: 'Safety Car', red: 'Rote Flagge',
+  yellow: 'Gelb', double: 'Doppelt Gelb', vsc: 'VSC', sc: 'Safety Car', red: 'Rote Flagge', pit: 'Boxengasse schließen',
 };
 
 // Bergungstempo je Gefahrenstufe (Zeile) und Reaktion der Rennleitung (Spalte 0–5)
@@ -23,17 +24,19 @@ const WORK_RATE = {
   vsc:    [0.2, 0.3, 0.5, 1.0, 1.4, 3.0],
   sc:     [0.1, 0.2, 0.3, 0.6, 1.0, 2.5],
   red:    [0.0, 0.0, 0.0, 0.1, 0.4, 1.0],
+  pit:    [0.15, 1.0, 1.0, 1.0, 1.0, 1.0],
 };
 
 function flagLevel(h, flag) {
   if (flag === 'double') return 2;
   if (flag === 'yellow') return 1;
-  if (flag === 'slippery' && h.type === 'debris') return 1;
+  if (flag === 'slippery' && (h.type === 'debris' || h.type === 'oil' || h.type === 'gravel')) return 1;
   return 0;
 }
 
 // Aktuelle Reaktionsstufe auf diese Gefahr
 export function responseLevel(race, h) {
+  if (h.need === 'pit') return race.svc && race.svc.pitClosed ? 1 : 0;   // Boxengasse geschlossen?
   return Math.max(flagLevel(h, race.flags[h.sector]), neutralLevel(race));
 }
 
@@ -162,6 +165,7 @@ export function endOffTrack(race, car) {
     car.v = 0;
     h.endAt = race.time + 3;
     h.rejoined = true;
+    if (race.rng.chance(0.25)) gravelOnTrack(race, car);
   }
 }
 
@@ -182,6 +186,8 @@ export function startFailure(race, car, formation = false) {
   race.emit('radio', `Funk ${car.id}: „${pickText(race, 'failureRadio')}“`, { cars: [car.id] });
   if (r.chance(0.5)) race.emit('radio', `Teamfunk ${car.team.name}: „${pickText(race, 'failureTeam')}“`, { cars: [car.id] });
   race.emit('marshal', `Sektor ${h.sector + 1}: ${car.id} steht in ${cornerLabel(h.corner)} – ${where}.`, { hazard: h.id, sector: h.sector, cars: [car.id] });
+  if (!formation && r.chance(0.12)) carFire(race, h, car);
+  if (!formation && r.chance(0.3)) oilSpill(race, car);
   if (formation) race.emit('rc', `${car.id} fällt in der Formationsrunde aus und kann nicht starten.`, { cars: [car.id] });
   return h;
 }
@@ -248,6 +254,7 @@ function startCrash(race, car, corner) {
     medical: r.chance(0.55),
   });
   h.medicalText = r.pick(['er ist in Ordnung', 'er steigt selbst aus und ist okay', 'er wird zur Vorsicht ins Medical Centre gebracht']);
+  if (r.chance(0.08)) carFire(race, h, car);
   h.desc = barrier
     ? `Schwerer Unfall ${car.id} – Barriere stark beschädigt, muss repariert werden`
     : `Schwerer Unfall ${car.id} – Wrack und Trümmerfeld auf der Strecke`;

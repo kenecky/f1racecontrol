@@ -1161,3 +1161,5 @@ body { background: var(--bg); }
 .sec-pick.need { color: var(--st-yellow); border-color: rgba(250,204,21,.6); }
 .sec-pick.sel { background: var(--text); color: var(--bg); border-color: var(--text); }
 .sec-pick.busy::after { content: ''; position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 50%; background: #e2e8f0; }
+.act-bo { color: #fb923c; }
+.act-bo .act-led { background: repeating-linear-gradient(90deg, #1a1a1a 0 6px, #7a3d12 6px 12px); }
