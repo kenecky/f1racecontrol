@@ -296,6 +296,53 @@ export function sceneUnsafeRejoin(race, { A, B, d0, cid, side, unsafe, v, contac
   };
 }
 
+// ---------- Massenunfall ----------
+// outcomes: je Auto 'dnf' | 'damage' | 'spin'; blame: 'follower' (zu spät gebremst) | 'chain'
+export function scenePileup(race, { cars, corner, outcomes, blame }) {
+  const turn = corner.turn || 1;
+  const vc = clamp((corner.vmax || 120) / 3.6, 18, 60);
+  const n = 61;
+  // Führendes Auto: normal (bei „chain“ ungewöhnlich früh) bremsen
+  const sA = runPath(-120, speedProfile(vc, blame === 'chain' ? -35 : 0), 6);
+  const tHit = cars.map((c, k) => (k === 0 ? null : 1.9 + (k - 1) * 0.35));
+  const frames = cars.map(() => []);
+  const sides = cars.map((c, k) => (k % 2 ? -1 : 1) * (k === 1 ? turn : -turn));
+  for (let k = 0; k < cars.length; k++) {
+    const lat0 = (k % 2 ? 1 : -1) * 1.2 + (k > 2 ? (k % 2 ? 2 : -2) : 0);
+    let hitAt = k === 0 ? tHit[1] : tHit[k];
+    let last = null, v = 0, lat = lat0, rot = 0;
+    for (let i = 0; i < n; i++) {
+      const t = i * DT;
+      let s;
+      if (t <= hitAt || last === null) {
+        // vor dem Einschlag: Kolonne, der Abstand schrumpft bis zum Treffer
+        const gap0 = 12 * k, gapHit = k * CAR_LEN * 0.92;
+        const kk = k === 0 ? 0 : smooth(t / hitAt);
+        s = sA[i] - lerp(gap0, gapHit, kk);
+        v = last === null ? 60 : (s - last[0]) / DT;
+      } else {
+        // nach dem Einschlag: je nach Folge abbremsen, rutschen, drehen
+        const o = outcomes[k];
+        const dt2 = t - hitAt;
+        const decay = o === 'dnf' ? Math.exp(-dt2 * 2.2) : o === 'spin' ? Math.exp(-dt2 * 1.2) : 0.75;
+        s = last[0] + Math.max(0, v * decay) * DT;
+        const drift = o === 'dnf' ? HALF_W + 3 + k * 0.8 : o === 'spin' ? 4.5 : 1.2;
+        lat = lat0 + sides[k] * drift * smooth(dt2 / 1.3);
+        rot = sides[k] * (o === 'dnf' ? 1.3 : o === 'spin' ? Math.PI * 2 : 0.15) * smooth(dt2 / 1.4);
+      }
+      frames[k].push([s, last === null || t <= hitAt ? lat0 : lat, rot]);
+      last = frames[k][i];
+    }
+  }
+  const iBrake = sA.findIndex((x, i) => i > 0 && sA[i] - sA[i - 1] < sA[1] - sA[0] - 0.4);
+  return {
+    type: 'pileup', d0: corner.d, turn, corner: corner.id, dt: DT, dur: (n - 1) * DT,
+    cars: cars.map((c, k) => ({ ...teamLook(c), f: frames[k] })),
+    contact: tHit[1],
+    overlay: { kind: 'rejoin', t: Math.max(0, iBrake) * DT, a: 0, b: 1, label: `Abstand ${cars[1].id} zu ${cars[0].id} beim Bremsen` },
+  };
+}
+
 // Position eines Autos zur Zeit t (interpoliert)
 export function sceneCarAt(scene, car, t) {
   const f = car.f;

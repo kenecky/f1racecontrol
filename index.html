@@ -23,7 +23,7 @@
         <span id="lap">–</span>
       </div>
       <div id="flag" class="flag-chip flag-start">START</div>
-      <div class="status-clock">
+      <div class="status-clock" id="wxOpen" role="button" aria-label="Wetter und Regenradar">
         <span id="clock">0:00:00</span>
         <span id="wx" class="wx"></span>
       </div>
@@ -176,7 +176,7 @@
             <label><input type="checkbox" value="fp"> Freies Training</label>
             <label><input type="checkbox" value="quali"> Qualifying</label>
             <label><input type="checkbox" value="sprint"> Sprint <small>(mit Sprint-Qualifying)</small></label>
-            <label><input type="checkbox" value="race"> Rennen</label>
+            <label class="locked"><input type="checkbox" value="race" checked disabled> Rennen <small>(immer)</small></label>
           </div>
         </div>
         <div id="weekendSteps" class="weekend-steps"></div>
@@ -193,7 +193,7 @@
       <button id="startBtn" class="primary-btn">Rennen starten</button>
       <button id="seasonBtn" class="secondary-btn season-btn hidden">🏆 Saison-Übersicht</button>
       <div id="history" class="history"></div>
-      <div class="app-version">Version 23</div>
+      <div class="app-version">Version 24</div>
       <details class="options">
         <summary>Optionen</summary>
         <label>Rennen-Nr. (gleiche Nr. = gleiches Rennen)
@@ -242,6 +242,13 @@
     </div>
   </div>
 
+  <div id="wxScreen" class="overlay hidden">
+    <div class="sheet wx-sheet">
+      <h2 class="sheet-title">WEATHER · RADAR</h2>
+      <div id="wxBody"></div>
+      <div class="sheet-actions"><button id="wxCloseBtn" class="primary-btn">Schließen</button></div>
+    </div>
+  </div>
   <div id="postScreen" class="overlay hidden">
     <div class="sheet post-sheet">
       <div class="post-head">

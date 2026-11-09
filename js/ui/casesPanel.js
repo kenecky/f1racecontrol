@@ -125,8 +125,7 @@ export class CasesPanel {
               <div class="doc-no"><small>DOCUMENT</small><b>${c.id}</b></div></div>
             <div class="doc-title">${DOC_TITLE[c.status]}</div>
             <table class="doc-table">
-              ${cars.map(car => row('NO / DRIVER', `${car.driver.number} – ${car.driver.first} ${car.driver.last}`)).join('')}
-              ${row('COMPETITOR', [...new Set(cars.map(car => car.team.name))].join(', '))}
+              ${cars.map(car => row('NO / DRIVER', `${car.driver.number} – ${car.driver.first} ${car.driver.last} <span class="doc-team">(${car.team.short})</span>`)).join('')}
               ${row('TIME / LAP', c.when || (c.lap ? `Runde ${c.lap}` : 'Vor dem Start'))}
               ${row('FACT', c.summary)}
               ${row('OFFENCE', c.typeName)}

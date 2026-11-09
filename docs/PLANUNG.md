@@ -483,3 +483,9 @@ Neue Fälle mit Rennszene: unsichere Boxenfreigabe (jetzt auch mit „kein Verge
 Grand-Prix-Liste (scrollbar) mit Streckenvorschau, Runden und km; darunter Wetter, Teile des Wochenendes
 (FP, Qualifying, Sprint inkl. Sprint-Qualifying, Rennen – laufen nacheinander, Startaufstellung und Strafen
 werden weitergegeben) und Dauer. Start immer stehend.
+
+### Wetter-Fenster (umgesetzt)
+Antippen von Uhr/Wetter oben: aktueller Regen, Streckennässe, Vorhersage +5/+15/+30/+60 min, Regenradar
+(Strecke als Linie in der Mitte, Regenzellen ziehen mit dem Wind darüber, Farbskala hellblau → rot) mit Zeitregler bis +60 min.
+Das Radar wird aus dem festgelegten Regenverlauf abgeleitet und passt daher zur Vorhersage.
+Außerdem: Massenunfall mit Rennszene, Wochenend-Regeln im Startbildschirm (Rennen immer dabei).

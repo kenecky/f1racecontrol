@@ -21,6 +21,7 @@ import { CasesPanel } from './ui/casesPanel.js';
 import { renderTower } from './ui/tower.js';
 import { ScenePlayer } from './ui/scenePlayer.js';
 import { Sound } from './ui/sound.js';
+import { WeatherPanel } from './ui/weatherPanel.js';
 import { hazardProgress, hazardWhere } from './sim/hazards.js';
 import { weatherLabel } from './sim/weather.js';
 import {
@@ -65,7 +66,8 @@ function updateSound(now) {
     const crowd = Math.min(1, 0.25 + onTrack / 16);
     if (race.phase === 'formation') { level = 0.55; rpm = 0.3; }
     else if (race.phase === 'grid') { level = 0.35; rpm = 0.12; }
-    else if (race.phase === 'lights') { level = 0.55; rpm = race.lightsOn ? 0.35 + 0.25 * Math.abs(Math.sin(now / 230)) : 0.15; }
+    // Ab dem Pre-Start (Ampel eingeschaltet) heulen die Motoren auf
+    else if (race.phase === 'lights') { level = 0.8; rpm = 0.38 + 0.25 * Math.abs(Math.sin(now / 230)); }
     else if (race.phase === 'running' || race.phase === 'chequered') {
       level = 0.75 * crowd;
       rpm = n && n.type === 'red' ? 0.1 : n ? 0.42 : 0.66 + 0.06 * Math.sin(now / 900);
@@ -92,6 +94,11 @@ function updateSound(now) {
   }
   if (race.events.length) snd.evId = race.events[race.events.length - 1].id;
 }
+
+// ---------- Wetter-Fenster ----------
+const weatherPanel = new WeatherPanel({ root: $('wxScreen'), body: $('wxBody'), getRace: () => race });
+$('wxOpen').addEventListener('click', () => { if (race) weatherPanel.open(); });
+$('wxCloseBtn').addEventListener('click', () => weatherPanel.close());
 
 const feed = new Feed($('feed'), { colorOf: id => (race && race.carById[id] ? race.carById[id].team.color : null) });
 
@@ -316,7 +323,9 @@ function setMode(mode) {
 const SINGLE_ORDER = ['fp', 'sprint', 'quali', 'race'];
 function singleParts() {
   const p = (settings.singleParts || ['race']).filter(x => SINGLE_ORDER.includes(x));
-  return p.length ? p : ['race'];
+  if (!p.includes('race')) p.push('race');                       // Rennen ist immer dabei
+  if (p.includes('fp') && !p.includes('quali')) p.push('quali');  // FP nur mit Qualifying
+  return p;
 }
 // Reihenfolge wie an einem echten Wochenende: FP › SQ › Sprint › Q › Rennen
 function singleSessionList() {
@@ -409,9 +418,14 @@ $('gpList').addEventListener('click', e => {
   saveSettings(settings);
   newRace();
 });
-$('sessionChecks').addEventListener('change', () => {
+$('sessionChecks').addEventListener('change', e => {
+  // Regeln: Rennen immer dabei · FP nur mit Qualifying · Sprint und Qualifying nur mit Rennen
+  const box = v => $('sessionChecks').querySelector(`input[value="${v}"]`);
+  const v = e.target.value, on = e.target.checked;
+  if (v === 'fp' && on) box('quali').checked = true;
+  if (v === 'quali' && !on) box('fp').checked = false;
+  box('race').checked = true;
   const sel = [...$('sessionChecks').querySelectorAll('input:checked')].map(x => x.value);
-  if (!sel.length) { toast('Mindestens einen Teil auswählen'); renderSingleSetup(); return; }
   settings.singleParts = sel;
   resetSingleWeekend();
   saveSettings(settings);
@@ -778,6 +792,7 @@ function refreshUi() {
     } else if (activeTab !== 'cases') toast(`Neue Entscheidung #${c.id}: ${c.typeName}`);
   }
   if (map.follow) renderDriverCard();
+  if (weatherPanel.isOpen && weatherPanel.offset === 0) weatherPanel.drawRadar();
   if (!touching) {
     renderTiming($('timing'), race, timingOpts());
     if (settings.showTower) renderTower($('tower'), race, map.selected);

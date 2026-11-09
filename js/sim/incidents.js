@@ -4,7 +4,7 @@
 import { startSpin, stopCarAfterIncident, createDebris, cornerNear, cornerLabel, createHazard, retireCar } from './hazards.js';
 import { sectorIndexAt, wrapD } from './trackModel.js';
 import { aggressionOf, errorsOf } from './race.js';
-import { sceneCollision, sceneForcedOff, sceneOffTrackPass, sceneUnsafeRelease, sceneUnsafeRejoin } from './scenes.js';
+import { sceneCollision, sceneForcedOff, sceneOffTrackPass, sceneUnsafeRelease, sceneUnsafeRejoin, scenePileup } from './scenes.js';
 
 export const CASE_TYPES = {
   collision:     { name: 'Kollision',                     options: ['warning', '5s', '10s', 'dt', 'sg', 'grid3', 'grid5', 'grid10', 'dsq'] },
@@ -529,7 +529,7 @@ function startPileup(race, cars) {
   // Fall für die Kommissare
   const brake = measure(race, blame === 'follower' ? 14 : 6, 5, 0, 30);
   const closing = measure(race, blame === 'follower' ? 38 : 22, 9, 5, 70);
-  createCase(race, {
+  const pc = createCase(race, {
     type: 'pileup', cars: cars.map(c => c.id), corner: corner.id,
     title: `Massenunfall ${cars.length} Autos – ${corner.id}`,
     summary: `In ${cornerLabel(corner)} kommt es zu einem Unfall mit ${cars.length} Autos: ${names}.`,
@@ -547,6 +547,7 @@ function startPileup(race, cars) {
       ? { offender: B.id, expected: ['10s', 'dt'], points: [2, 3], victim: A.id }
       : { offender: null, expected: ['none'], points: [0, 0], victim: A.id },
   });
+  pc.scene = scenePileup(race, { cars, corner, outcomes, blame });
 }
 
 // ---------- Anhörung nach dem Rennen ----------

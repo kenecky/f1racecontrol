@@ -43,7 +43,7 @@ export function renderTiming(el, race, { gapMode, selected }) {
       else if (i === 0) gapText = formatLap(t);
       else gapText = formatGap(race.gap(car, gapMode === 'interval' ? st[i - 1] : leader), false);
     } else if (!started && car.retired) gapText = 'Ausfall';
-    else if (!started) gapText = car.pitStart ? 'Boxengasse' : `Startplatz ${car.gridPos}`;
+    else if (!started) gapText = car.pitStart ? 'PIT' : '';
     else if (car.retired) gapText = car.dsq ? 'DSQ' : 'Ausfall';
     else if (gapMode === 'interval') gapText = i === 0 ? (car.finished ? '🏁' : 'Intervall') : formatGap(race.gap(car, st[i - 1]), false);
     else gapText = i === 0 ? (car.finished ? '🏁' : 'Führung') : formatGap(race.gap(car, leader), false);
