@@ -514,7 +514,8 @@ function renderSeasonTab() {
     el.innerHTML = '<p class="ctl-small">Wie die Teams die Rennleitung sehen. Faire Urteile schaffen Vertrauen, zu harte oder zu milde verärgern. Verärgerte Teams reagieren im Funk und in den Medien schärfer.</p>'
       + TEAMS.map(t => ({ t, v: rep[t.id] || 0 })).sort((a, b) => b.v - a.v).map(({ t, v }) => `
         <div class="srow"><span></span><span class="teambar" style="background:${t.color}"></span>
-          <span>${t.name}<div class="sub">${label(v)}</div><div class="rep-bar"><i style="left:50%;width:${Math.abs(v) / 2}%;${v < 0 ? `transform:translateX(-100%);background:var(--st-red)` : 'background:var(--st-green)'}"></i></div></span><b>${v > 0 ? '+' : ''}${Math.round(v)}</b></div>`).join('');
+          <span>${t.name}<div class="sub">${label(v)}</div><div class="rep-bar"><i style="left:50%;width:${Math.abs(v) / 2}%;${v < 0 ? `transform:translateX(-100%);background:var(--st-red)` : 'background:var(--st-green)'}"></i></div></span><b>${v > 0 ? '+' : ''}${Math.round(v)}</b></div>`).join('')
+      + appealsHtml(season);
   } else {
     const entryNow = currentRound(season) || SEASON_2026[SEASON_2026.length - 1];
     const ref = roundDate(season, entryNow);
@@ -530,6 +531,15 @@ function renderSeasonTab() {
         return `<div class="srow"><span></span><span class="teambar" style="background:${teamOf(id).color}"></span><span>${id}<div class="sub">${parts.join(' · ')}</div></span><b></b></div>`;
       }).join('') : '<p class="ctl-text">Noch keine Strafen in dieser Saison.</p>');
   }
+}
+
+// Berufungen vor dem Berufungsgericht (Saison)
+function appealsHtml(season) {
+  const list = season.appeals || [];
+  if (!list.length) return '';
+  return '<h3 class="section-title">Berufungen</h3>' + list.slice().reverse().map(a => `
+    <div class="srow"><span></span><span class="teambar" style="background:${(TEAMS.find(t => t.id === a.team) || {}).color}"></span>
+      <span>${a.carId} · ${a.where}<div class="sub">${a.penalty} – ${a.done ? (a.overturn ? `aufgehoben${a.ptsGain ? `, +${a.ptsGain} Pkt.` : ''}` : 'bestätigt') : `Entscheidung nach Rennen ${a.due}`}</div></span><b>${a.done ? (a.overturn ? '✗' : '✓') : '…'}</b></div>`).join('');
 }
 
 // Zeit/Abstand in der Ergebnisliste von Training und Qualifying
@@ -627,6 +637,30 @@ function resumeRace() {
 
 // ---------- Statistik ----------
 
+// Statistik je Strecke
+function trackStatsHtml(list) {
+  const groups = new Map();
+  for (const e of list) {
+    const key = e.trackId || e.gp;
+    if (!key) continue;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(e);
+  }
+  if (!groups.size) return '';
+  const short = gp => (gp || '').replace('Großer Preis von ', '').replace('Großer Preis der ', '').replace('Großer Preis ', '');
+  const rows = [...groups.values()].sort((a, b) => b.length - a.length).map(g => {
+    const avgT = Math.round(g.reduce((s, e) => s + e.total, 0) / g.length);
+    const best = Math.max(...g.map(e => e.total));
+    const sc = g.reduce((s, e) => s + (e.neutral ? e.neutral.sc + e.neutral.vsc : 0), 0);
+    const red = g.reduce((s, e) => s + (e.neutral ? e.neutral.red : 0), 0);
+    const haz = g.reduce((s, e) => s + (e.hazards ? e.hazards.total : 0), 0);
+    const cases = g.reduce((s, e) => s + (e.cases ? e.cases.total : 0), 0);
+    return `<tr><td>${short(g[0].gp)}</td><td>${g.length}</td><td><b>${avgT}</b></td><td>${best}</td><td>${(haz / g.length).toFixed(1).replace('.', ',')}</td><td>${(cases / g.length).toFixed(1).replace('.', ',')}</td><td>${sc}/${red}</td></tr>`;
+  }).join('');
+  return `<h3 class="section-title">Je Strecke</h3>
+    <div class="track-stats"><table><thead><tr><th>GP</th><th>Rennen</th><th>Ø</th><th>Best</th><th>Gef./R.</th><th>Fälle/R.</th><th>SC+VSC/Rot</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
 function renderStats() {
   const list = loadHistory();
   const el = $('statsBody');
@@ -645,6 +679,7 @@ function renderStats() {
     <h3 class="section-title">Gesamt</h3>
     <div class="report-stats">${tile(sum(e => e.neutral && e.neutral.vsc), 'VSC')}${tile(sum(e => e.neutral && e.neutral.sc), 'Safety Cars')}${tile(sum(e => e.neutral && e.neutral.red), 'Rote Flaggen')}</div>
     <div class="report-stats">${tile(sum(e => e.cases && e.cases.total), 'Entscheidungen')}${tile(sum(e => e.penalties), 'Strafen')}${tile(list.filter(e => e.stars === 5).length, '5-Sterne-Rennen')}</div>
+    ${trackStatsHtml(list)}
     <h3 class="section-title">Letzte Rennen</h3>
     ${list.slice(0, 15).map(e => `
       <div class="history-row">
@@ -1210,6 +1245,9 @@ function showResults() {
     key: `${race.seed}-${race.startedAt}`,
     date: new Date().toISOString(),
     gp: race.track.def.grandPrix,
+    trackId: race.track.def.id,
+    difficulty: race.difficulty,
+    season: race.seasonRound !== undefined,
     seed: race.seed,
     total: rating.total,
     grade: rating.grade,

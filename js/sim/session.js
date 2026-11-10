@@ -5,7 +5,7 @@ import { COMPOUNDS, bestCompound } from './tyres.js';
 import { rollLapIncidents } from './hazards.js';
 import { createLapCase, createImpedingCase } from './incidents.js';
 import { sessionDurations } from './length.js';
-import { rollPitQueue, rollSlowOutlap } from './cases2.js';
+import { rollPitQueue, rollSlowOutlap, rollOutlapPass } from './cases2.js';
 import { rollParcFerme } from './regs.js';
 import { prepareScrutiny } from './scrutiny.js';
 
@@ -270,6 +270,7 @@ export class Session extends Race {
     car.outStartD = car.d;
     rollPitQueue(this, car);
     rollSlowOutlap(this, car);   // Aufwärmrunde zählt erst ab einer vollen Runde
+    rollOutlapPass(this, car);
     car.prog.pushLeft = run.push;
     car.compromised = false;
   }

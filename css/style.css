@@ -1178,3 +1178,8 @@ body { background: var(--bg); }
 .act-msg.on .act-led { background: #818cf8; box-shadow: 0 0 8px #818cf8; }
 .dc-file { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line-2); font-size: 11.5px; color: var(--muted); line-height: 1.45; }
 .dc-file b { font: 700 9.5px var(--mono); letter-spacing: .12em; color: var(--text); margin-right: 4px; }
+.track-stats { overflow-x: auto; margin-bottom: 8px; }
+.track-stats table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.track-stats th { font: 600 9px var(--mono); letter-spacing: .08em; color: var(--muted); text-align: right; padding: 4px 3px; border-bottom: 1px solid var(--line-2); }
+.track-stats td { text-align: right; padding: 5px 3px; border-bottom: 1px solid var(--line-2); font-family: var(--mono); }
+.track-stats th:first-child, .track-stats td:first-child { text-align: left; font-family: inherit; }

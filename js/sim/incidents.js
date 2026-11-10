@@ -46,6 +46,7 @@ export const CASE_TYPES = {
   parcFerme:     { name: 'Parc-fermé-Verstoß',            options: ['warning', 'grid5', 'pitstart'] },
   parkedQuali:   { name: 'Absichtlich abgestellt (Qualifying)', options: ['warning', 'grid5', 'dsq'] },
   slowOutlap:    { name: 'Zu langsame Aufwärmrunde',      options: ['warning', 'grid3', 'grid5'] },
+  outlapPass:    { name: 'Überholen vor der Linie (Aufwärmrunde)', options: ['warning', 'grid3', 'grid5'] },
   language:      { name: 'Schimpfwörter',                 options: ['warning', 'fine'] },
   protest:       { name: 'Protest / Antrag auf Überprüfung', options: [] },
   yellowIgnored: { name: 'Gelb missachtet',               options: ['warning', '5s', '10s', 'dt', 'grid3', 'grid5'] },

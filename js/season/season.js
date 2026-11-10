@@ -213,6 +213,79 @@ export function updateReputation(season, race, rating, notes) {
   if (worst && worst[1] <= -25) notes.push(`Ruf: Das Team ${worst[0]} ist mit der Rennleitung sehr unzufrieden (${Math.round(worst[1])}).`);
 }
 
+// ---------- Berufungsgericht (nur Saison) ----------
+// Teams können gegen schwere Strafen Berufung einlegen. Das Gericht entscheidet zwei Rennen später:
+// Falsche oder zu harte Urteile werden gekippt (Punkte und Strafpunkte werden korrigiert, Glaubwürdigkeit leidet).
+export const APPEAL_DELAY = 2;
+const APPEALABLE = new Set(['10s', 'dt', 'sg', 'dsq', 'grid5', 'grid10', 'pitstart']);
+
+function pointsWithout(race, car, table, secs) {
+  // Platz, den das Auto ohne die Strafe erreicht hätte (nur wenn es im Ziel war)
+  if (!car.finished) return null;
+  const mine = race.adjustedFinish(car) - secs;
+  const ahead = race.cars.filter(o => o !== car && o.finished && !o.dsq
+    && (o.lap > car.lap || (o.lap === car.lap && race.adjustedFinish(o) < mine))).length;
+  return table[ahead] || 0;
+}
+
+function fileAppeals(season, race, table, notes) {
+  season.appeals = season.appeals || [];
+  const r = createRng((season.year * 1000 + season.round) * 13 + 5);
+  const gp = TRACKS[race.track.def.id] ? race.track.def.grandPrix.replace('Großer Preis von ', 'GP ') : '';
+  let filed = 0;
+  for (const c of race.cases) {
+    if (filed >= 2) break;   // höchstens zwei Berufungen je Rennen
+    const v = c.verdict;
+    if (!v || !v.carId || v.revoked || c.status !== 'decided' || !APPEALABLE.has(v.penalty) || ['protest', 'tlLap'].includes(c.type)) continue;
+    const { verdict } = evaluateCase(race, c);
+    const p = verdict === 'wrong' ? 0.75 : verdict === 'harsh' ? 0.5 : 0.06;
+    if (!r.chance(p)) continue;
+    filed++;
+    const car = race.carById[v.carId];
+    const secs = car.timePens.filter(x => x.caseId === c.id).reduce((a, x) => a + x.secs, 0);
+    const now = car.dsq || !car.finished ? 0 : pointsWithout(race, car, table, 0);
+    const alt = v.penalty === 'dsq' ? pointsWithout(race, car, table, 0) : secs ? pointsWithout(race, car, table, secs) : null;
+    season.appeals.push({
+      carId: car.id, team: car.team.id, teamName: car.team.name, title: c.title, penalty: PENALTIES[v.penalty].name,
+      points: v.points || 0, where: gp, filed: season.round, due: season.round + APPEAL_DELAY,
+      overturn: verdict === 'wrong' || verdict === 'harsh', ptsGain: alt !== null ? Math.max(0, alt - (now || 0)) : 0, done: false,
+    });
+    notes.push(`Berufung: ${car.team.name} geht gegen „${PENALTIES[v.penalty].name}“ für ${car.id} (${c.typeName}) vor das Berufungsgericht – Entscheidung in ${APPEAL_DELAY} Rennen.`);
+  }
+}
+
+function resolveAppeals(season, notes) {
+  season.rep = season.rep || {};
+  const add = (teamId, v) => { season.rep[teamId] = Math.max(-100, Math.min(100, (season.rep[teamId] || 0) + v)); };
+  for (const a of season.appeals || []) {
+    if (a.done || season.round < a.due) continue;
+    a.done = true;
+    if (!a.overturn) {
+      add(a.team, -1);
+      notes.push(`Berufungsgericht: Die Berufung von ${a.teamName} (${a.where}, ${a.carId}) wird abgewiesen – das Urteil der Rennleitung bleibt bestehen.`);
+      continue;
+    }
+    if (a.ptsGain) {
+      season.driverPts[a.carId] = (season.driverPts[a.carId] || 0) + a.ptsGain;
+      season.teamPts[a.team] = (season.teamPts[a.team] || 0) + a.ptsGain;
+      const res = season.results.find(x => x.round === a.filed + 1);
+      const row = res && res.classification.find(x => x.id === a.carId);
+      if (row) { row.pts += a.ptsGain; row.appeal = true; }
+    }
+    // Strafpunkte aus dem Urteil zurücknehmen (jüngster passender Eintrag)
+    let left = a.points;
+    for (const e of [...season.penaltyLog].reverse()) {
+      if (!left || e.id !== a.carId) continue;
+      const take = Math.min(left, e.pts - (e.used || 0));
+      e.pts -= take;
+      left -= take;
+    }
+    add(a.team, 4);
+    for (const t of new Set([...Object.keys(season.teamPts), ...Object.keys(season.rep)])) if (t !== a.team) add(t, -0.5);
+    notes.push(`Berufungsgericht: Das Urteil gegen ${a.carId} (${a.where}: ${a.penalty}) wird aufgehoben${a.ptsGain ? ` – ${a.carId} erhält ${a.ptsGain} WM-Punkt${a.ptsGain > 1 ? 'e' : ''} zurück` : ''}${a.points ? `, ${a.points} Strafpunkt${a.points > 1 ? 'e' : ''} gestrichen` : ''}. Ein Rückschlag für die Glaubwürdigkeit der Rennleitung.`);
+  }
+}
+
 // Antriebseinheiten: 4 pro Saison. Jede weitere bringt Startplatzstrafen (erste 10, danach 5 Plätze).
 export const PU_LIMIT = 4;
 function powerUnits(season, race, next, notes) {
@@ -259,6 +332,8 @@ function applyRace(season, race, rating, notes) {
   for (const g of race.carryOver || []) next[g.carId] = (next[g.carId] || 0) + g.places;
   powerUnits(season, race, next, notes);
   updateReputation(season, race, rating, notes);
+  resolveAppeals(season, notes);
+  fileAppeals(season, race, table, notes);
   countWarnings(season, race, next, notes);
   addPenaltyPoints(season, race, roundDate(season, entry), notes);
   for (const [id, places] of Object.entries(next)) notes.push(`${id}: Startplatzstrafe ${places} Plätze im nächsten Rennen.`);

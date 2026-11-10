@@ -307,6 +307,32 @@ export function rollSlowOutlap(race, car) {
   });
 }
 
+// Qualifying: kurz vor der Linie auf der Aufwärmrunde überholt, um freie Bahn zu haben
+export function rollOutlapPass(race, car) {
+  if (!race.isSession || race.kind === 'fp' || !race.rng.chance(0.03)) return;
+  const r = race.rng;
+  const others = race.cars.filter(c => c !== car && !c.inGarage && c.prog && c.prog.phase === 'out');
+  if (!others.length) return;
+  const B = r.pick(others);
+  const guilty = r.chance(0.6);
+  const dist = Math.round(measure(race, guilty ? 180 : 700, 120, 60, 1400));
+  const dv = Math.round(measure(race, guilty ? 70 : 35, 18, 5, 120));
+  const late = r.chance(0.5);
+  createCase(race, {
+    type: 'outlapPass', cars: [car.id, B.id],
+    title: `${car.id} überholt ${B.id} vor der Linie (Aufwärmrunde)`,
+    summary: `${car.id} überholt ${B.id} auf der Aufwärmrunde kurz vor Beginn der schnellen Runde.`,
+    evidence: [
+      ev('video', 'TV-Bilder', `${car.id} zieht in der letzten Kurve an ${B.id} vorbei, beide auf der Aufwärmrunde.${tvImpression(race, guilty ? 'Es wirkt knapp und hektisch.' : 'Es wirkt kontrolliert.', guilty ? 'Es wirkt kontrolliert.' : 'Es wirkt knapp und hektisch.')}`, true),
+      ev('position', 'Ort des Manövers', `Etwa ${dist} m vor der Ziellinie.`),
+      ev('telemetry', 'Geschwindigkeiten', `${car.id} ist beim Überholen ${dv} km/h schneller als ${B.id}.`),
+      ev('radio', `Funk ${B.id}`, guilty ? '„Er fliegt einfach vorbei, direkt vor der Linie! Gefährlich!“' : '„Okay, ich lasse ihn durch, ich brauche Abstand.“'),
+      ev('data', 'Leitlinie', `Auf der Aufwärmrunde ist Überholen erlaubt, aber nicht unmittelbar vor der Linie mit großem Tempounterschied${late ? ' – besonders in den letzten Minuten, wenn alle gleichzeitig auf die Strecke gehen' : ''}. Wer freiwillig Platz macht, wird nicht behindert.`),
+    ],
+    truth: guilty ? { offender: car.id, expected: ['warning', 'grid3'], points: [0, 1], victim: B.id } : { offender: null, expected: ['none'], points: [0, 0], victim: B.id },
+  });
+}
+
 // ---------- Schimpfwörter im Funk ----------
 export function rollLanguage(race) {
   if (race.phase !== 'running' || !race.rng.chance(0.0004)) return;

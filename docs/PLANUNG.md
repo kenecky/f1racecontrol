@@ -553,3 +553,14 @@ Vibration bei neuen Vorfällen/Entscheidungen: im Tempo-Menü abschaltbar.
   Vorher oft ein Funkspruch „Das war knapp!“ als Warnung.
 - **Strategie unter VSC/SC:** Funksprüche „Box, box – wir nutzen das Safety Car!“ bzw. „Bleib draußen“; in der VSC-/SC-Konsole
   steht, wer an der Box war und wer draußen geblieben ist.
+
+### Statistik je Strecke, Überholen vor der Linie, Berufungsgericht (v36)
+- **Statistik je Strecke:** Tabelle im Statistik-Fenster (Rennen, Ø-Punkte, Bestwert, Gefahren und Fälle pro Rennen,
+  SC+VSC/Rot). Neue Einträge speichern Strecke, Schwierigkeitsgrad und ob es ein Saisonrennen war.
+- **Überholen vor der Linie (Aufwärmrunde, Qualifying/Sprint-Qualifying):** etwa ein Fall pro Qualifying;
+  Beweise: Ort vor der Linie, Tempounterschied, Funk. Angemessen: Verwarnung bis 3 Startplätze. Ab „Mittel“.
+- **Berufungsgericht (nur Saison):** Gegen schwere Strafen (10 s, Durchfahrt, Stop-and-Go, DSQ, ab 5 Startplätzen)
+  legen Teams Berufung ein (falsches Urteil 75 %, zu hart 50 %, angemessen 6 %, höchstens 2 je Rennen).
+  Entscheidung zwei Rennen später: Falsche/zu harte Urteile werden aufgehoben – WM-Punkte (soweit berechenbar:
+  Platz ohne die Zeitstrafe bzw. DSQ) und Strafpunkte werden korrigiert, Ruf: betroffenes Team +4, alle anderen −0,5.
+  Abgewiesene Berufung: Team −1. Übersicht im Saison-Reiter „Ruf“.
