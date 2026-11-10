@@ -227,7 +227,7 @@
       <button id="startBtn" class="primary-btn">Rennen starten</button>
       <button id="seasonBtn" class="secondary-btn season-btn hidden">🏆 Saison-Übersicht</button>
       <div id="history" class="history"></div>
-      <div class="app-version">Version 36</div>
+      <div class="app-version">Version 37</div>
       <details class="options">
         <summary>Optionen</summary>
         <label>Rennen-Nr. (gleiche Nr. = gleiches Rennen)
@@ -309,10 +309,29 @@
       <div class="sheet-actions">
         <button id="openCasesBtn" class="secondary-btn hidden">Zu den offenen Entscheidungen</button>
         <button id="applySeasonBtn" class="primary-btn hidden">In die Saison übernehmen</button>
+        <button id="replayBtn" class="secondary-btn hidden">▶ Replay des Rennens</button>
         <button id="closeResultBtn" class="secondary-btn">Schließen</button>
         <button id="newRaceBtn" class="primary-btn">Neues Rennen</button>
       </div>
     </div>
+  </div>
+
+  <div id="replayScreen" class="replay-screen hidden">
+    <div class="rp-head"><span class="rp-tag">REPLAY</span><b id="rpTitle"></b><button id="rpClose" class="x-btn" aria-label="Schließen">✕</button></div>
+    <div class="rp-stage">
+      <canvas id="rpCanvas"></canvas>
+      <div id="rpTower" class="rp-tower"></div>
+      <div id="rpInfo" class="rp-info"></div>
+    </div>
+    <div class="rp-bar">
+      <div class="rp-timeline"><div id="rpMarks" class="rp-marks"></div><input id="rpSlider" type="range" min="0" max="1000" value="0" aria-label="Zeitleiste"></div>
+      <div class="rp-ctrl">
+        <button id="rpPlay" class="rp-play">▶</button>
+        <span id="rpTime" class="rp-time"></span>
+        <div id="rpSpeeds" class="rp-speeds"><button data-sp="4">4×</button><button data-sp="16">16×</button><button data-sp="32">32×</button><button data-sp="64">64×</button></div>
+      </div>
+    </div>
+    <div id="rpEvents" class="rp-events"></div>
   </div>
 
   <div id="toast" class="toast"></div>

@@ -34,7 +34,7 @@ import {
 } from './sim/neutral.js';
 import {
   loadSettings, saveSettings, loadHistory, saveHistoryEntry, clearHistory,
-  saveRaceState, loadRaceState, clearRaceState, loadSeason, saveSeason,
+  saveRaceState, loadRaceState, clearRaceState, loadSeason, saveSeason, saveReplay, loadReplay,
 } from './storage.js';
 import { serializeRace, restoreRace } from './sim/persist.js';
 import { abortStart, startFromGridBehindSC, releaseFormation, startLights, lightsOut, restartLights, restartLightsOut, ALL_ON } from './sim/start.js';
@@ -44,6 +44,7 @@ import { prepareBriefing } from './sim/regs.js';
 import { rateRace, AXES } from './control/rating.js';
 import { DIFFICULTY } from './sim/incidents.js';
 import { sendMessage } from './sim/messages.js';
+import { Recorder, ReplayViewer } from './ui/replay.js';
 
 const SPEEDS = [1, 2, 4, 8, 16, 32];
 const $ = id => document.getElementById(id);
@@ -568,7 +569,7 @@ function renderHistory() {
   if (!list.length) { el.innerHTML = ''; return; }
   const best = Math.max(...list.map(e => e.total));
   el.innerHTML = `
-    <div class="history-title">Deine letzten Rennen <button id="statsBtn" class="link-btn">Statistik ›</button></div>
+    <div class="history-title">Deine letzten Rennen <span><button id="histReplayBtn" class="link-btn hidden">Replay ›</button> <button id="statsBtn" class="link-btn">Statistik ›</button></span></div>
     <div class="history-best">Bestwert ${best}/100</div>
     ${list.slice(0, 5).map(e => `
       <div class="history-row">
@@ -577,6 +578,8 @@ function renderHistory() {
         <b>${e.total}${e.provisional ? '*' : ''}</b>
       </div>`).join('')}`;
   $('statsBtn').addEventListener('click', () => { renderStats(); $('statsScreen').classList.remove('hidden'); });
+  $('histReplayBtn').addEventListener('click', openReplay);
+  loadReplay().then(d => { const b = document.getElementById('histReplayBtn'); if (b && d && d.frames && d.frames.length > 1) { b.classList.remove('hidden'); b.title = d.gp; } });
 }
 
 // ---------- Speichern / Fortsetzen ----------
@@ -608,6 +611,8 @@ function renderResume() {
 
 function resumeRace() {
   race = savedRace;
+  recorder = null;
+  if (!race.isSession) loadReplay().then(prev => { if (race && !race.isSession) recorder = new Recorder(race, prev); });
   track = race.track;
   map.setTrack(track);
   savedRace = null;
@@ -726,10 +731,27 @@ function startRace() {
   renderResume();
   $('startScreen').classList.add('hidden');
   race.start('standing');
+  recorder = race.isSession ? null : new Recorder(race);
   paused = false;
   updatePauseBtn();
   requestWakeLock();
 }
+
+// ---------- Wiederholung des ganzen Rennens ----------
+let recorder = null, lastReplaySave = 0;
+const replayViewer = new ReplayViewer($('replayScreen'));
+function persistReplay() {
+  if (!recorder || !recorder.dirty) return;
+  recorder.dirty = false;
+  lastReplaySave = performance.now();
+  saveReplay(recorder.data);
+}
+async function openReplay() {
+  let data = recorder && recorder.data.done ? recorder.data : await loadReplay();
+  if (!data || !data.frames || data.frames.length < 2) { toast('Keine Wiederholung gespeichert'); return; }
+  replayViewer.open(data, getTrack(data.trackId));
+}
+$('replayBtn').addEventListener('click', openReplay);
 
 // ---------- Game-Loop ----------
 
@@ -743,6 +765,7 @@ function frame(now) {
     while (acc >= DT && n < 2000) {
       for (const c of race.cars) prevD.set(c, c.d);
       race.step();
+      if (recorder) recorder.tick(race);
       acc -= DT;
       n++;
       if (race.hazards.length > seenHazards) {
@@ -770,6 +793,7 @@ function frame(now) {
     updateSound(now);
 
     if (!paused && now - lastSave > 10000) { lastSave = now; autosave(); }
+    if (recorder && recorder.dirty && (recorder.data.done || now - lastReplaySave > 30000)) persistReplay();
 
     if (now - lastUi > 300) {
       lastUi = now;
@@ -1280,6 +1304,8 @@ function showResults() {
     </details>`;
   closeFlags();
   closeControl();
+  if (recorder) { if (!recorder.data.done) recorder.tick(race); persistReplay(); }
+  $('replayBtn').classList.toggle('hidden', !(recorder && recorder.data.frames.length > 1));
   $('resultScreen').classList.remove('hidden');
 }
 

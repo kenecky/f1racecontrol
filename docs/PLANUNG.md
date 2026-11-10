@@ -564,3 +564,11 @@ Vibration bei neuen Vorfällen/Entscheidungen: im Tempo-Menü abschaltbar.
   Entscheidung zwei Rennen später: Falsche/zu harte Urteile werden aufgehoben – WM-Punkte (soweit berechenbar:
   Platz ohne die Zeitstrafe bzw. DSQ) und Strafpunkte werden korrigiert, Ruf: betroffenes Team +4, alle anderen −0,5.
   Abgewiesene Berufung: Team −1. Übersicht im Saison-Reiter „Ruf“.
+
+### Wiederholung des ganzen Rennens (v37)
+- Aufzeichnung alle 2 s Rennzeit (Position, Runde, Status je Auto, Reihenfolge, Flaggen je Sektor, VSC/SC/Rot, Safety Car),
+  nur Rennen und Sprint. Gespeichert wird nur das letzte Rennen in IndexedDB (≈ 25 KB pro Runde), Zwischenstand alle 30 s,
+  ein fortgesetztes Rennen setzt die Aufzeichnung fort.
+- Wiedergabe im Vollbild (Ergebnis: „▶ Replay des Rennens“, Startbildschirm: „Replay ›“): Karte mit allen Autos,
+  Ranking zum Zeitpunkt (antippen = verfolgen), Zeitleiste mit Bändern für VSC/SC/Rot und Markierungen für Vorfälle,
+  Fälle, Führungswechsel und Zielflagge, Tempo 4×/16×/32×/64×, Ereignisliste zum Springen (6 s vor dem Ereignis).

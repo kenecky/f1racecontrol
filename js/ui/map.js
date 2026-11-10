@@ -5,7 +5,7 @@ import { drawTrackArt } from './trackArt.js';
 import { sceneCarAt, HALF_W } from '../sim/scenes.js';
 import { drawCar } from './scenePlayer.js';
 
-const PIT_OFFSET_PX = 9;
+export const PIT_OFFSET_PX = 9;
 const MAX_ZOOM = 6;
 const BG_MARGIN = 140;   // Hintergrund größer zeichnen → Verschieben ohne Neuzeichnen
 const FOLLOW_ZOOM = 3.2;

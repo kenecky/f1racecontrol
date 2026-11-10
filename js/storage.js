@@ -126,3 +126,12 @@ export async function clearRaceState() {
   try { await idb('readwrite', st => st.delete(SAVE_KEY)); } catch { /* egal */ }
   try { localStorage.removeItem(LS_SAVE); } catch { /* egal */ }
 }
+
+// ---------- Wiederholung des letzten Rennens (nur eines, in IndexedDB) ----------
+const REPLAY_KEY = 'replay';
+export async function saveReplay(data) {
+  try { await idb('readwrite', st => st.put(data, REPLAY_KEY)); } catch { /* nicht verfügbar */ }
+}
+export async function loadReplay() {
+  try { return (await idb('readonly', st => st.get(REPLAY_KEY))) || null; } catch { return null; }
+}
