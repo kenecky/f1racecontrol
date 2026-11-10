@@ -236,7 +236,7 @@ export function updateLimp(race, car) {
 export function limpRetire(race, car) {
   const h = race.hazards.find(x => x.id === car.limp.hazardId);
   if (h && !h.ended) h.endAt = race.time;
-  retireCar(race, car, 'Technischer Defekt (in der Box abgestellt)', 0);
+  retireCar(race, car, car.limp.heat ? 'Kreislaufprobleme (Hitze)' : 'Technischer Defekt (in der Box abgestellt)', 0);
   car.wreck = null;
   car.limp = null;
   race.emit('pit', `${car.id} fährt in die Box – das Auto wird in der Garage abgestellt. Aus.`, { cars: [car.id] });

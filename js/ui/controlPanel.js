@@ -205,10 +205,13 @@ export class ControlPanel {
         html = `<div class="ctl-status">${race.formation && race.formation.n > 1 ? 'Extra-' : ''}Formationsrunde läuft</div>
           <p class="ctl-text">Die Autos wärmen Reifen und Bremsen auf. Defekte oder Dreher sind möglich – sichere Gefahren wie im Rennen mit Flaggen ab. Wer seinen Platz verliert, startet von hinten; wer nicht losfährt, aus der Boxengasse.</p>`;
       } else if (atGrid && issue && !issue.released) {
-        html = `<div class="ctl-status">⚠ ${issue.carId} steht mit abgestorbenem Motor in der Startaufstellung</div>
+        html = issue.type === 'rain'
+          ? `<div class="ctl-status">⚠ Starker Regen in der Startaufstellung – die Autos stehen auf Trockenreifen</div>
+          <p class="ctl-text">Start abbrechen (Startverschiebung, Reifenwechsel) oder hinter dem Safety Car starten.</p>`
+          : `<div class="ctl-status">⚠ ${issue.carId} steht mit abgestorbenem Motor in der Startaufstellung</div>
           <p class="ctl-text">Schalte die Startampel jetzt nicht ein – ein stehendes Auto beim Start ist gefährlich.</p>
           <button class="ctl-btn ctl-red" data-action="start-abort">Start abbrechen – Extra-Formationsrunde</button>
-          <p class="ctl-small">${issue.carId} wird in die Boxengasse geschoben und startet von dort. Das Rennen wird um eine Runde verkürzt (dann ${Math.max(3, race.laps - 1)} Runden).</p>
+          <p class="ctl-small">${issue.type === 'rain' ? 'Alle wechseln auf Regenreifen.' : `${issue.carId} wird in die Boxengasse geschoben und startet von dort.`} Das Rennen wird um eine Runde verkürzt (dann ${Math.max(3, race.laps - 1)} Runden).</p>
           <button class="ctl-btn ctl-sc" data-action="start-sc">Start hinter dem Safety Car</button>
           <button class="ctl-btn ctl-ghost" data-action="start-lights">Startampel trotzdem einschalten</button>`;
       } else if (atGrid) {

@@ -902,7 +902,7 @@ function updateAlert() {
   if (race.startIssue && !race.startIssue.released) {
     el.dataset.kind = 'start';
     el.className = 'alert';
-    el.innerHTML = `<span class="alert-text">⚠ Startaufstellung: ${race.startIssue.carId} steht mit abgestorbenem Motor</span><span class="alert-go">Start ›</span>`;
+    el.innerHTML = `<span class="alert-text">⚠ Startaufstellung: ${race.startIssue.type === 'rain' ? 'Starker Regen – Autos auf Trockenreifen' : `${race.startIssue.carId} steht mit abgestorbenem Motor`}</span><span class="alert-go">Start ›</span>`;
     return;
   }
   // offen: noch nie ausreichend abgesichert – oder wanderndes langsames Auto in einem Sektor ohne Gelb

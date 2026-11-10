@@ -42,6 +42,7 @@ export function rateRace(race) {
   for (const s of startLog) {
     if (s.action === 'released') safety -= s.crash ? 35 : 25;
     if (s.type === 'lights' && s.action === 'early') safety -= 40;   // Ampel, obwohl noch Autos fahren
+    if (s.type === 'rain' && s.action === 'releasedRain') safety -= 20;  // Start im Starkregen auf Trockenreifen
   }
 
   let fairnessAdj = 0;
@@ -126,6 +127,7 @@ function buildVoices(race, fr, sr, scores, total, over) {
       say(`Teamchef ${team(t.victim)}`, `„Bei Entscheidung #${c.id} kommt ${t.offender} viel zu billig davon.“`, 'neg');
     }
   }
+  if ((race.startLog || []).some(s => s.action === 'releasedRain')) say('Fahrervereinigung (GPDA)', '„Start auf Trockenreifen im Starkregen – das war unverantwortlich.“', 'neg');
   for (const e of race.svc ? race.svc.log : []) {
     if (e.type === 'medicalNoSC') say('Fahrervereinigung (GPDA)', '„Das Medical Car fuhr ohne Safety Car auf die Strecke – das ist gegen die Regeln.“', 'neg');
     if (e.type === 'sweeperNoSC') say('Fahrer', '„Eine Kehrmaschine auf der Strecke ohne Safety Car? Brandgefährlich.“', 'neg');

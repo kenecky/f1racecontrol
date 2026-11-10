@@ -27,6 +27,7 @@ import { ambientRadio, T } from './texts.js';
 import { updateServices, svc } from './services.js';
 import { rollRaceEvents, updateEvents, rollLooseWheel } from './events.js';
 import { rollBlueFlag, rollNeutralCases, rollChicaneCut, rollPitLine, rollPitClosedEntry } from './cases2.js';
+import { updateWeatherEvents } from './weatherEvents.js';
 export { COMPOUNDS };
 
 // Vorsicht nach Strafen: weniger Risiko und Fehler, aber auch etwas langsamer (0 … 1)
@@ -377,6 +378,7 @@ export class Race {
     updateServices(this, DT);
     updateEvents(this, DT);
     rollNeutralCases(this, DT);
+    updateWeatherEvents(this, DT);
     updateWeather(this, DT);
     ambientRadio(this, DT, () => this.chatRand());
     // Massenunfall: neue Führungsrunde → würfeln, dann an einer Gruppe auslösen

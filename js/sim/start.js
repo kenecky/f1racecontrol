@@ -6,6 +6,8 @@ import { updateHazards, startSpin, endOffTrack, startFailure, createHazard, reti
 import { createJumpStartCase, createGridBoxCase } from './incidents.js';
 import { startBehindSC, trackNeutralUse } from './neutral.js';
 import { startLapMedical } from './services.js';
+import { rainAt } from './weather.js';
+import { COMPOUNDS, bestCompound } from './tyres.js';
 
 const F_SPEED = 0.8;    // Tempo in der Formationsrunde (Anteil der Renngeschwindigkeit)
 const F_VMAX = 70;      // m/s (250 km/h)
@@ -212,8 +214,22 @@ export function releaseFormation(race) {
   return true;
 }
 
+// Regen setzt in der Startaufstellung ein, Autos noch auf Trockenreifen
+function checkRainAtGrid(race) {
+  const f = race.formation;
+  if (race.startIssue || f.rainChecked || !f.arrived || f.restart) return;
+  f.rainChecked = true;
+  const rain = Math.max(rainAt(race.weather, 150), rainAt(race.weather, 300));
+  const slicks = race.cars.some(c => !c.retired && !COMPOUNDS[c.compound].wet);
+  if (rain < 0.2 || !slicks) return;
+  race.startIssue = { type: 'rain', seq: ++race.startIssueSeq };
+  race.emit('weather', 'Starker Regen setzt in der Startaufstellung ein!');
+  race.emit('radio', `Funk ${race.standings()[0].id}: „Es regnet richtig! Wir brauchen andere Reifen!“`);
+}
+
 function checkGridStall(race) {
   const f = race.formation;
+  checkRainAtGrid(race);
   if (race.startIssue || !f.gridStall || !f.arrived || f.gridT < 1.2) return;
   const c = race.carById[f.gridStall];
   f.gridStall = null;
@@ -325,7 +341,8 @@ function goGreen(race) {
   startLapMedical(race);     // Medical Car folgt dem Feld in der ersten Runde
   const issue = race.startIssue;
   race.startIssue = null;
-  if (issue && issue.released) stalledAtStart(race, race.carById[issue.carId]);
+  if (issue && issue.released && issue.type === 'stall') stalledAtStart(race, race.carById[issue.carId]);
+  if (issue && issue.released && issue.type === 'rain') race.startLog.push({ type: 'rain', action: 'releasedRain' });
   for (const c of race.cars) {
     if (!c.jump) continue;
     createJumpStartCase(race, c, c.jump);
@@ -381,6 +398,12 @@ export function abortStart(race) {
     race.emit('rc', `${c.id} wird in die Boxengasse geschoben und startet aus der Boxengasse.`, { cars: [c.id] });
   }
   race.startLog.push({ type: issue ? issue.type : 'none', action: 'abort', carId: issue ? issue.carId : null });
+  if (issue && issue.type === 'rain') {
+    // Startverschiebung: alle wechseln auf Regenreifen
+    const w = Math.max(0.4, rainAt(race.weather, 0));
+    for (const c of race.cars) if (!c.retired) { c.compound = bestCompound(w, 30); c.plan = []; c.usedCompounds.add(c.compound); }
+    race.emit('rc', 'Startverschiebung – die Teams wechseln in der Startaufstellung auf Regenreifen.');
+  }
   race.laps = Math.max(3, race.laps - 1);
   race.emit('rc', 'START ABGEBROCHEN – Extra-Formationsrunde, die Renndistanz wird um eine Runde verkürzt.');
   beginFormation(race);

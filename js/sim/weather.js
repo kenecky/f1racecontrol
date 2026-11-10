@@ -27,7 +27,8 @@ export function createWeather(seed, mode, raceSec, rainChance = 0.38) {
       showers.push({ t0, t1: t0 + r.range(300, 900), peak: r.range(0.35, 0.7) });
     }
   } else if (m === 'changeable') {
-    const t0 = raceSec * r.range(0.2, 0.55);
+    // manchmal beginnt der Schauer genau zum Start
+    const t0 = r.chance(0.2) ? r.range(0, 90) : raceSec * r.range(0.2, 0.55);
     showers.push({ t0, t1: t0 + r.range(600, 1500), peak: r.chance(0.2) ? r.range(0.86, 0.98) : r.range(0.35, 0.8) });
   }
   const startWet = showers.some(s => s.t0 < 0) ? showers[0].peak * 0.9 : 0;
