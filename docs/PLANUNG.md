@@ -544,3 +544,12 @@ Vibration bei neuen Vorfällen/Entscheidungen: im Tempo-Menü abschaltbar.
 - **RC MSG (Mitteilungen an alle Teams):** Gelbe Flaggen, Blaue Flaggen, Fahrverhalten in Zweikämpfen (Richtungswechsel,
   Bremstests), Tempolimit Boxengasse → Verstöße 10 bzw. 15 Minuten lang halb so häufig, wiederholte Warnungen wirken
   schwächer (bis 20 %). Track Limits: weitere Kurve während des Rennens überwachen lassen.
+
+### Folgen ungesicherter Gefahren, Teamstrategie unter SC/VSC (v35)
+- **Reifenschaden durch Trümmer:** Wer durch einen Sektor mit Trümmerteilen fährt, kann einen Reifenschaden bekommen
+  (abgesichert 1 %, nicht ausreichend abgesichert 4 % je Durchfahrt, unter Neutralisierung halbiert). Ungesichert: Sicherheit −4.
+- **Folgeunfälle:** An nicht ausreichend abgesicherten Stellen (Unfall, stehendes Auto, Öl, Wasser, Kies, Tier, Person,
+  Marshals, Trümmer …) kann ein weiteres Auto verunglücken (Dreher, 30 % Ausfall) – Sicherheit −12, Stimme der GPDA.
+  Vorher oft ein Funkspruch „Das war knapp!“ als Warnung.
+- **Strategie unter VSC/SC:** Funksprüche „Box, box – wir nutzen das Safety Car!“ bzw. „Bleib draußen“; in der VSC-/SC-Konsole
+  steht, wer an der Box war und wer draußen geblieben ist.

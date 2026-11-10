@@ -102,6 +102,14 @@ export const T = {
     'Box, box!', 'Box this lap, box this lap.', 'Diese Runde reinkommen, Plan B.', 'Wir kommen rein – Reifen sind bereit.',
     'Box, box, box. Bestätige.', 'Rein jetzt, wir haben das Fenster.',
   ],
+  cheapCall: [
+    'Box, box – wir nutzen das Safety Car!', 'Rein jetzt, günstiger Stopp unter Neutralisierung.', 'Box this lap – das ist unser Fenster, die anderen verlieren mehr.',
+    'Wir kommen rein, Reifenwechsel unter VSC. Neue Reifen bis zum Ende.', 'Box, box! Doppelstopp – du bist der Zweite, ruhig bleiben.',
+  ],
+  stayOut: [
+    'Bleib draußen, wir behalten die Position.', 'Stay out, stay out. Track Position ist wichtiger.', 'Wir bleiben draußen – die anderen müssen noch rein.',
+    'Nicht reinkommen! Wir gehen auf Track Position.',
+  ],
   boxReply: ['Verstanden.', 'Bestätigt, komme rein.', 'Okay, Box.', 'Copy.', 'Sicher? … Okay, ich komme.'],
   tyresGone: [
     'Die Hinterreifen sind am Ende!', 'Ich habe keinen Grip mehr.', 'Wie lange noch auf diesem Satz?',

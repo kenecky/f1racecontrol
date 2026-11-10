@@ -3,9 +3,9 @@
 // (Schwarz-Orange-Flagge), Gelb missachtet, Unfall in der Boxengasse.
 import { msgFactor } from './messages.js';
 import { sectorIndexAt, wrapD } from './trackModel.js';
-import { createHazard, cornerNear, cornerLabel, retireCar } from './hazards.js';
+import { createHazard, cornerNear, cornerLabel, retireCar, responseLevel, NEED_LEVEL, startSpin, stopCarAfterIncident } from './hazards.js';
 import { createCase, ev, measure, tvImpression } from './incidents.js';
-import { aggressionOf } from './race.js';
+import { aggressionOf, errorsOf } from './race.js';
 
 const f1 = x => x.toFixed(1).replace('.', ',');
 const near = (race, d) => {
@@ -186,6 +186,48 @@ function pitIncident(race) {
   marshal(race, h, `${text}. Die Boxengasse muss geschlossen werden`, kind !== 'lane' ? [car.id] : []);
 }
 
+// ---------- Folgen nicht abgesicherter Gefahren ----------
+// Gefahren, an denen es zu Folgeunfällen kommen kann (Auto/Marshals/Hindernis an der Strecke)
+const FOLLOW_TYPES = new Set(['crash', 'stopped', 'stall', 'oil', 'water', 'gravel', 'animal', 'person', 'manhole', 'kerb', 'marshal', 'debris', 'wheel']);
+const NEAR_MISS = [
+  'Das war knapp! Da steht ein Auto direkt an der Linie – warum gibt es da keine Flagge?!',
+  'Fast reingerutscht! Da muss doch mehr Gelb raus!',
+  'Ich hätte fast die Marshals erwischt – das ist viel zu gefährlich!',
+  'Puh – da war ich zu schnell, ich wusste nicht, dass da etwas liegt.',
+];
+const PUNCTURE = ['Reifenschaden! Ich bin über Trümmerteile gefahren!', 'Platter Reifen – da lagen Teile auf der Linie!', 'Ich habe etwas überfahren, der Reifen verliert Luft!'];
+
+function hazardPass(race, car, sec) {
+  if (car.inPit || car.offTrack || car.limp) return;
+  const r = race.rng;
+  for (const h of race.hazards) {
+    if (h.ended || h.global || h.sector !== sec || h.carId === car.id || (h.cars && h.cars.includes(car.id))) continue;
+    const gap = NEED_LEVEL[h.need] - responseLevel(race, h);   // > 0: nicht ausreichend abgesichert
+    // Trümmerteile: Reifenschaden möglich – deutlich seltener, wenn langsamer gefahren wird
+    if (h.type === 'debris' && !car.damage && r.chance((gap > 0 ? 0.04 : 0.01) * (race.neutral ? 0.5 : 1))) {
+      car.damage = 'puncture';
+      race.emit('radio', `Funk ${car.id}: „${r.pick(PUNCTURE)}“`, { cars: [car.id], sector: h.sector });
+      race.emit('info', `${car.id} hat nach Trümmerteilen in Sektor ${h.sector + 1} einen Reifenschaden.`, { cars: [car.id] });
+      (race.followLog = race.followLog || []).push({ type: 'puncture', carId: car.id, hazard: h.id, sector: h.sector, unsecured: gap > 0, t: race.time });
+      continue;
+    }
+    if (gap <= 0 || race.neutral || !FOLLOW_TYPES.has(h.type) || race.time - h.start < 4) continue;
+    const wet = race.weather.wetness || 0;
+    if (r.chance(0.0035 * gap * (1 + 2 * wet) * errorsOf(car) / 28)) {
+      // Folgeunfall an derselben Stelle
+      (race.followLog = race.followLog || []).push({ type: 'crash', carId: car.id, hazard: h.id, sector: h.sector, unsecured: true, t: race.time });
+      race.emit('marshal', `Sektor ${h.sector + 1}: FOLGEUNFALL – ${car.id} verliert an der nicht ausreichend abgesicherten Stelle die Kontrolle.`, { sector: h.sector, cars: [car.id] });
+      if (r.chance(0.3)) stopCarAfterIncident(race, car, 'Unfall (Folgeunfall)');
+      else startSpin(race, car);
+      return;
+    }
+    if (!h.nearMiss && r.chance(0.03 * gap)) {
+      h.nearMiss = true;
+      race.emit('radio', `Funk ${car.id}: „${r.pick(NEAR_MISS)}“`, { cars: [car.id], sector: h.sector });
+    }
+  }
+}
+
 // ---------- Laufende Prüfungen ----------
 export function updateEvents(race, dt) {
   if (race.phase !== 'running') return;
@@ -206,6 +248,8 @@ export function updateEvents(race, dt) {
     const sec = sectorIndexAt(tr, car.d);
     if (car.secNow !== sec) {
       car.secNow = sec;
+      hazardPass(race, car, sec);
+      if (car.retired || car.offTrack) continue;
       const f = race.flags[sec];
       if ((f === 'yellow' || f === 'double') && !race.neutral && !car.inPit && race.rng.chance(0.018 * aggressionOf(car) / 70 * msgFactor(race, 'yellow'))) {
         yellowIgnored(race, car, sec, f === 'double');

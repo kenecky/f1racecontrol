@@ -52,6 +52,11 @@ export function rateRace(race) {
     if (e.type === 'medicalNoSC' || e.type === 'sweeperNoSC') safety -= 10;
     if (e.type === 'craneUnsafe') safety -= e.wet ? 15 : 10;
   }
+  // Folgen nicht abgesicherter Gefahren
+  for (const f of race.followLog || []) {
+    if (f.type === 'crash') safety -= 12;
+    else if (f.unsecured) safety -= 4;
+  }
   for (const b of race.boLog || []) {
     if (b.late) safety -= 10;                 // Teil abgefallen, bevor Schwarz-Orange gezeigt wurde
   }
@@ -130,6 +135,10 @@ function buildVoices(race, fr, sr, scores, total, over) {
       say(`Teamchef ${team(t.victim)}`, `„Bei Entscheidung #${c.id} kommt ${t.offender} viel zu billig davon.“`, 'neg');
     }
   }
+  const follow = (race.followLog || []).filter(f => f.type === 'crash');
+  if (follow.length) say('Fahrervereinigung (GPDA)', `„${follow.map(f => f.carId).join(', ')} verunglückte${follow.length > 1 ? 'n' : ''} an einer Stelle, die nicht ausreichend abgesichert war. So etwas darf nicht passieren.“`, 'neg');
+  const punct = (race.followLog || []).filter(f => f.type === 'puncture' && f.unsecured);
+  if (punct.length) say(`Teamchef ${race.carById[punct[0].carId].team.name}`, '„Reifenschaden durch Trümmer, die viel zu lange auf der Strecke lagen.“', 'neg');
   if (race.revisions) say('Presse', `„Die Rennleitung hat ${race.revisions === 1 ? 'ein Urteil' : `${race.revisions} Urteile`} nachträglich revidiert – das wirkt unsicher.“`, 'neg');
   if ((race.tlUnmonitored || 0) >= 3 && race.briefing) say('Fahrer', `„In ${race.briefing.hotspot} hat jeder abgekürzt – das hätte man in der Fahrerbesprechung festlegen müssen.“`, 'neg');
   if ((race.startLog || []).some(s => s.action === 'releasedRain')) say('Fahrervereinigung (GPDA)', '„Start auf Trockenreifen im Starkregen – das war unverantwortlich.“', 'neg');

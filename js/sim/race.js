@@ -639,6 +639,15 @@ export class Race {
         car.unlap = null;
         if (!car.redBound) enterPitUnderRed(this, car);
         car.stoppedThisVisit = true;
+      } else if (decision === 'cheap' && car.lap < this.laps - 2) {
+        // Strategie unter VSC/SC: Teams nutzen den günstigen Stopp
+        (this.neutral.cheap = this.neutral.cheap || []).push(car.id);
+        if (this.chatRand() < 0.6) this.emit('radio', `Teamfunk ${car.team.name} an ${car.id}: „${this.chatPick('cheapCall')}“`, { cars: [car.id] });
+        car.inPit = true;
+        car.stoppedThisVisit = false;
+        car.pass = null;
+        car.unlap = null;
+        car.cheapStop = true;
       } else if (decision && car.lap < this.laps - 2) {
         if (this.chatRand() < 0.3) {
           this.emit('radio', `Teamfunk ${car.team.name} an ${car.id}: „${this.chatPick('boxCall')}“`, { cars: [car.id] });
@@ -648,7 +657,14 @@ export class Race {
         car.stoppedThisVisit = false;
         car.pass = null;
         car.unlap = null;
-        if (decision === 'cheap') car.cheapStop = true;
+      } else if (!decision && neutralNow && !car.inPit) {
+        // bleibt draußen – Track Position statt frischer Reifen
+        const n = this.neutral;
+        n.stayed = n.stayed || [];
+        if (!n.stayed.includes(car.id)) {
+          n.stayed.push(car.id);
+          if (this.chatRand() < 0.2) this.emit('radio', `Teamfunk ${car.team.name} an ${car.id}: „${this.chatPick('stayOut')}“`, { cars: [car.id] });
+        }
       }
     }
     if (car.inPit) {

@@ -18,6 +18,13 @@ function mmss(t) {
   return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
 }
 
+// Strategie der Teams unter VSC/SC
+function stratHtml(n) {
+  if (!n || (!n.cheap && !n.stayed)) return '';
+  const stayed = (n.stayed || []).filter(id => !(n.cheap || []).includes(id));
+  return `<div class="ctl-small strat">STRATEGIE · An der Box: ${(n.cheap || []).join(', ') || '–'}${stayed.length ? ` · Draußen geblieben: ${stayed.slice(0, 8).join(', ')}${stayed.length > 8 ? ' …' : ''}` : ''}</div>`;
+}
+
 export class ControlPanel {
   constructor({ root, title, sub, body, onAction }) {
     this.root = root;
@@ -83,7 +90,7 @@ export class ControlPanel {
     const kind = this.kind;
     const active = race.hazards.filter(h => !h.ended && h.type !== 'spin');
     const sig = JSON.stringify([
-      kind, n && n.type, n && n.phase, n && n.unlap, n && n.go, Math.floor(race.time / 2),
+      kind, n && n.type, n && n.phase, n && (n.cheap || []).length, n && (n.stayed || []).length, n && n.unlap, n && n.go, Math.floor(race.time / 2),
       scInPossibleThisLap(race),
       race.cars.filter(c => c.unlap).length, race.cars.filter(c => c.redQueued).length,
       active.map(h => Math.round(hazardProgress(h) * 50)), canRestart(race),
@@ -109,7 +116,7 @@ export class ControlPanel {
           <button class="ctl-btn ctl-vsc" data-action="vsc-on" ${running ? '' : 'disabled'}>VSC aktivieren</button>`;
       } else if (n.type === 'vsc' && n.phase === 'active') {
         html = `<div class="ctl-status">VSC aktiv seit ${since}</div>
-          <button class="ctl-btn ctl-green" data-action="vsc-off">VSC beenden</button>
+          <button class="ctl-btn ctl-green" data-action="vsc-off">VSC beenden</button>${stratHtml(n)}
           <p class="ctl-small">Nach „VSC endet“ folgt in 8–14 s Grün.</p>`;
       } else if (n.type === 'vsc') {
         html = '<div class="ctl-status">VSC endet – gleich Grün.</div>';
@@ -128,7 +135,7 @@ export class ControlPanel {
         const laps = Math.max(0, leader.lap - (n.startLap ?? leader.lap));
         const unlapping = race.cars.filter(c => c.unlap).map(c => c.id);
         if (n.phase === 'out') {
-          html = `<div class="ctl-status">Safety Car seit ${since}${n.startLap !== undefined ? ` · ${laps} Rd` : ''}</div>`;
+          html = `<div class="ctl-status">Safety Car seit ${since}${n.startLap !== undefined ? ` · ${laps} Rd` : ''}</div>${stratHtml(n)}`;
           if (n.release && n.release.length) html += `<p class="ctl-small">Boxenausfahrt: ${n.release.length} Autos warten noch.</p>`;
           html += n.unlap
             ? `<div class="ctl-small">${unlapping.length ? `Zurückrunden läuft: ${unlapping.join(', ')}` : 'Überrundete haben sich zurückgerundet.'}</div>`
