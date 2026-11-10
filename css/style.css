@@ -1417,3 +1417,126 @@ body { background: var(--bg); }
 .start-screen .options { color: var(--pn-muted); }
 .start-screen .options input { background: var(--pn-screen); border: 2px solid var(--pn-edge); border-radius: 5px; color: var(--pn-text); }
 .start-screen .app-version { color: #aab3c2; }
+
+/* ---------- Spiel im Pult-Stil (v44) ---------- */
+:root { --hz: repeating-linear-gradient(-45deg, #facc15 0 10px, #15181d 10px 20px); --muted: #aab3c2; }
+body { background: #15181d; }
+#app { background: linear-gradient(180deg, #3a414d, #2c323c 30%, #272c35); }
+
+/* Tasten (allgemein) */
+.icon-btn, .pill-btn, .x-btn, .map-btn, .deck-btn, .tab, .ctl-btn, .chip, .sec-pick, .fbtn, .stab, .fk-chip, .dec-tabs button, .secondary-btn, .dc-close {
+  background: linear-gradient(#2a2f38, #1b1f26); border: 2px solid #0c0e12; border-radius: 5px;
+  box-shadow: inset 0 1px 0 #3f4754, 0 3px 0 #0c0e12; color: #dfe4ec; }
+
+/* Statusleiste */
+.status { background: #1b1f26; border-bottom: 2px solid #0c0e12; box-shadow: 0 1px 0 #566072; padding-bottom: 9px; }
+.status-lap, .status-clock { background: #06090d; border: 2px solid #14171c; border-radius: 4px; padding: 3px 7px; box-shadow: inset 0 0 6px rgba(0,0,0,.9), 0 1px 0 #3f4754; }
+.status-lap .label, .wx { color: #8fd3a2; }
+#lap, #clock { color: #e9fbe9; }
+
+/* Karte als Monitor */
+.map-wrap { margin: 6px 6px 0; border: 3px solid #14171c; border-radius: 6px; overflow: hidden; background: #06090d; box-shadow: 0 1px 0 #5d6779; }
+.driver-card { margin: 6px 6px 0; background: #414957; border: 1px solid #1b1f26; border-radius: 6px; box-shadow: inset 0 1px 0 #5d6779, 0 2px 0 #14171c; }
+.drag-handle { background: transparent; }
+.drag-handle span { background: #14171c; box-shadow: 0 1px 0 #5d6779; }
+
+/* Reiter als Tasten */
+.tabs { background: transparent; border: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 0 6px 8px; }
+.tab { height: 38px; color: #9aa4b2; }
+.tab.active { color: #fff; border-color: #facc15; box-shadow: 0 0 10px rgba(250,204,21,.4), 0 3px 0 #0c0e12; }
+
+/* Listen als Monitor */
+.panels { margin: 0 6px 6px; border: 3px solid #14171c; border-radius: 6px; overflow: hidden; background: #080c11; box-shadow: 0 1px 0 #5d6779; }
+.timing-head { background: #121923; }
+.row:nth-child(even) { background: #0e141c; }
+.fk-chips { background: #121923; }
+.fk-chip { box-shadow: none; border-width: 1px; }
+.fk-chip.on { background: #facc15; color: #15181d; border-color: #facc15; }
+
+/* Fußleiste */
+.actions { background: #1b1f26; border-top: 2px solid #0c0e12; box-shadow: 0 -1px 0 #566072; }
+
+/* ---------- Desk und Entscheidungen ---------- */
+.fs-screen { background: linear-gradient(180deg, #3a414d, #2c323c 30%, #272c35); }
+.fs-top { background: #1b1f26; border-bottom: 5px solid transparent; border-image: var(--hz) 5; }
+.fs-t small { color: #aab3c2; }
+.desk-live { margin: 6px 6px 0; border: 3px solid #14171c; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 0 #5d6779; }
+.desk .deck-grid { background: transparent; border: 0; padding: 8px 6px 6px; }
+.flag-sheet-title { color: #fff; }
+.flag-sheet-sub, .ctl-text, .ctl-small { color: #c3cad6; }
+.ctl-section { color: #dfe4ec; }
+.ctl-hazard, .ctl-ok, .frow, .dec-it, .voice, .report-item.card {
+  background: #414957; border: 1px solid #1b1f26; border-radius: 6px; box-shadow: inset 0 1px 0 #5d6779, 0 2px 0 #14171c; }
+.ctl-hazard { border-left: 4px solid #facc15; }
+.ctl-ok { color: #86efac; padding: 8px; }
+.ctl-kv div, .dec-count div, .report-stats div { background: #06090d; border: 2px solid #14171c; border-radius: 4px; box-shadow: inset 0 0 6px rgba(0,0,0,.9), 0 1px 0 #3f4754; }
+.ctl-kv span, .dec-count span, .report-stats span { color: #8fd3a2; }
+.seq-step { background: #1b1f26; border: 2px solid #0c0e12; border-radius: 4px; color: #8892a2; }
+.seq-step.now { background: #facc15; color: #15181d; border-color: #facc15; }
+.seq-step.done { color: #4ade80; border-color: #0c0e12; }
+.ctl-foot, .flag-sheet-foot, .dec-foot, .dec-doc-foot, .dec-live { background: #1b1f26; border-top: 2px solid #0c0e12; }
+.dec-live { border-top: 0; border-bottom: 2px solid #0c0e12; color: #c3cad6; }
+/* farbige Tasten */
+.ctl-btn { text-shadow: none; }
+.ctl-ghost { color: #dfe4ec; }
+.ctl-green { background: linear-gradient(#34d977, #16a34a); color: #062611; box-shadow: 0 0 14px rgba(34,197,94,.45), 0 3px 0 #0c0e12; }
+.ctl-red { background: linear-gradient(#f87171, #dc2626); color: #fff; box-shadow: 0 0 14px rgba(239,68,68,.45), 0 3px 0 #0c0e12; }
+.ctl-amber, .ctl-vsc { background: linear-gradient(#fcd34d, #f59e0b); color: #261a02; box-shadow: 0 0 14px rgba(251,191,36,.45), 0 3px 0 #0c0e12; }
+.ctl-sc { background: linear-gradient(#fdba74, #f97316); color: #2b1203; box-shadow: 0 0 14px rgba(251,146,60,.45), 0 3px 0 #0c0e12; }
+.ctl-btn:disabled { filter: grayscale(.8); opacity: .45; box-shadow: 0 3px 0 #0c0e12; }
+/* Flaggen-Liste */
+.desk .flag-list { padding: 0 6px; }
+.frow { margin: 6px 0 0; padding: 8px 10px; }
+.frow.focus { background: #4d5a70; border-color: #facc15; }
+.fbtn { box-shadow: inset 0 1px 0 #3f4754, 0 2px 0 #0c0e12; }
+.sec-pick.sel, .chip.on, .stab.active, .dec-tabs button.on { background: #facc15; color: #15181d; border-color: #facc15; box-shadow: 0 0 10px rgba(250,204,21,.4), 0 3px 0 #0c0e12; }
+.sec-pick.need { color: #facc15; border-color: #facc15; }
+/* Entscheidungen */
+.dec-count { border-bottom: 0; }
+.dec-tabs { border: 0; gap: 6px; padding: 2px 12px 8px; }
+.dec-tabs button { color: #9aa4b2; border-bottom: 2px solid #0c0e12; }
+.dec-list { padding: 0 8px; }
+.dec-it { margin: 0 0 7px; }
+.dec-it.new { background: #4b4a3c; box-shadow: inset 4px 0 0 #facc15, inset 0 1px 0 #5d6779, 0 2px 0 #14171c; }
+.dec-it.inv { box-shadow: inset 4px 0 0 #fb923c, inset 0 1px 0 #5d6779, 0 2px 0 #14171c; }
+.dec-mt, .dec-no { color: #c3cad6; }
+.vf-label { color: #dfe4ec; }
+
+/* ---------- Fenster (Ergebnis, Saison, Statistik, Wetter, Briefing) ---------- */
+.overlay { background: rgba(10, 12, 15, .72); }
+.sheet { background: linear-gradient(180deg, #3a414d, #2c323c 30%, #272c35); border: 0; border-top: 6px solid transparent; border-image: var(--hz) 6; border-radius: 0; color: #f1f4f8; }
+.start-screen .sheet { border-top: 0; }
+.sheet-title { color: #fff; }
+.results { background: #080c11; outline: 3px solid #14171c; border-radius: 4px; }
+.results th { background: #121923; color: #8fd3a2; padding: 6px; }
+.results td { padding: 6px; border-bottom-color: #151c26; }
+.results tr:nth-child(even) td { background: #0e141c; }
+.report h3, .section-title, .result-facts span { color: #dfe4ec; }
+.report-item { border-bottom-color: #1b1f26; }
+.report-item .n { color: #c3cad6; }
+.voice { border-left: 4px solid #8892a2; }
+.voice-neg { border-left-color: #f87171; } .voice-pos { border-left-color: #4ade80; }
+.voice-who { color: #c3cad6; }
+.srow { border-bottom-color: #1b1f26; }
+.srow .sub { color: #c3cad6; }
+.season-tabs { gap: 5px; }
+.stab { color: #9aa4b2; }
+.primary-btn { border-radius: 8px; background: linear-gradient(180deg, #34d977, #16a34a); color: #062611; border: 2px solid #0c0e12; box-shadow: 0 0 16px rgba(34,197,94,.45), 0 4px 0 #0c0e12; }
+.sheet .ctl-small, .sheet .ctl-text { color: #c3cad6; }
+.brief-note { border-bottom-color: #1b1f26; }
+.history-row { border-bottom-color: #1b1f26; }
+/* Nachbesserungen */
+.season-tabs { grid-template-columns: repeat(5, 1fr); }
+.stab { font-size: 12px; padding: 9px 0; }
+.sheet-actions .primary-btn:only-child { grid-column: 1 / -1; }
+.rating, .tech-box { background: #414957; border: 1px solid #1b1f26; border-radius: 6px; box-shadow: inset 0 1px 0 #5d6779, 0 2px 0 #14171c; }
+.rating .hint, .rating small, .rating-total span { color: #c3cad6; }
+.tech-box .ctl-small { color: #c3cad6; }
+.wx-sheet .wx-now div, .wx-sheet canvas { border-radius: 4px; }
+.toast { background: #facc15; color: #15181d; border: 2px solid #0c0e12; border-radius: 6px; box-shadow: 0 3px 0 #0c0e12; }
+.alert { border-radius: 4px; }
+/* Startseite: Start oben, Saison-Wetter */
+.start-screen #resumeBox:empty { display: none; }
+.start-screen .resume-btn { margin-top: 0; }
+.start-screen #startBtn { margin: 0 0 12px; }
+.wx-season-note { font-size: 12px; color: var(--pn-muted); margin-bottom: 2px; }

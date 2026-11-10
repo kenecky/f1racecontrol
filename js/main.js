@@ -289,7 +289,7 @@ function newRace(seed = randomSeed()) {
   map.setTrack(track);
   deskMap.setTrack(track);
   const opts = {
-    track, teams: TEAMS, drivers, seed, weather: settings.weatherMode, gridPenalties, gridOrder, laps, fullLaps, kind, caution,
+    track, teams: TEAMS, drivers, seed, weather: settings.mode === 'season' ? 'random' : settings.weatherMode, gridPenalties, gridOrder, laps, fullLaps, kind, caution,
     length: settings.length, difficulty: settings.mode === 'season' ? 'hard' : (settings.difficulty || 'medium'),
   };
   race = ['fp', 'quali', 'sq'].includes(kind) ? new Session(opts) : new Race(opts);
@@ -337,6 +337,8 @@ function renderEventCard() {
   $('gpList').classList.toggle('hidden', isSeason);
   $('sessionChecks').classList.toggle('hidden', isSeason);
   $('diffRow').classList.toggle('hidden', isSeason);
+  $('weatherSeg').classList.toggle('hidden', isSeason);
+  $('wxSeasonNote').classList.toggle('hidden', !isSeason);
   const entry = isSeason && season ? currentRound(season) : null;
   const wk = isSeason ? (entry ? season.weekend : null) : settings.singleWk;
   $('startBtn').disabled = false;
@@ -359,7 +361,7 @@ function renderEventCard() {
     $('gpInfo').innerHTML = `<b>${gpName}</b>
       <div><span>${parts.includes('race') ? race_ : sprint_}</span> Runden${parts.includes('race') && parts.includes('sprint') ? ` <small>(Sprint ${sprint_})</small>` : ''}</div>${km}`;
   }
-  const steps = wk && wk.sessions.length > 1;
+  const steps = isSeason && wk && wk.sessions.length > 1;
   $('weekendSteps').innerHTML = steps ? wk.sessions.map((k, i) => `<span class="wstep${i < wk.idx ? ' done' : i === wk.idx ? ' now' : ''}">${i < wk.idx ? '✓ ' : ''}${KIND_SHORT[k]}</span>`).join('<span class="wsep">›</span>') : '';
   // Saison: Karte „Rennwochenende“ zeigt nur den Ablauf (die Teile stehen fest)
   $('sessionBox').classList.toggle('hidden', isSeason && !steps);

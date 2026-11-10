@@ -604,3 +604,9 @@ Vibration bei neuen Vorfällen/Entscheidungen: im Tempo-Menü abschaltbar.
 Für Gefahren mit der Maßnahme „Boxengasse schließen“ fehlten Gewicht und Frist in der Bewertung: Die Reaktion galt immer
 als zu spät und die Sicherheits-Note wurde ungültig („NaN/100“). Jetzt: Gewicht 12, rechtzeitig innerhalb von 30 s.
 Einträge ohne gültige Punktzahl werden im Verlauf und in der Statistik ausgeblendet.
+
+### Spiel im Pult-Stil, Startseite überarbeitet (v44)
+- Das ganze Spiel im Pult-Stil: Metallgrau, Monitore mit dickem Rahmen (Karte, Timing, RC Log), Tasten mit Leuchtkante,
+  vertiefte Anzeigen (Runde, Uhr, Kennzahlen), Warnstreifen am Kopf von Desk, Entscheidungen und allen Fenstern.
+- Startseite: Fortsetzen/Start ganz oben, Ablaufleiste im Einzelrennen und Einleitungssatz entfernt.
+- Saison: Wetter nicht wählbar, immer zufällig mit der Regenwahrscheinlichkeit der Strecke.
