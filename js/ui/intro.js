@@ -4,7 +4,7 @@
 import { pointAt } from '../sim/trackModel.js';
 
 const HALF_W = 7;                  // halbe Streckenbreite in Metern
-export const INTRO_DUR = 9.4;      // Sekunden
+export const INTRO_DUR = 18.4;     // Sekunden
 
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const smooth = x => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
@@ -95,43 +95,68 @@ export class Intro {
   }
 
   // ---------- Kamera ----------
-  // Ablauf: 0–1,2 s Übersicht · 1,2–2,8 Zoom auf Start/Ziel · 2,8–3,8 Neigen · 3,8–7,8 Flug · 7,8–9,4 Aufsteigen
+  // Ablauf (Sekunden):
+  //  0–1,4   Umriss der Strecke von oben (wie auf der Startseite)
+  //  1,4–3,4 Zoom hinunter hinter die Start-Ziel-Gerade
+  //  3,4–4,6 Neigen in die Helikopter-Perspektive
+  //  4,6–9,6 Flug von hinten über die Gerade und die Ziellinie
+  //  9,6–11  Aufsteigen
+  // 11–15    Drehung um 180° hoch über der Strecke – die ganze Strecke im Bild
+  // 15–16,6  Absinken vor der Ziellinie
+  // 16,6–18,4 Blick von vorne zurück auf die Start-Ziel-Gerade, Ausblenden
   camera(t) {
     const W = this.W, H = this.H;
     const F = (H / 2) / Math.tan((50 * Math.PI / 180) / 2);
-    const s0 = this.ptAt(0);
-    const startHead = Math.atan2(s0.ty, s0.tx);
-    // Übersicht: senkrecht von oben, ganze Strecke im Bild (Ausrichtung wie die Karte im Spiel)
+    const a = this.smoothPt(-320, 60), b = this.smoothPt(40, 60);
+    const head = Math.atan2(b.y - a.y, b.x - a.x);          // Richtung der Start-Ziel-Geraden
     const fit = Math.max(this.box.w / (W * 0.82), this.box.h / (H * 0.62)) * F;
     const top = { x: this.box.cx, y: this.box.cy, z: fit, yaw: -Math.PI / 2, pitch: Math.PI / 2 };
-    // Über der Start/Ziel-Linie
-    const low = { x: s0.x, y: s0.y, z: 150, yaw: startHead, pitch: Math.PI / 2 };
-    // Flug: Kamera hinter dem Fahrpunkt, etwas seitlich versetzt
-    const flyD = d => {
-      const back = this.smoothPt(d - 150, 90), look = this.smoothPt(d + 140, 90);
-      const p = this.ptAt(d - 150);
-      const side = 38;
-      const x = back.x - p.nx * side, y = back.y - p.ny * side;
-      const z = 85;
-      const dx = look.x - x, dy = look.y - y;
+    const p0 = this.ptAt(-420);
+    const low = { x: p0.x, y: p0.y, z: 260, yaw: head, pitch: Math.PI / 2 };
+    const pitSide = this.tr.pit ? this.tr.pit.side || 1 : 1;
+    // Flug über die Gerade: leicht zur Tribünenseite versetzt, Blick nach vorne
+    const fly = k => {
+      const d = lerp(-470, 90, k);
+      const p = this.smoothPt(d, 50), q = this.smoothPt(d + 300, 60), n = this.ptAt(d);
+      const x = p.x - n.nx * pitSide * 28, y = p.y - n.ny * pitSide * 28, z = 58;
+      const dx = q.x - x, dy = q.y - y;
       return { x, y, z, yaw: Math.atan2(dy, dx), pitch: Math.atan2(z, Math.hypot(dx, dy)) };
     };
-    const fly0 = flyD(150), fly1 = flyD(820);
-    // Abschluss: Aufsteigen über die Strecke, Blick schräg auf das ganze Layout
-    const ep = 0.9, R = Math.max(this.box.w, this.box.h) * 1.55;
-    const endCam = { x: this.box.cx - Math.cos(fly1.yaw) * R * Math.cos(ep), y: this.box.cy - Math.sin(fly1.yaw) * R * Math.cos(ep),
-      z: R * Math.sin(ep), yaw: fly1.yaw, pitch: ep };
+    // Drehung um 180° über der Mitte der Strecke
+    const R = Math.max(this.box.w, this.box.h);
+    const orbit = k => {
+      const ang = head + Math.PI * k;
+      // Abstand je Blickwinkel so wählen, dass die ganze Strecke ins Bild passt (Hochformat: schmaler Bildwinkel)
+      const rx = -Math.sin(ang), ry = Math.cos(ang);
+      let hw = 0, hd = 0;
+      for (let i = 0; i < this.pts.length; i += 8) {
+        const p = this.pts[i], dx = p.x - this.box.cx, dy = p.y - this.box.cy;
+        hw = Math.max(hw, Math.abs(dx * rx + dy * ry));
+        hd = Math.max(hd, Math.abs(dx * Math.cos(ang) + dy * Math.sin(ang)));
+      }
+      const tanH = Math.tan(25 * Math.PI / 180) * W / H, pe = 0.82;
+      const D3 = Math.max(R * 0.9, hw / (tanH * 0.86) + hd * 0.6);
+      const dist = D3 * Math.cos(pe), z = D3 * Math.sin(pe);
+      return { x: this.box.cx - Math.cos(ang) * dist, y: this.box.cy - Math.sin(ang) * dist, z, yaw: ang, pitch: Math.atan2(z, dist) };
+    };
+    // Vor der Ziellinie, Blick zurück auf die Gerade (langsam rückwärts schwebend)
+    const back = k => {
+      const d = lerp(330, 250, k);
+      const p = this.smoothPt(d, 40), q = this.smoothPt(-260, 60), n = this.ptAt(d);
+      const x = p.x - n.nx * pitSide * 22, y = p.y - n.ny * pitSide * 22, z = lerp(46, 38, k);
+      const dx = q.x - x, dy = q.y - y;
+      return { x, y, z, yaw: Math.atan2(dy, dx), pitch: Math.atan2(z, Math.hypot(dx, dy)) };
+    };
     const blend = (a, b, k) => ({ x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k), z: Math.exp(lerp(Math.log(a.z), Math.log(b.z), k)), yaw: lerpAng(a.yaw, b.yaw, k), pitch: lerp(a.pitch, b.pitch, k) });
     let c;
-    if (t < 1.2) c = top;
-    else if (t < 2.8) c = blend(top, low, ease(t, 1.2, 2.8));
-    else if (t < 3.8) c = blend(low, fly0, ease(t, 2.8, 3.8));
-    else if (t < 7.8) {
-      // gleichmäßige Fahrt mit sanftem Beschleunigen
-      const k = (t - 3.8) / 4.0;
-      const d = lerp(150, 820, k * k * 0.25 + k * 0.75);
-      c = flyD(d);
-    } else c = blend(fly1, endCam, ease(t, 7.8, 9.2));
+    if (t < 1.4) c = top;
+    else if (t < 3.4) c = blend(top, low, ease(t, 1.4, 3.4));
+    else if (t < 4.6) c = blend(low, fly(0), ease(t, 3.4, 4.6));
+    else if (t < 9.6) { const k = (t - 4.6) / 5; c = fly(k * (0.85 + 0.15 * k)); }
+    else if (t < 11) c = blend(fly(1), orbit(0), ease(t, 9.6, 11));
+    else if (t < 15) c = orbit(ease(t, 11, 15) * 0.85 + (t - 11) / 4 * 0.15);
+    else if (t < 16.6) c = blend(orbit(1), back(0), ease(t, 15, 16.6));
+    else c = back((t - 16.6) / 1.8);
     c.F = F;
     return c;
   }
@@ -269,7 +294,7 @@ export class Intro {
     for (const o of objs) o.draw();
 
     // Übersicht am Anfang: leuchtender Umriss wie auf der Startseite, blendet aus
-    const outline = 1 - ease(t, 0.7, 1.9);
+    const outline = 1 - ease(t, 0.9, 2.3);
     if (outline > 0) {
       ctx.fillStyle = `rgba(6,9,13,${outline * 0.92})`;
       ctx.fillRect(0, 0, W, H);
@@ -351,20 +376,25 @@ export class Intro {
 
   // Kurvenmarken: schweben über der Kurve, solange man sie gut sieht
   drawCorners(ctx, P, t) {
-    if (t < 3.4 || t > 8.4) return;
-    const alpha = ease(t, 3.4, 3.9) * (1 - ease(t, 7.9, 8.4));
+    if (t < 11.2 || t > 15.2) return;
+    const alpha = ease(t, 11.2, 11.8) * (1 - ease(t, 14.6, 15.2));
     ctx.font = '700 12px "RC Mono", monospace';
     ctx.textBaseline = 'middle';
+    const used = [];
     for (const c of this.corners) {
-      const g = P(c.p.x, c.p.y, 0), top = P(c.p.x, c.p.y, 26);
-      if (!g || !top || top[2] > 1400 || top[0] < 10 || top[0] > this.W - 10 || top[1] < 70 || top[1] > this.H - 220) continue;
-      const a = alpha * clamp(1 - (top[2] - 900) / 500, 0, 1);
+      const g = P(c.p.x, c.p.y, 0), top = P(c.p.x, c.p.y, 70);
+      if (!g || !top || top[0] < 10 || top[0] > this.W - 10 || top[1] < 70 || top[1] > this.H - 220) continue;
+      const a = alpha;
       ctx.globalAlpha = a;
       ctx.strokeStyle = 'rgba(250,204,21,.9)'; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(g[0], g[1]); ctx.lineTo(top[0], top[1]); ctx.stroke();
-      const label = `${c.id} · ${c.vmax} km/h`;
+      const label = c.id;
       const w = ctx.measureText(label).width + 14;
       if (top[0] - w / 2 < 6 || top[0] + w / 2 > this.W - 6) continue;
+      // keine überlappenden Schilder
+      const box = [top[0] - w / 2 - 2, top[1] - 24, top[0] + w / 2 + 2, top[1]];
+      if (used.some(u => box[0] < u[2] && box[2] > u[0] && box[1] < u[3] && box[3] > u[1])) continue;
+      used.push(box);
       ctx.fillStyle = 'rgba(12,14,18,.88)'; ctx.fillRect(top[0] - w / 2, top[1] - 22, w, 20);
       ctx.fillStyle = '#facc15'; ctx.fillRect(top[0] - w / 2, top[1] - 22, 3, 20);
       ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(label, top[0] + 1, top[1] - 12);
@@ -391,7 +421,7 @@ export class Intro {
       ctx.globalAlpha = 1;
     }
     // Bauchbinde: Name des Grand Prix
-    const inK = ease(t, 1.4, 2.0), outK = ease(t, 6.6, 7.1);
+    const inK = ease(t, 4.8, 5.5), outK = ease(t, 10.2, 10.8);
     if (inK > 0 && outK < 1) {
       const y = H - 196, x = 14 - (1 - inK) * 40 - outK * 40;
       ctx.globalAlpha = inK * (1 - outK);
@@ -407,8 +437,8 @@ export class Intro {
     }
     // Eckdaten: Kacheln, eine nach der anderen
     const tiles = info.tiles || [];
-    const tIn = 3.6, per = 0.28;
-    const tOut = ease(t, 7.6, 8.1);
+    const tIn = 11.2, per = 0.3;
+    const tOut = ease(t, 14.8, 15.4);
     if (t > tIn && tOut < 1) {
       const cols = 3, gap = 6, tw = (W - 28 - gap * (cols - 1)) / cols, th = 52, y0 = H - 124;
       tiles.forEach((tile, i) => {
@@ -428,7 +458,7 @@ export class Intro {
       ctx.globalAlpha = 1;
     }
     // Abschluss
-    const endK = ease(t, 8.0, 8.5) * (1 - ease(t, INTRO_DUR - 0.5, INTRO_DUR - 0.1));
+    const endK = ease(t, 16.8, 17.4) * (1 - ease(t, INTRO_DUR - 0.5, INTRO_DUR - 0.1));
     if (endK > 0) {
       ctx.globalAlpha = endK;
       const y = H * 0.74;
