@@ -27,7 +27,7 @@ import { prepareScrutiny } from './scrutiny.js';
 import { ambientRadio, T } from './texts.js';
 import { updateServices, svc } from './services.js';
 import { rollRaceEvents, updateEvents, rollLooseWheel } from './events.js';
-import { rollBlueFlag, rollNeutralCases, rollChicaneCut, rollPitLine, rollPitClosedEntry } from './cases2.js';
+import { rollBlueFlag, rollNeutralCases, rollChicaneCut, rollPitLine, rollPitClosedEntry, rollLanguage } from './cases2.js';
 import { updateWeatherEvents } from './weatherEvents.js';
 export { COMPOUNDS };
 
@@ -390,6 +390,7 @@ export class Race {
     updateEvents(this, DT);
     rollNeutralCases(this, DT);
     updateWeatherEvents(this, DT);
+    rollLanguage(this);
     updateWeather(this, DT);
     ambientRadio(this, DT, () => this.chatRand());
     // Massenunfall: neue Führungsrunde → würfeln, dann an einer Gruppe auslösen
@@ -402,11 +403,19 @@ export class Race {
     updateHazards(this, DT);
     trackNeutralUse(this, DT);
 
+    // Zeitlimit: höchstens 2 Stunden Rennzeit (bei kürzerer Distanz anteilig)
+    if (!this.timeLimit && this.phase === 'running' && !this.isSession && this.time > 7200 / this.wear) {
+      this.timeLimit = true;
+      const leader = this.standings()[0];
+      this.laps = Math.min(this.laps, leader.lap + 1);
+      this.emit('rc', `ZEITLIMIT ERREICHT – das Rennen endet nach dieser Runde (${this.laps} Runden).`);
+    }
     if (this.phase === 'chequered' && this.cars.every(c => c.finished || c.retired)) {
       this.phase = 'finished';
       this.emit('finish', 'Alle Autos im Ziel. Rennen beendet.');
       checkTyreRule(this);
       prepareScrutiny(this);
+      if (this.endedEarly) this.emit('info', 'Rennen beendet.');
     }
   }
 

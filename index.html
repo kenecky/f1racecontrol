@@ -215,7 +215,7 @@
       <button id="startBtn" class="primary-btn">Rennen starten</button>
       <button id="seasonBtn" class="secondary-btn season-btn hidden">🏆 Saison-Übersicht</button>
       <div id="history" class="history"></div>
-      <div class="app-version">Version 31</div>
+      <div class="app-version">Version 32</div>
       <details class="options">
         <summary>Optionen</summary>
         <label>Rennen-Nr. (gleiche Nr. = gleiches Rennen)
@@ -235,6 +235,7 @@
         <button class="stab" data-stab="teams">Teams</button>
         <button class="stab" data-stab="calendar">Kalender</button>
         <button class="stab" data-stab="penalties">Strafen</button>
+        <button class="stab" data-stab="rep">Ruf</button>
       </div>
       <div id="seasonBody"></div>
       <div class="sheet-actions">
@@ -264,6 +265,14 @@
     </div>
   </div>
 
+  <div id="briefScreen" class="overlay hidden">
+    <div class="sheet">
+      <h2 class="sheet-title">DRIVERS' BRIEFING</h2>
+      <p class="ctl-small">Vor dem Rennen: Die Fahrer geben Hinweise. Lege fest, in welchen Kurven die Streckenbegrenzung überwacht wird (bis zu 3).</p>
+      <div id="briefBody"></div>
+      <div class="sheet-actions"><button id="briefOkBtn" class="primary-btn">Briefing beenden</button></div>
+    </div>
+  </div>
   <div id="wxScreen" class="overlay hidden">
     <div class="sheet wx-sheet">
       <div class="sheet-head-x"><h2 class="sheet-title">WEATHER · RADAR</h2><button id="wxCloseBtn" class="x-btn" aria-label="Schließen">✕</button></div>

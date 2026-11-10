@@ -1163,3 +1163,9 @@ body { background: var(--bg); }
 .sec-pick.busy::after { content: ''; position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 50%; background: #e2e8f0; }
 .act-bo { color: #fb923c; }
 .act-bo .act-led { background: repeating-linear-gradient(90deg, #1a1a1a 0 6px, #7a3d12 6px 12px); }
+.brief-note { display: flex; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--line-2); font-size: 13px; }
+.brief-note b { font-family: var(--mono); min-width: 34px; }
+.brief-chips .chip { min-width: 44px; }
+.rep-bar { position: relative; height: 5px; background: var(--bg-3); margin-top: 4px; border-radius: 2px; }
+.rep-bar i { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
+.media-line { padding: 7px 0; border-bottom: 1px solid var(--line-2); font-size: 13px; font-family: Georgia, serif; }

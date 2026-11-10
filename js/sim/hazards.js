@@ -7,7 +7,7 @@ import { errorsOf } from './race.js';
 import { pickText } from './texts.js';
 import { craneIn } from './services.js';
 import { oilSpill, carFire, gravelOnTrack } from './events.js';
-import { rollUnsafeParking } from './cases2.js';
+import { rollUnsafeParking, rollParkedQuali } from './cases2.js';
 import { wetLoss, bestCompound } from './tyres.js';
 
 export const FLAG_FACTOR = { clear: 1, slippery: 0.97, yellow: 0.92, double: 0.8 };
@@ -189,6 +189,7 @@ export function startFailure(race, car, formation = false) {
   race.emit('marshal', `Sektor ${h.sector + 1}: ${car.id} steht in ${cornerLabel(h.corner)} – ${where}.`, { hazard: h.id, sector: h.sector, cars: [car.id] });
   if (!formation && r.chance(0.12)) carFire(race, h, car);
   if (!formation) rollUnsafeParking(race, car, h);
+  rollParkedQuali(race, car);
   if (!formation && r.chance(0.3)) oilSpill(race, car);
   if (formation) race.emit('rc', `${car.id} fällt in der Formationsrunde aus und kann nicht starten.`, { cars: [car.id] });
   return h;

@@ -27,10 +27,10 @@ import { WeatherPanel } from './ui/weatherPanel.js';
 import { hazardProgress, hazardWhere } from './sim/hazards.js';
 import { weatherLabel } from './sim/weather.js';
 import {
-  investigate, postpone, noFurtherAction, decide, openCases, stewardReport, unservedSecs, startHearing, PENALTIES,
+  investigate, postpone, noFurtherAction, decide, openCases, stewardReport, unservedSecs, startHearing, PENALTIES, rollProtests,
 } from './control/stewards.js';
 import {
-  deployVSC, endVSC, deploySC, allowUnlap, scInThisLap, redFlag, restartRace, canRestart,
+  deployVSC, endVSC, deploySC, allowUnlap, scInThisLap, redFlag, restartRace, canRestart, endRaceUnderRed,
 } from './sim/neutral.js';
 import {
   loadSettings, saveSettings, loadHistory, saveHistoryEntry, clearHistory,
@@ -40,6 +40,7 @@ import { serializeRace, restoreRace } from './sim/persist.js';
 import { abortStart, startFromGridBehindSC, releaseFormation, startLights, lightsOut, restartLights, restartLightsOut, ALL_ON } from './sim/start.js';
 import { distanceFor, LENGTHS } from './sim/length.js';
 import { runScrutiny, TECH_CHECKS, EXTRA_CHECKS } from './sim/scrutiny.js';
+import { prepareBriefing } from './sim/regs.js';
 import { rateRace, AXES } from './control/rating.js';
 
 const SPEEDS = [1, 2, 4, 8, 16, 32];
@@ -157,6 +158,8 @@ const controlPanel = new ControlPanel({
       'sc-in': () => scInThisLap(race),
       'red-on': () => (race.isSession ? race.sessionRedFlag() : redFlag(race)),
       'session-resume': () => race.sessionResume(),
+      'session-end': () => race.sessionAbandon(),
+      'race-end': () => endRaceUnderRed(race),
       'restart-sc': () => restartRace(race, 'sc'),
       'restart-standing': () => restartRace(race, 'standing'),
       'start-abort': () => abortStart(race),
@@ -187,6 +190,7 @@ function caseAction(act, id, form) {
     else if (act === 'nfa') noFurtherAction(race, c);
     else if (act === 'post') postpone(race, c);
     else if (act === 'decide') decide(race, c, { carId: form.carId, penalty: form.penalty || 'none', points: form.points });
+    else if (act === 'decide-keep') decide(race, c, { carId: null, penalty: 'keep', points: 0 });
     else if (act === 'results') { finishFlow(); return; }
     casesPanel.render(race);
     updateCasesBadge();
@@ -269,7 +273,7 @@ function newRace(seed = randomSeed()) {
     length: settings.length,
   };
   race = ['fp', 'quali', 'sq'].includes(kind) ? new Session(opts) : new Race(opts);
-  if (roundNo !== null) { race.seasonRound = roundNo; race.weekendIdx = season.weekend.idx; }
+  if (roundNo !== null) { race.seasonRound = roundNo; race.weekendIdx = season.weekend.idx; race.teamRep = { ...(season.rep || {}) }; }
   else race.singleIdx = settings.singleWk.idx;
   renderForecast();
   renderEventCard();
@@ -489,6 +493,13 @@ function renderSeasonTab() {
       return `<div class="cal-row${i === season.round ? ' next' : ''}"><span>${e.round}</span>
         <span>${t.grandPrix}<div class="sub">${t.name} · ${new Date(roundDate(season, e)).toLocaleDateString('de-DE')}${sprint}</div></span><span>${right}</span></div>`;
     }).join('');
+  } else if (seasonTab === 'rep') {
+    const rep = season.rep || {};
+    const label = v => (v >= 25 ? 'vertraut der Rennleitung' : v >= 5 ? 'zufrieden' : v > -10 ? 'neutral' : v > -25 ? 'skeptisch' : 'verärgert');
+    el.innerHTML = '<p class="ctl-small">Wie die Teams die Rennleitung sehen. Faire Urteile schaffen Vertrauen, zu harte oder zu milde verärgern. Verärgerte Teams reagieren im Funk und in den Medien schärfer.</p>'
+      + TEAMS.map(t => ({ t, v: rep[t.id] || 0 })).sort((a, b) => b.v - a.v).map(({ t, v }) => `
+        <div class="srow"><span></span><span class="teambar" style="background:${t.color}"></span>
+          <span>${t.name}<div class="sub">${label(v)}</div><div class="rep-bar"><i style="left:50%;width:${Math.abs(v) / 2}%;${v < 0 ? `transform:translateX(-100%);background:var(--st-red)` : 'background:var(--st-green)'}"></i></div></span><b>${v > 0 ? '+' : ''}${Math.round(v)}</b></div>`).join('');
   } else {
     const entryNow = currentRound(season) || SEASON_2026[SEASON_2026.length - 1];
     const ref = roundDate(season, entryNow);
@@ -629,7 +640,37 @@ function renderStats() {
     <p class="ctl-small" style="margin-top:8px">* vorläufig (Entscheidungen offen)</p>`;
 }
 
+// ---------- Fahrerbesprechung vor dem Rennen ----------
+let briefPick = new Set();
+function showBriefing() {
+  const b = race.briefing;
+  briefPick = new Set();
+  const notes = b.notes.map(n => `<div class="brief-note"><b>${n.who}</b><span>${n.text}</span></div>`).join('');
+  const chips = race.track.corners.map(c => `<button class="chip" data-brief="${c.id}">${c.id}</button>`).join('');
+  $('briefBody').innerHTML = `<div class="setup-label">HINWEISE DER FAHRER</div>${notes}
+    <div class="setup-label" style="margin-top:12px">TRACK LIMITS ÜBERWACHEN</div><div class="chips brief-chips">${chips}</div>`;
+  $('startScreen').classList.add('hidden');
+  $('briefScreen').classList.remove('hidden');
+}
+$('briefBody').addEventListener('click', e => {
+  const b = e.target.closest('[data-brief]');
+  if (!b) return;
+  const id = b.dataset.brief;
+  if (briefPick.has(id)) briefPick.delete(id);
+  else if (briefPick.size < 3) briefPick.add(id);
+  else toast('Höchstens 3 Kurven');
+  for (const x of $('briefBody').querySelectorAll('[data-brief]')) x.classList.toggle('on', briefPick.has(x.dataset.brief));
+});
+$('briefOkBtn').addEventListener('click', () => {
+  race.briefing.tlCorners = [...briefPick];
+  race.briefing.done = true;
+  race.emit('rc', briefPick.size ? `Fahrerbesprechung: Track Limits werden in ${[...briefPick].join(', ')} überwacht.` : 'Fahrerbesprechung: keine Kurve zur Überwachung der Track Limits festgelegt.');
+  $('briefScreen').classList.add('hidden');
+  startRace();
+});
+
 function startRace() {
+  if (!race.isSession && prepareBriefing(race) && !race.briefing.done) { showBriefing(); return; }
   race.startedAt = Date.now();
   savedRace = null;
   renderResume();
@@ -1139,7 +1180,8 @@ function showResults() {
       </div>
       <div class="axes">${bars}</div>
     </div>
-    ${voices ? `<div class="report"><h3>Stimmen zum Rennen</h3><div class="voices">${voices}</div></div>` : ''}`;
+    ${voices ? `<div class="report"><h3>Stimmen zum Rennen</h3><div class="voices">${voices}</div></div>` : ''}
+    ${race.seasonRound !== undefined && !race.isSession ? mediaHtml(race, rating) : ''}`;
   if (race.kind === 'race') saveHistoryEntry({
     key: `${race.seed}-${race.startedAt}`,
     date: new Date().toISOString(),
@@ -1242,6 +1284,7 @@ function postPending() {
 }
 function finishFlow() {
   resultShown = true;
+  if (!race.protestsDone && !openCases(race).length && rollProtests(race) > 0) { seenCases = race.cases.length; autosave(); }
   closeFlags();
   closeControl();
   if (postPending()) { postDone = []; $('resultScreen').classList.add('hidden'); $('postScreen').classList.remove('hidden'); renderPost(); }
@@ -1270,6 +1313,8 @@ function renderPost(keepScroll = false) {
     return;
   }
   if (postPanel.onlyId && !postDone.includes(postPanel.onlyId)) postDone.push(postPanel.onlyId);
+  // Nach den offenen Entscheidungen: Proteste und Anträge auf Überprüfung
+  if (!race.protestsDone && rollProtests(race) > 0) { seenCases = race.cases.length; autosave(); renderPost(); return; }
   postPanel.onlyId = null;
   if (race.scrutiny && !race.scrutiny.done) {
     $('postProgress').textContent = 'TECHNISCHE ABNAHME';
@@ -1282,6 +1327,26 @@ function renderPost(keepScroll = false) {
   // alles erledigt → Ergebnis
   $('postScreen').classList.add('hidden');
   showResults();
+}
+
+// Medienecho (nur in der Saison): Schlagzeilen zur Arbeit der Rennleitung
+function mediaHtml(r, rating) {
+  const sr = rating.sr;
+  const gp = r.track.def.grandPrix.replace('Großer Preis von ', 'GP ').replace('Großer Preis ', 'GP ');
+  const lines = [];
+  if (rating.total >= 88) lines.push(`${gp}: Lob für eine souveräne Rennleitung`);
+  else if (rating.total >= 70) lines.push(`${gp}: Solide Rennleitung mit kleinen Fragezeichen`);
+  else if (rating.total >= 55) lines.push(`${gp}: Rennleitung in der Kritik`);
+  else lines.push(`${gp}: Chaos in der Rennleitung – Teams fordern Konsequenzen`);
+  const wrong = sr.items.find(i => i.verdict === 'wrong' || (i.verdict === 'harsh' && !i.c.truth.offender));
+  if (wrong) lines.push(`„Skandal-Urteil“: ${wrong.c.title}`);
+  const lenient = sr.items.find(i => i.verdict === 'lenient');
+  if (lenient) lines.push(`Zu milde? Diskussion um DOC ${lenient.c.id}`);
+  if (rating.fr.missed) lines.push(`Sicherheitsdebatte: ${rating.fr.missed} Gefahr${rating.fr.missed > 1 ? 'en' : ''} nicht rechtzeitig abgesichert`);
+  if (rating.fr.neutral.red) lines.push('Rote Flagge sorgt für Unterbrechung');
+  const angry = Object.entries(r.teamRep || {}).filter(([, v]) => v <= -25).map(([id]) => TEAMS.find(t => t.id === id)).filter(Boolean);
+  if (angry.length) lines.push(`${angry[0].name} weiter auf Konfrontationskurs mit der Rennleitung`);
+  return `<div class="report"><h3>MEDIA</h3>${lines.slice(0, 4).map(l => `<div class="media-line">📰 ${l}</div>`).join('')}</div>`;
 }
 
 function formatMin(t) {

@@ -43,6 +43,10 @@ export const CASE_TYPES = {
   gridCrew:      { name: 'Mechaniker in der Startaufstellung', options: ['warning', '5s', '10s'] },
   tyreRule:      { name: 'Reifenregel (zwei Mischungen)', options: ['warning', '10s', 'dsq'] },
   parcFerme:     { name: 'Parc-fermé-Verstoß',            options: ['warning', 'grid5', 'pitstart'] },
+  parkedQuali:   { name: 'Absichtlich abgestellt (Qualifying)', options: ['warning', 'grid5', 'dsq'] },
+  slowOutlap:    { name: 'Zu langsame Aufwärmrunde',      options: ['warning', 'grid3', 'grid5'] },
+  language:      { name: 'Schimpfwörter',                 options: ['warning', 'fine'] },
+  protest:       { name: 'Protest / Antrag auf Überprüfung', options: [] },
   yellowIgnored: { name: 'Gelb missachtet',               options: ['warning', '5s', '10s', 'dt', 'grid3', 'grid5'] },
   jumpStart:     { name: 'Fehlstart',                     options: ['warning', '5s', '10s', 'dt'] },
   gridBox:       { name: 'Falsche Startposition',         options: ['warning', '5s', '10s'] },
@@ -282,6 +286,7 @@ function complaint(race, A, B, cornerId) {
   const corner = race.track.corners.find(c => c.id === cornerId);
   const overlap = measure(race, 63, 13, 0, 100);
   const brake = measure(race, 6, 4, 0, 30);
+  race.emit('radio', `Teamchef ${B.team.name} an die Rennleitung: „Bitte schaut euch das Manöver von ${A.id} in ${corner.id} an!“`, { cars: [A.id, B.id] });
   createCase(race, {
     type: 'complaint', cars: [A.id, B.id], corner: corner.id,
     title: `Beschwerde ${B.team.name}: ${A.id} gegen ${B.id} – ${corner.id}`,
@@ -320,8 +325,17 @@ export function rollTrackLimits(race, car) {
   if (race.neutral || race.phase !== 'running') return;
   const r = race.rng;
   if (!r.chance(0.012 * (errorsOf(car) / 28) * (race.incScale || 1))) return;
+  const b = race.briefing;
   const tlc = race.track.def.tlCorners || race.track.corners.slice(-3).map(c => c.id).concat(race.track.corners[0].id);
-  const corner = r.pick(tlc);
+  const corner = b && b.done ? (r.chance(0.6) ? b.hotspot : r.pick(race.track.corners).id) : r.pick(tlc);
+  // In der Fahrerbesprechung nicht zur Überwachung festgelegt: kein Verstoß, aber Fahrer ärgern sich
+  if (b && b.done && b.tlCorners && !b.tlCorners.includes(corner)) {
+    if (corner === b.hotspot) {
+      race.tlUnmonitored = (race.tlUnmonitored || 0) + 1;
+      if (race.tlUnmonitored === 3) race.emit('radio', `Funk ${r.pick(race.cars.filter(c => !c.retired)).id}: „In ${corner} schneidet jeder ab – warum wird das nicht kontrolliert?!“`);
+    }
+    return;
+  }
   car.tl = (car.tl || 0) + 1;
   car.tlLog = car.tlLog || [];
   car.tlLog.push(`Runde ${car.lap}, ${corner}`);

@@ -495,3 +495,20 @@ Stehender Neustart: Autos verlassen die Boxengasse in Rennreihenfolge, Formation
 Ampel und „Lichter aus“ durch die Rennleitung (wie beim Start). Motorengeräusch bei Rot erst aus, wenn alle stehen.
 Technischer Defekt mit Notlauf: Auto rollt langsam zur Box (wandernde Gefahr – Gelb von Sektor zu Sektor),
 wird in der Garage abgestellt.
+
+### Große Erweiterung (umgesetzt)
+- Kontrollpult zum Aufklappen (FLAGS, VSC, SC, RED, MEDICAL, SWEEPER, CRANE, PIT LANE, BLK/ORG), Leiste mit Statuslampen.
+- Einsatzfahrzeuge nur sichtbar, wenn im Einsatz: Safety Car, Medical Car (Regel: vorher SC), Kehrmaschine (Regel: vorher SC),
+  Bergungskran je Sektor (falscher Sektor bzw. Kran ohne Absicherung kostet Punkte), Boxengasse sperren, Medical Car in Runde 1.
+- Gefahren: Ölspur, loses Rad (Boxengasse oder erste Kurven), Feuer, Tier, Person, Kanaldeckel (Stadtkurse ~1×/Saison),
+  loser Randstein, Kies, Marshal auf der Strecke, verlorene Teile, Schwarz-Orange-Flagge, Unfall in der Boxengasse.
+- Wetter: Gewitter, Rettungshubschrauber, Regen in der Startaufstellung, stehendes Wasser, Hitze (heiße Strecken).
+- Entscheidungen: blaue Flaggen, Gelb missachtet, Weben, Bremstest, SC-Phasen (Auffahren, Überholen, Abstand), Neustart,
+  Schikane, unsicher abgestellt, Boxenlinie, geschlossene Boxengasse, Arbeiten unter Rot, Stau in der Boxengasse,
+  absichtlich abgestellt (Quali), zu langsame Aufwärmrunde, Schimpfwörter.
+- Reglement: Reifenregel, Parc fermé (Boxengassenstart), Abnahme nach dem Qualifying, Antriebseinheiten (Saison),
+  Energiefluss, aktive Aero, Overtake-Modus, Reifendruck, Mechaniker in der Startaufstellung, zu spät in der Aufstellung.
+- Rennende: Abbruch unter Rot mit Wertung (gestaffelte Punkte), Zeitlimit; Session nach Rot beenden.
+- Nach dem Rennen: Proteste und Anträge auf Überprüfung mit neuen Beweisen (Urteil bleibt / aufheben / ersetzen).
+- Fahrerbesprechung vor dem Rennen: Track-Limits-Kurven festlegen.
+- Saison: Ruf der Rennleitung bei den Teams, Medienecho.

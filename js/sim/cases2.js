@@ -266,3 +266,65 @@ export function rollPitQueue(race, car) {
     truth: guilty ? { offender: car.id, expected: ['warning', 'grid3'], points: [0, 1], victim: B.id } : { offender: null, expected: ['none'], points: [0, 0], victim: B.id },
   });
 }
+
+// ---------- Qualifying: absichtlich abgestellt, zu langsame Aufwärmrunde ----------
+export function rollParkedQuali(race, car) {
+  if (!race.isSession || race.kind === 'fp' || race.remaining > 120 || !race.rng.chance(0.35)) return;
+  const r = race.rng;
+  const pos = race.segmentRanking ? race.segmentRanking().indexOf(car) + 1 : 1;
+  if (pos > 5) return;
+  const guilty = r.chance(0.45);
+  createCase(race, {
+    type: 'parkedQuali', cars: [car.id],
+    title: `${car.id} absichtlich abgestellt? – Qualifying`,
+    summary: `${car.id} (P${pos}) bleibt kurz vor Ende von ${race.segment.id} auf der Strecke stehen. Gelb bzw. Rot verhindert die Runden der Gegner.`,
+    evidence: [
+      ev('telemetry', `Telemetrie ${car.id}`, guilty ? `Ungewöhnlich frühes Bremsen (${f1(measure(race, 32, 6, 10, 60))} m früher), Lenkeinschlag ohne Grund.` : `Blockierendes Rad durch Bremsproblem, Bremsdruck ${f1(measure(race, 140, 20, 60, 200))} bar.`, true),
+      ev('video', 'Onboard', guilty ? 'Kein Kontakt, kein Rutschen – das Auto bleibt einfach stehen.' : 'Das Heck bricht aus, das Auto rutscht in den Auslauf.'),
+      ev('radio', `Funk ${car.id}`, guilty ? '„Ich habe das Auto verloren … sorry.“' : '„Die Bremse ist weg!“'),
+      ev('data', 'Leitlinie', 'Wer absichtlich anhält, um anderen die Runde zu verderben, wird aus dem Qualifying ausgeschlossen (Start von hinten).'),
+    ],
+    truth: guilty ? { offender: car.id, expected: ['dsq'], points: [2, 3] } : { offender: null, expected: ['none'], points: [0, 0] },
+  });
+}
+
+export function rollSlowOutlap(race, car) {
+  if (!race.isSession || race.kind === 'fp' || !race.rng.chance(0.012)) return;
+  const r = race.rng;
+  const guilty = r.chance(0.55);
+  const over = measure(race, guilty ? 2.5 : -0.8, 1.2, -4, 8);
+  createCase(race, {
+    type: 'slowOutlap', cars: [car.id],
+    title: `${car.id} zu langsam auf der Aufwärmrunde?`,
+    summary: `${car.id} fährt auf der Aufwärmrunde langsamer als die vorgeschriebene Höchstzeit.`,
+    evidence: [
+      ev('data', 'Maximale Rundenzeit', `${car.id} ist zwischen zwei Messpunkten ${over > 0 ? `${f1(over)} s langsamer` : `${f1(-over)} s schneller`} als die Höchstzeit.`, true),
+      ev('radio', `Teamfunk ${car.team.name}`, guilty ? '„Wir suchen eine Lücke.“' : '„Achtung, Delta beachten.“'),
+      ev('data', 'Leitlinie', 'Auf Aufwärm- und Auslaufrunden gilt eine maximale Zeit zwischen den Messpunkten, um gefährliche Tempounterschiede zu vermeiden.'),
+    ],
+    truth: guilty ? { offender: car.id, expected: ['warning', 'grid3'], points: [0, 1] } : { offender: null, expected: ['none'], points: [0, 0] },
+  });
+}
+
+// ---------- Schimpfwörter im Funk ----------
+export function rollLanguage(race) {
+  if (race.phase !== 'running' || !race.rng.chance(0.0004)) return;
+  if (race.languageDone) return;
+  race.languageDone = true;
+  const r = race.rng;
+  const car = r.pick(race.cars.filter(c => !c.retired));
+  if (!car) return;
+  const broadcast = r.chance(0.7);
+  race.emit('radio', `Funk ${car.id}: „Was für ein [PIEP] Manöver, das ist doch [PIEP]!“`, { cars: [car.id] });
+  createCase(race, {
+    type: 'language', cars: [car.id],
+    title: `Schimpfwörter im Funk von ${car.id}`,
+    summary: `${car.id} flucht im Funk${broadcast ? ' – der Spruch wird im TV übertragen' : ''}.`,
+    evidence: [
+      ev('radio', 'Aufzeichnung', 'Zwei Schimpfwörter, an die Rennleitung gerichtet.', true),
+      ev('data', 'Übertragung', broadcast ? 'Live im Fernsehen gesendet.' : 'Nur im internen Teamfunk, nicht gesendet.'),
+      ev('data', 'Leitlinie', 'Beleidigende Sprache in der Öffentlichkeit: Verwarnung oder Geldstrafe. Interner Funk wird meist nicht bestraft.'),
+    ],
+    truth: broadcast ? { offender: car.id, expected: ['warning', 'fine'], points: [0, 0] } : { offender: null, expected: ['none'], points: [0, 0] },
+  });
+}

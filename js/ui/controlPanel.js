@@ -237,13 +237,17 @@ export class ControlPanel {
         const ok = canRestart(race);
         html = `<div class="ctl-status">Session unterbrochen seit ${since} – die Uhr steht (noch ${Math.ceil(race.remaining / 60)} Min.)</div>
           <button class="ctl-btn ctl-green" data-action="session-resume" ${ok ? '' : 'disabled'}>Session fortsetzen</button>
-          ${ok ? '' : '<p class="ctl-small">Fortsetzen erst möglich, wenn die Strecke geräumt ist.</p>'}`;
+          ${ok ? '' : '<p class="ctl-small">Fortsetzen erst möglich, wenn die Strecke geräumt ist.</p>'}
+          <button class="ctl-btn ctl-ghost" data-action="session-end">Session nicht fortsetzen</button>
+          <p class="ctl-small">Sinnvoll nur, wenn kaum noch Zeit übrig ist oder die Strecke lange nicht frei wird.</p>`;
       } else if (n.phase === 'stopped') {
         const ok = canRestart(race);
         html = `<div class="ctl-status">Rennen unterbrochen seit ${since}</div>
           <button class="ctl-btn ctl-sc" data-action="restart-sc" ${ok ? '' : 'disabled'}>Neustart hinter dem Safety Car</button>
           <button class="ctl-btn ctl-ghost" data-action="restart-standing" ${ok ? '' : 'disabled'}>Stehender Neustart</button>
-          ${ok ? '' : '<p class="ctl-small">Neustart erst möglich, wenn die Strecke geräumt ist.</p>'}`;
+          ${ok ? '' : '<p class="ctl-small">Neustart erst möglich, wenn die Strecke geräumt ist.</p>'}
+          <button class="ctl-btn ctl-ghost" data-action="race-end">Rennen nicht neu starten (Wertung)</button>
+          <p class="ctl-small">Punkte je nach gefahrener Distanz: unter 2 Runden keine, bis 25 % / 50 % / 75 % gestaffelt, ab 75 % volle Punkte.</p>`;
       } else {
         html = `<div class="ctl-status">${n.phase === 'formation' ? 'Formationsrunde zum Neustart läuft' : n.phase === 'grid' ? 'Startaufstellung komplett – Startampel über den Knopf auf der Karte' : 'Startampel läuft'}</div>
           <p class="ctl-small">Die Autos kommen in Rennreihenfolge aus der Boxengasse, fahren eine Runde und stellen sich auf. Schalte die Ampel erst ein, wenn alle stehen.</p>`;

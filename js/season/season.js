@@ -3,6 +3,7 @@
 import { SEASON_2026 } from '../data/season2026.js';
 import { TRACKS } from '../data/tracks/index.js';
 import { createRng } from '../util/rng.js';
+import { evaluateCase } from '../control/stewards.js';
 
 export const POINTS = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
 export const SPRINT_POINTS = [8, 7, 6, 5, 4, 3, 2, 1];
@@ -166,6 +167,27 @@ export function finishSession(season, race, rating) {
   return notes;
 }
 
+// Ruf der Rennleitung bei den Teams (−100 … +100): faire Urteile schaffen Vertrauen,
+// zu harte oder falsche Urteile verärgern das bestrafte Team, zu milde das benachteiligte.
+export function updateReputation(season, race, rating, notes) {
+  season.rep = season.rep || {};
+  const add = (teamId, v) => { season.rep[teamId] = Math.max(-100, Math.min(100, (season.rep[teamId] || 0) + v)); };
+  for (const c of race.cases) {
+    if (!c.truth || !c.verdict) continue;
+    const { verdict } = evaluateCase(race, c);
+    const v = c.verdict, t = c.truth;
+    const team = id => id && race.carById[id] ? race.carById[id].team.id : null;
+    if (verdict === 'ok') for (const id of c.cars) add(team(id), 1);
+    if ((verdict === 'harsh' || verdict === 'wrong') && v.carId) add(team(v.carId), -6);
+    if ((verdict === 'lenient' || verdict === 'wrong') && t.victim) add(team(t.victim), -4);
+  }
+  if (rating && rating.total >= 85) for (const c of race.cars) add(c.team.id, 0.5);
+  if (rating && rating.total < 50) for (const c of race.cars) add(c.team.id, -1);
+  delete season.rep.null;
+  const worst = Object.entries(season.rep).sort((a, b) => a[1] - b[1])[0];
+  if (worst && worst[1] <= -25) notes.push(`Ruf: Das Team ${worst[0]} ist mit der Rennleitung sehr unzufrieden (${Math.round(worst[1])}).`);
+}
+
 // Antriebseinheiten: 4 pro Saison. Jede weitere bringt Startplatzstrafen (erste 10, danach 5 Plätze).
 export const PU_LIMIT = 4;
 function powerUnits(season, race, next, notes) {
@@ -182,14 +204,27 @@ function powerUnits(season, race, next, notes) {
   }
 }
 
+// Abgebrochene Rennen: Punkte nach gefahrener Distanz (Reglement seit 2022)
+export function pointsTable(race) {
+  const e = race.endedEarly;
+  if (!e) return POINTS;
+  if (e.laps < 2) return [];
+  if (e.share <= 0.25) return [6, 4, 3, 2, 1];
+  if (e.share <= 0.5) return [13, 10, 8, 6, 5, 4, 3, 2, 1];
+  if (e.share <= 0.75) return [19, 14, 12, 9, 8, 6, 5, 3, 2, 1];
+  return POINTS;
+}
+
 function applyRace(season, race, rating, notes) {
   const wk = season.weekend;
   const entry = currentRound(season);
   const st = race.standings();
   const classified = st.filter(c => c.finished && !c.dsq);
   const pts = {};
+  const table = pointsTable(race);
+  if (race.endedEarly) notes.push(`Rennen abgebrochen nach ${race.endedEarly.laps} Runden – ${table === POINTS ? 'volle Punkte' : table.length ? 'reduzierte Punkte' : 'keine Punkte'}.`);
   classified.forEach((c, i) => {
-    const p = POINTS[i] || 0;
+    const p = table[i] || 0;
     if (!p) return;
     pts[c.id] = p;
     season.driverPts[c.id] = (season.driverPts[c.id] || 0) + p;
@@ -198,6 +233,7 @@ function applyRace(season, race, rating, notes) {
   const next = {};
   for (const g of race.carryOver || []) next[g.carId] = (next[g.carId] || 0) + g.places;
   powerUnits(season, race, next, notes);
+  updateReputation(season, race, rating, notes);
   countWarnings(season, race, next, notes);
   addPenaltyPoints(season, race, roundDate(season, entry), notes);
   for (const [id, places] of Object.entries(next)) notes.push(`${id}: Startplatzstrafe ${places} Plätze im nächsten Rennen.`);

@@ -181,7 +181,7 @@ export class CasesPanel {
     const f = this.forms[c.id] || { carId: undefined, penalty: null, points: 0 };
     const chip = (act, val, text, on) => `<button class="chip${on ? ' on' : ''}" data-act="${act}" data-val="${val}">${text}</button>`;
     const cars = c.cars.map(id => chip('car', id, id, f.carId === id)).join('') + chip('car', '', 'Niemand', f.carId === null);
-    const pens = f.carId ? c.options.map(k => chip('pen', k, PENALTIES[k].name, f.penalty === k)).join('') : '';
+    const pens = f.carId ? c.options.filter(k => k !== 'keep').map(k => chip('pen', k, PENALTIES[k].name, f.penalty === k)).join('') : '';
     const pts = f.carId ? [0, 1, 2, 3].map(n => chip('pts', n, String(n), f.points === n)).join('') : '';
     const ready = f.carId === null || (f.carId && f.penalty);
     return `
@@ -189,7 +189,9 @@ export class CasesPanel {
         <div class="vf-label">Verantwortlich</div><div class="chips">${cars}</div>
         ${f.carId ? `<div class="vf-label">Strafe</div><div class="chips">${pens}</div>
         <div class="vf-label">Strafpunkte (Superlizenz)</div><div class="chips">${pts}</div>` : ''}
+        ${c.type === 'protest' ? '<p class="ctl-small">„Niemand“ = Strafe aufheben · Fahrer und Strafe wählen = neues Urteil</p>' : ''}
         <button class="ctl-btn ctl-red" data-act="decide" ${ready ? '' : 'disabled'}>ISSUE DECISION</button>
+        ${c.type === 'protest' ? '<button class="ctl-btn ctl-ghost" data-act="decide-keep">PROTEST ABLEHNEN – URTEIL BLEIBT</button>' : ''}
         ${c.status === 'investigating' && !finished ? '<button class="ctl-btn ctl-ghost" data-act="post">DECIDE AFTER THE RACE</button>' : ''}
       </div>`;
   }

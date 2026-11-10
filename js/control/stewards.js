@@ -14,6 +14,8 @@ export const PENALTIES = {
   grid5:    { name: 'Startplatzstrafe 5 Plätze (nächstes Rennen)',  short: '−5 SP',  sev: 3, places: 5 },
   grid10:   { name: 'Startplatzstrafe 10 Plätze (nächstes Rennen)', short: '−10 SP', sev: 4, places: 10 },
   pitstart: { name: 'Start aus der Boxengasse (nächstes Rennen)', short: 'PIT', sev: 4.5, places: 99 },
+  fine:     { name: 'Geldstrafe', short: '€', sev: 1 },
+  keep:     { name: 'Protest abgelehnt – Urteil bleibt', short: 'abgelehnt', sev: 0 },
 };
 
 import { hearingEvidence } from '../sim/incidents.js';
@@ -57,7 +59,8 @@ function reactToVerdict(race, c) {
   const { verdict } = evaluateCase(race, c);
   const team = id => race.carById[id].team.name;
   if (v.carId) {
-    const furious = verdict === 'wrong' || (verdict === 'harsh' && !t.offender) || r.chance(0.2);
+    const rep = race.teamRep ? race.teamRep[race.carById[v.carId].team.id] || 0 : 0;
+    const furious = verdict === 'wrong' || (verdict === 'harsh' && !t.offender) || r.chance(rep <= -25 ? 0.6 : rep <= -10 ? 0.35 : 0.2);
     const text = furious ? r.pick(['„Das ist ein Skandal! Wir prüfen einen Protest.“', '„Völlig unverständlich!“'])
       : verdict === 'harsh' ? '„Viel zu hart für so etwas.“'
         : r.pick(['„Wir sehen das anders, akzeptieren es aber.“', '„Schwer nachzuvollziehen.“', '„Verstanden.“']);
@@ -76,6 +79,27 @@ function reactToVerdict(race, c) {
 
 export function decide(race, c, { carId, penalty, points }) {
   if (c.status === 'decided' || c.status === 'nfa') return;
+  // Protest / Antrag auf Überprüfung: Urteil bleibt, wird aufgehoben oder ersetzt
+  if (c.type === 'protest') {
+    const base = race.cases.find(x => x.id === c.base);
+    c.status = 'decided';
+    if (penalty === 'keep') {
+      c.verdict = { carId: null, penalty: 'keep', points: 0, time: race.time };
+      race.emit('rc', `Entscheidung #${c.id}: Protest abgelehnt – das Urteil zu DOC ${c.base} bleibt bestehen.`);
+      return;
+    }
+    revertPenalty(race, base);
+    if (!carId || penalty === 'none') {
+      c.verdict = { carId: null, penalty: 'none', points: 0, time: race.time };
+      race.emit('rc', `Entscheidung #${c.id}: Protest angenommen – die Strafe aus DOC ${c.base} wird aufgehoben.`);
+      return;
+    }
+    c.verdict = { carId, penalty, points, time: race.time };
+    race.penaltyPoints[carId] = (race.penaltyPoints[carId] || 0) + points;
+    race.emit('rc', `Entscheidung #${c.id}: Protest angenommen – neues Urteil zu DOC ${c.base}: ${PENALTIES[penalty].name} für ${carId}.`, { cars: [carId] });
+    applyPenalty(race, race.carById[carId], penalty, c);
+    return;
+  }
   if (!carId || penalty === 'none') {
     c.status = 'decided';
     c.verdict = { carId: null, penalty: 'none', points: 0, time: race.time };
@@ -112,12 +136,69 @@ function raiseCaution(race, car, sev) {
   }
 }
 
+// Strafe eines Falls zurücknehmen (nach erfolgreichem Protest)
+export function revertPenalty(race, base) {
+  const v = base && base.verdict;
+  if (!v || !v.carId) return;
+  const car = race.carById[v.carId];
+  car.timePens = car.timePens.filter(p => p.caseId !== base.id || p.served);
+  car.serve = car.serve.filter(p => p.caseId !== base.id);
+  race.carryOver = (race.carryOver || []).filter(g => g.caseId !== base.id);
+  if (v.penalty === 'dsq' && car.dsq) { car.dsq = false; if (car.finished) { car.retired = false; car.dnf = null; } }
+  if (v.penalty === 'warning' || v.penalty === 'bw') car.warnings = Math.max(0, (car.warnings || 1) - 1);
+  race.penaltyPoints[v.carId] = Math.max(0, (race.penaltyPoints[v.carId] || 0) - (v.points || 0));
+  v.revoked = true;
+}
+
+// ---------- Proteste und Anträge auf Überprüfung nach dem Rennen ----------
+export function rollProtests(race) {
+  if (race.protestsDone) return 0;
+  race.protestsDone = true;
+  const r = race.rng;
+  let n = 0;
+  for (const c of [...race.cases]) {
+    if (n >= 2 || !['decided', 'nfa'].includes(c.status) || c.type === 'protest' || c.type === 'tech' || !c.truth) continue;
+    const { verdict } = evaluateCase(race, c);
+    const v = c.verdict || { carId: null };
+    const t = c.truth;
+    let team = null, review = false, founded = false;
+    if ((verdict === 'lenient' || verdict === 'wrong') && t.victim && r.chance(0.6)) { team = race.carById[t.victim].team; founded = true; }
+    else if ((verdict === 'harsh' || verdict === 'wrong') && v.carId && r.chance(0.6)) { team = race.carById[v.carId].team; review = true; founded = true; }
+    else if (verdict === 'ok' && r.chance(0.08)) {
+      const other = c.cars.map(id => race.carById[id]).find(x => x && (!v.carId || x.id !== v.carId));
+      if (other) team = other.team;
+      review = Boolean(v.carId && race.carById[v.carId].team === team);
+    }
+    if (!team) continue;
+    n++;
+    const extra = hearingEvidence(race, c).filter(e => e.kind !== 'hearing');
+    const pc = {
+      id: ++race.caseSeq, time: race.time, lap: c.lap, status: 'new', verdict: null, type: 'protest',
+      typeName: review ? 'Antrag auf Überprüfung' : 'Protest', base: c.id, cars: c.cars,
+      title: `${review ? 'Antrag auf Überprüfung' : 'Protest'} von ${team.name} zu DOC ${c.id}`,
+      summary: `${team.name} ${review ? 'legt neue Beweise vor und beantragt, das Urteil' : 'protestiert gegen das Urteil'} zu „${c.title}“ ${review ? 'zu überprüfen' : ''}. Bisheriges Urteil: ${v.carId ? `${PENALTIES[v.penalty].name} für ${v.carId}` : 'keine Strafe'}.`,
+      evidence: [
+        { kind: 'data', label: 'Bisheriges Urteil', text: `DOC ${c.id}: ${v.carId ? `${PENALTIES[v.penalty].name} für ${v.carId}` : 'keine Strafe'}.`, early: true },
+        { kind: 'data', label: `Vorgelegt von ${team.name}`, text: founded ? 'Neue Onboard-Aufnahmen und Telemetrie, die bisher nicht vorlagen.' : 'Teamdaten aus der eigenen Auswertung.', early: true },
+        ...(founded ? extra : [{ kind: 'data', label: 'Prüfung', text: 'Die vorgelegten Daten zeigen nichts Neues gegenüber den bereits bekannten Beweisen.' }]),
+        ...c.evidence.filter(e => e.kind !== 'data' || e.label === 'Leitlinie').slice(0, 3),
+      ],
+      truth: founded ? { ...t, unfounded: false } : { offender: v.carId || null, expected: ['keep'], points: [0, 0], unfounded: true },
+      options: ['keep', ...c.options.filter(o => o !== 'deleteLap')],
+      when: 'Nach dem Rennen',
+    };
+    race.cases.push(pc);
+    race.emit('case', `${pc.typeName} von ${team.name} zu DOC ${c.id} eingegangen.`, { caseId: pc.id, cars: pc.cars });
+  }
+  return n;
+}
+
 // Ausgeschiedene Fahrer: Strafen wirken als Startplatzstrafe im nächsten Rennen
 export const CARRY_OVER = { '5s': 3, '10s': 5, giveback: 3, dt: 5, sg: 10 };
 
-function carryOver(race, car, places, why) {
+function carryOver(race, car, places, why, caseId = null) {
   race.carryOver = race.carryOver || [];
-  race.carryOver.push({ carId: car.id, places, why });
+  race.carryOver.push({ carId: car.id, places, why, caseId });
   race.emit('rc', places >= 99 ? `${car.id} startet im nächsten Rennen aus der Boxengasse (${why}).` : `${car.id}: Startplatzstrafe von ${places} Plätzen für das nächste Rennen (${why}).`, { cars: [car.id] });
 }
 
@@ -127,11 +208,11 @@ function applyPenalty(race, car, penalty, c) {
     return;
   }
   if (PENALTIES[penalty].places) {
-    carryOver(race, car, PENALTIES[penalty].places, c.typeName);
+    carryOver(race, car, PENALTIES[penalty].places, c.typeName, c.id);
     return;
   }
   if (car.retired && !car.dsq && CARRY_OVER[penalty]) {
-    carryOver(race, car, CARRY_OVER[penalty], `${PENALTIES[penalty].name} umgewandelt – Fahrer ausgeschieden`);
+    carryOver(race, car, CARRY_OVER[penalty], `${PENALTIES[penalty].name} umgewandelt – Fahrer ausgeschieden`, c.id);
     return;
   }
   const running = race.phase === 'running' && !car.finished && !car.retired;
@@ -196,6 +277,11 @@ function expectedText(t) {
 export function evaluateCase(race, c) {
   const t = c.truth;
   const v = c.verdict;
+  if (c.type === 'protest' && v) {
+    const kept = v.penalty === 'keep' || c.status === 'nfa';
+    if (t.unfounded) return kept ? { verdict: 'ok', note: 'Unbegründeter Protest – zu Recht abgelehnt' } : { verdict: 'harsh', note: 'Unbegründeter Protest – das Urteil hätte bleiben sollen' };
+    if (kept) return { verdict: 'lenient', note: `Begründeter Protest abgelehnt (${t.offender ? `angemessen: ${expectedText(t)} für ${t.offender}` : 'die Strafe hätte aufgehoben werden müssen'})` };
+  }
   if (!v && (c.status === 'post' || c.status === 'hearing')) return { verdict: 'pending', note: 'Anhörung nach dem Rennen ausstehend' };
   if (!v) return { verdict: 'open', note: 'Nicht entschieden' };
   const fine = 'angemessen';

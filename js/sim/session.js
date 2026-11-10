@@ -5,7 +5,7 @@ import { COMPOUNDS, bestCompound } from './tyres.js';
 import { rollLapIncidents } from './hazards.js';
 import { createLapCase, createImpedingCase } from './incidents.js';
 import { sessionDurations } from './length.js';
-import { rollPitQueue } from './cases2.js';
+import { rollPitQueue, rollSlowOutlap } from './cases2.js';
 import { rollParcFerme } from './regs.js';
 import { prepareScrutiny } from './scrutiny.js';
 
@@ -58,6 +58,18 @@ export class Session extends Race {
       if (!c.inGarage && c.prog.phase !== 'garage') c.prog.phase = 'cool';
     }
     this.emit('rc', `ROTE FLAGGE – ${this.info.name} unterbrochen, die Uhr steht. Alle Autos in die Box.`);
+    return true;
+  }
+
+  // Rote Flagge: Session wird nicht wieder aufgenommen (z. B. kurz vor Schluss)
+  sessionAbandon() {
+    const n = this.neutral;
+    if (!n || n.type !== 'red' || n.phase !== 'stopped') return false;
+    this.abandonLeft = this.remaining;
+    this.neutral = null;
+    this.clock = this.segment.dur;
+    this.segFlag = true;
+    this.emit('rc', `${this.info.name}${this.info.segments.length > 1 ? ` – ${this.segment.id}` : ''} wird nicht wieder aufgenommen. Es gelten die bisherigen Zeiten.`);
     return true;
   }
 
@@ -256,7 +268,8 @@ export class Session extends Race {
     car.stoppedThisVisit = true;
     car.prog.phase = 'out';
     car.outStartD = car.d;
-    rollPitQueue(this, car);   // Aufwärmrunde zählt erst ab einer vollen Runde
+    rollPitQueue(this, car);
+    rollSlowOutlap(this, car);   // Aufwärmrunde zählt erst ab einer vollen Runde
     car.prog.pushLeft = run.push;
     car.compromised = false;
   }

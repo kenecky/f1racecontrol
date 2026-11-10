@@ -156,6 +156,27 @@ export function canRestart(race) {
   return Boolean(n && n.type === 'red' && n.phase === 'stopped' && !race.hazards.some(h => !h.ended));
 }
 
+// Rennen wird nach Rot nicht wieder aufgenommen: Wertung nach dem Stand vor der Unterbrechung
+export function endRaceUnderRed(race) {
+  const n = race.neutral;
+  if (!n || n.type !== 'red' || n.phase !== 'stopped' || race.isSession) return false;
+  const st = race.standings().filter(c => !c.retired);
+  const leader = st[0];
+  const done = leader ? leader.lap : 0;
+  race.endedEarly = { laps: done, share: done / race.laps };
+  race.neutral = null;
+  st.forEach((c, i) => {
+    c.finished = true;
+    c.finishDist = c.d;
+    c.finishTime = race.time + i * 0.001;
+    c.finishPos = i + 1;
+    c.redQueued = false;
+  });
+  race.phase = 'finished';
+  race.emit('chequered', `Das Rennen wird nicht wieder aufgenommen. Wertung nach ${done} Runden (${Math.round(race.endedEarly.share * 100)} % der Distanz).`);
+  return true;
+}
+
 export function restartRace(race, mode) {
   if (!canRestart(race)) return false;
   const tr = race.track;

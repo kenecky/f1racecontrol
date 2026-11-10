@@ -2,6 +2,7 @@
 // (Reglement 2026, vereinfacht), Reifendruck vor dem Start, Mechaniker in der Startaufstellung,
 // Auto zu spät in der Startaufstellung.
 import { createCase, ev, measure } from './incidents.js';
+import { createRng } from '../util/rng.js';
 
 const f1 = x => x.toFixed(1).replace('.', ',');
 const pickCar = race => {
@@ -157,4 +158,27 @@ export function rollParcFerme(race) {
     truth: allowed ? { offender: null, expected: ['none'], points: [0, 0] } : { offender: car.id, expected: ['pitstart'], points: [0, 0] },
   });
   c.when = 'Nach dem Qualifying';
+}
+
+// ---------- Fahrerbesprechung (nach dem Qualifying, vor dem Rennen) ----------
+// Fahrer weisen auf Kurven hin, in denen die Streckenbegrenzung oft überfahren wird. Die Rennleitung legt
+// fest, wo Track Limits überwacht werden. Nicht überwachte Problemkurven führen zu Beschwerden.
+export function prepareBriefing(race) {
+  if (race.briefing || race.isSession) return race.briefing;
+  const r = createRng(((race.seed || 1) * 31337) ^ 0xb21f);
+  const corners = race.track.corners;
+  const fast = corners.filter(c => (c.vmax || 0) >= 110);
+  const hotspot = r.pick(fast.length ? fast : corners).id;
+  let decoy = r.pick(corners).id;
+  if (decoy === hotspot) decoy = corners[(corners.findIndex(c => c.id === hotspot) + 2) % corners.length].id;
+  const drivers = race.cars.map(c => c.id);
+  const pick = () => drivers[Math.floor(r.next() * drivers.length)];
+  const notes = [
+    { who: pick(), text: `„Am Ausgang von ${hotspot} gehen alle mit vier Rädern über die Linie – das muss überwacht werden.“` },
+    { who: pick(), text: `„In ${decoy} ist der Randstein sehr hoch, aber da gewinnt man nichts.“` },
+    { who: pick(), text: `„Bitte ${hotspot} konsequent kontrollieren, sonst ist es unfair.“` },
+    { who: pick(), text: r.pick(['„Die Boxenausfahrt ist sehr eng, bitte auf die Linie achten.“', '„Beim Neustart bitte nicht wieder so lange warten.“', '„Die Startaufstellung ist rutschig, Vorsicht beim Start.“']) },
+  ];
+  race.briefing = { hotspot, decoy, notes: r.chance(0.5) ? notes : [notes[1], notes[0], notes[3], notes[2]], tlCorners: null, done: false };
+  return race.briefing;
 }
