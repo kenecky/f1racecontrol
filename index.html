@@ -110,8 +110,12 @@
   </div>
 
   <!-- Kontrollpult im Vollbild -->
-  <div id="desk" class="fs-screen desk hidden">
-    <div class="fs-top"><div class="fs-t">RACE CONTROL · DESK<small id="deskSub"></small></div><button id="deskClose" class="x-btn" aria-label="Schließen">✕</button></div>
+  <div id="desk" class="fs-screen desk hidden hz-frame">
+    <div class="fs-top"><div class="fs-t">RC DESK<small id="deskSub"></small></div>
+      <button id="deskDecBtn" class="pill-btn desk-top-btn" aria-label="Entscheidungen öffnen">DOCS <span id="deskDecBadge" class="badge-count hidden">0</span></button>
+      <button id="deskMapBtn" class="pill-btn desk-top-btn" aria-label="Karte ein- oder ausblenden">MAP</button>
+      <button id="deskSpeedBtn" class="pill-btn desk-top-btn" aria-label="Tempo">4×</button>
+      <button id="deskClose" class="x-btn" aria-label="Schließen">✕</button></div>
     <div class="desk-live"><canvas id="deskMap"></canvas><span id="deskTag" class="desk-tag"></span><span id="deskSpeed" class="desk-speed"></span></div>
       <div id="deck" class="deck-grid">
         <button id="startDeskBtn" class="act act-start act-live"><i class="act-led"></i>START</button>
@@ -131,7 +135,6 @@
     <div class="flag-sheet-head">
       <div>
         <div id="flagTitle" class="flag-sheet-title">FLAG CONTROL</div>
-        <div class="flag-sheet-sub">Marshal-Sektoren · Tippe auf die Strecke, um einen Sektor zu wählen</div>
       </div>
       <button id="flagCloseBtn" class="pill-btn">ESC</button>
     </div>
@@ -157,7 +160,7 @@
   </div>
 
   <!-- Entscheidungen im Vollbild -->
-  <div id="decScreen" class="fs-screen dec hidden">
+  <div id="decScreen" class="fs-screen dec hidden hz-frame">
     <div id="decListView" class="dec-view">
       <div class="fs-top"><div class="fs-t">STEWARDS · DECISIONS<small id="decSub"></small></div><button id="decClose" class="x-btn" aria-label="Schließen">✕</button></div>
       <div id="decLive" class="dec-live"></div>
@@ -223,7 +226,7 @@
       </div>
       <button id="seasonBtn" class="secondary-btn season-btn hidden">🏆 Saison-Übersicht</button>
       <div id="history" class="history st-card"></div>
-      <div class="app-version">Version 44</div>
+      <div class="app-version">Version 45</div>
       <details class="options st-card">
         <summary>Optionen</summary>
         <label>Rennen-Nr. (gleiche Nr. = gleiches Rennen)
@@ -273,8 +276,8 @@
     </div>
   </div>
 
-  <div id="briefScreen" class="overlay hidden">
-    <div class="sheet">
+  <div id="briefScreen" class="overlay hidden fs-overlay">
+    <div class="sheet hz-frame">
       <h2 class="sheet-title">DRIVERS' BRIEFING</h2>
       <p class="ctl-small">Vor dem Rennen: Die Fahrer geben Hinweise. Lege fest, in welchen Kurven die Streckenbegrenzung überwacht wird (bis zu 3).</p>
       <div id="briefBody"></div>

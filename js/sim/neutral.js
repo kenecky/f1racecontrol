@@ -8,6 +8,7 @@ export const VSC_FACTOR = 0.62;   // Delta-Tempo unter VSC (Anteil der Renngesch
 const SC_SPEED = 0.6;             // Tempo des Safety Cars
 const RED_SPEED = 0.55;           // Tempo auf dem Weg in die Boxengasse
 const SC_GAP = 35;                // Abstand des ersten Autos zum Safety Car (m)
+const RESTART_SPEED = 0.55;       // Tempo des Führenden vor dem Neustart
 
 // Wie stark ist die Strecke gerade neutralisiert? (0 = gar nicht, 3 = VSC, 4 = SC, 5 = Rot)
 export function neutralLevel(race) {
@@ -214,10 +215,15 @@ export function neutralSpeedFactor(race, car) {
   if (n.type === 'red') return n.phase === 'grid' ? 0 : RED_SPEED;
   // Safety Car
   if (car.unlap) return 1.0;
-  if (n.go) return null;
-  // SC fährt in der Einfahrtsrunde davon – der Führende bleibt auf SC-Tempo
+  // Neustart: Verfolger reagieren mit kurzer Verzögerung auf das Gasgeben des Führenden
+  if (n.go) return car.restartLag && race.time < car.restartLag ? RESTART_SPEED : null;
+  // Einfahrtsrunde: der Führende bestimmt ein langsames Tempo und wartet, bis das Feld dicht auffährt
+  if (n.phase === 'in' && race.scHead === car && (!race.sc || race.sc.inPit || scPullingAway(race))) {
+    return race.scHeadGap > 30 ? RESTART_SPEED * 0.75 : RESTART_SPEED;
+  }
   if (race.behindSC.has(car) && scPullingAway(race)) return SC_SPEED;
   const g = race.physGap.get(car) ?? 999;
+  if (n.phase === 'in' && g > 14) return g > 300 ? 0.92 : 0.86;   // Lücke vor dem Neustart schließen
   if (g > 300) return 0.92;
   if (g > 80) return 0.78;
   return 0.7;
@@ -305,7 +311,12 @@ export function afterMove(race, dt) {
       if (head && crossed(tr, head.d - head.move, head.d, n.restartPoint)) {
         n.go = true;
         n.headId = head.id;
-        for (const c of race.cars) if (!c.retired && !c.finished) c.restartHold = true;
+        for (const c of race.cars) if (!c.retired && !c.finished) {
+          c.restartHold = true;
+          // Reaktion der Verfolger: meist 0,1–0,4 s, gelegentlich ein „Schläfer“, selten perfekt (Windschatten-Chance)
+          const r = race.rng.next();
+          c.restartLag = c === head ? 0 : race.time + (r < 0.06 ? 0.02 : r > 0.92 ? 0.7 : 0.15 + r * 0.3);
+        }
         race.emit('rc', `Neustart! ${head.id} gibt Gas – Überholen erst nach der Ziellinie`);
         const st = race.standings().filter(c => !c.retired && !c.finished && !c.inPit);
         rollRestartCase(race, head, st[st.indexOf(head) + 1]);

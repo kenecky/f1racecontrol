@@ -13,7 +13,9 @@ export function svc(race) {
   return race.svc;
 }
 
-const scOut = race => Boolean(race.neutral && (race.neutral.type === 'sc' || race.neutral.type === 'red'));
+const scOut = race => Boolean((race.neutral && (race.neutral.type === 'sc' || race.neutral.type === 'red')) || race.phase === 'delay');
+// Einsatzfahrzeuge: im Rennen und vor dem Start (Formationsrunde, Startaufstellung, Start verschoben)
+export const svcPhase = race => ['running', 'formation', 'grid', 'lights', 'delay'].includes(race.phase);
 const secMid = (race, i) => {
   const s = race.track.sectors[i];
   return wrapD(race.track, s.start + wrapD(race.track, s.end - s.start) / 2);
@@ -27,7 +29,7 @@ function targetIn(race, sector, pred = () => true) {
 // ---------- Medical Car ----------
 export function deployMedical(race, sector) {
   const s = svc(race);
-  if (s.medical || race.phase !== 'running') return false;
+  if (s.medical || !svcPhase(race)) return false;
   const tr = race.track;
   const target = targetIn(race, sector, h => h.medical);
   const start = wrapD(tr, tr.pit.exit);
@@ -40,7 +42,7 @@ export function deployMedical(race, sector) {
 // ---------- Kehrmaschine ----------
 export function deploySweeper(race, sector) {
   const s = svc(race);
-  if (s.sweeper || race.phase !== 'running') return false;
+  if (s.sweeper || !svcPhase(race)) return false;
   const tr = race.track;
   const sec = tr.sectors[sector];
   const len = wrapD(tr, sec.end - sec.start) || tr.L / 12;
@@ -55,7 +57,7 @@ export function deploySweeper(race, sector) {
 // ---------- Bergungskran ----------
 export function deployCrane(race, sector) {
   const s = svc(race);
-  if (s.cranes.some(c => c.sector === sector) || race.phase !== 'running') return false;
+  if (s.cranes.some(c => c.sector === sector) || !svcPhase(race)) return false;
   const d = targetIn(race, sector, h => h.needsCrane);
   const needed = race.hazards.some(h => !h.ended && h.sector === sector && h.needsCrane);
   s.cranes.push({ sector, d, since: race.time, idle: 0, side: race.track.corners.length ? 1 : 1 });
@@ -166,7 +168,7 @@ export function updateServices(race, dt) {
     c.idle = busy ? 0 : c.idle + dt;
     if (c.idle > 25) { recallCrane(race, c.sector); continue; }
     const flag = race.flags[c.sector];
-    const safe = flag === 'double' || (race.neutral && race.neutral.type !== 'vsc') || (race.neutral && race.weather.wetness < 0.3);
+    const safe = flag === 'double' || race.phase === 'delay' || (race.neutral && race.neutral.type !== 'vsc') || (race.neutral && race.weather.wetness < 0.3);
     if (!safe && !c.warned) {
       c.unsafeT = (c.unsafeT || 0) + dt;
       if (c.unsafeT > 8) {

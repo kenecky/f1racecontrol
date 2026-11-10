@@ -22,7 +22,7 @@ const MS_LEN = 100;              // Mini-Sektor-Länge (m) für Abstandsberechnu
 
 import { COMPOUNDS, wetLoss, bestCompound } from './tyres.js';
 import { createWeather, updateWeather } from './weather.js';
-import { stepFormation, stepGrid, stepLights, releasePitStarters, stepRestart, toPitLane, PRESTART } from './start.js';
+import { stepFormation, stepGrid, stepLights, stepDelay, releasePitStarters, stepRestart, toPitLane, PRESTART } from './start.js';
 import { rollRegs, lateToGrid, checkTyreRule } from './regs.js';
 import { prepareScrutiny } from './scrutiny.js';
 import { ambientRadio, T } from './texts.js';
@@ -224,7 +224,7 @@ export class Race {
 
   // Vor dem Start (Formationsrunde, Startaufstellung, Startampel)
   get preStart() {
-    return this.phase === 'pre' || this.phase === 'ready' || this.phase === 'formation' || this.phase === 'grid' || this.phase === 'lights';
+    return this.phase === 'pre' || this.phase === 'ready' || this.phase === 'formation' || this.phase === 'grid' || this.phase === 'lights' || this.phase === 'delay';
   }
 
   get lightsOn() {
@@ -267,6 +267,7 @@ export class Race {
     if (this.phase === 'formation') { stepFormation(this, DT); return; }
     if (this.phase === 'grid') { stepGrid(this, DT); return; }
     if (this.phase === 'lights') { stepLights(this, DT); return; }
+    if (this.phase === 'delay') { stepDelay(this, DT); return; }
     // Neustart nach roter Flagge: Formationsrunde, Startaufstellung, Ampel
     const nr = this.neutral;
     if (nr && nr.type === 'red' && nr.restart) { stepRestart(this, DT); return; }
@@ -535,6 +536,8 @@ export class Race {
   computePhysGap() {
     this.physGap.clear();
     this.behindSC.clear();
+    this.scHead = null;
+    this.scHeadGap = 0;
     if (!this.neutral || this.neutral.type !== 'sc') return;
     const tr = this.track;
     const list = [...this.onTrackCars()];
@@ -547,6 +550,14 @@ export class Race {
       this.physGap.set(c, wrapD(tr, ahead.d - c.d));
       if (ahead.isSC) this.behindSC.add(c);
     });
+    // Spitze der Schlange (direkt hinter dem SC bzw. – SC schon in der Box – das Auto mit dem größten Abstand nach vorne)
+    // und deren Abstand zum Auto dahinter: der Führende wartet beim Neustart auf das Feld
+    let head = null, best = -1;
+    for (const [c, g] of this.physGap) if (this.behindSC.has(c) || (!this.behindSC.size && g > best)) { head = c; best = g; if (this.behindSC.has(c)) break; }
+    if (head) {
+      this.scHead = head;
+      for (const [c, g] of this.physGap) if (g === undefined) continue; else if (list[(list.indexOf(c) + 1) % list.length] === head) this.scHeadGap = g;
+    }
   }
 
   overtakeChance(B, A, zone) {

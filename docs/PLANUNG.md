@@ -610,3 +610,18 @@ Einträge ohne gültige Punktzahl werden im Verlauf und in der Statistik ausgebl
   vertiefte Anzeigen (Runde, Uhr, Kennzahlen), Warnstreifen am Kopf von Desk, Entscheidungen und allen Fenstern.
 - Startseite: Fortsetzen/Start ganz oben, Ablaufleiste im Einzelrennen und Einleitungssatz entfernt.
 - Saison: Wetter nicht wählbar, immer zufällig mit der Regenwahrscheinlichkeit der Strecke.
+
+### Briefing, Desk, Start verschieben, Restart nach SC (v45)
+- **Drivers' Briefing:** Vollbild mit Warnstreifen rundherum, 7 Fahrermeinungen statt 4, Abstand zum Knopf.
+- **Desk:** Warnstreifen rundherum (auch Entscheidungen), oben Knöpfe DOCS (Entscheidungen, mit Zähler), MAP (Karte
+  ein/aus – ohne Karte mehr Platz, z. B. für alle Marshal-Sektoren) und Tempo. „STARTING PROCEDURE“, überflüssige Texte
+  entfernt; Sektornummer auf gelber Auswahl jetzt dunkel.
+- **Start verschieben (Feld in die Boxengasse):** jederzeit vor dem Start (Formationsrunde, Grid, Problem in der
+  Aufstellung). Das Feld beendet die Runde und stellt sich in der Boxengasse auf; die Strecke gilt als gesperrt –
+  Medical Car, Kehrmaschine und Kran ohne Safety Car, jede Gefahr gilt als abgesichert. Ist alles geborgen: neue
+  Formationsrunde aus der Boxengasse (Startaufstellung wie vorher), Renndistanz −1 Runde. Ohne offene Gefahr zählt
+  das Verschieben als unnötig. Einsatzfahrzeuge sind jetzt auch während der Formationsrunde verfügbar (ohne SC mit Abzug).
+  „Start abbrechen“ heißt jetzt „Extra-Formationsrunde“.
+- **Restart nach Safety Car:** Der Führende bestimmt in der Einfahrtsrunde ein langsames Tempo und wartet auf das Feld,
+  Verfolger schließen auf; beim Gasgeben reagieren sie mit 0,15–0,45 s (selten perfekt, selten verschlafen).
+  Abstand P1–P2 nach dem Restart im Test jetzt Ø 0,3–0,5 s statt ~2 s.

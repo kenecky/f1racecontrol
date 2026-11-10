@@ -5,7 +5,7 @@ import { speedAt, wrapD, crossed } from './trackModel.js';
 import { updateHazards, startSpin, endOffTrack, startFailure, createHazard, retireCar } from './hazards.js';
 import { createJumpStartCase, createGridBoxCase } from './incidents.js';
 import { startBehindSC, trackNeutralUse } from './neutral.js';
-import { startLapMedical } from './services.js';
+import { startLapMedical, updateServices } from './services.js';
 import { rollStartRegs } from './regs.js';
 import { rainAt } from './weather.js';
 import { COMPOUNDS, bestCompound } from './tyres.js';
@@ -76,6 +76,7 @@ export function stepFormation(race, dt) {
   race.time += dt;
   moveFormation(race, dt);
   updateHazards(race, dt);
+  updateServices(race, dt);
 }
 
 // Bewegung der Autos auf der Formationsrunde (läuft weiter, falls die Ampel zu früh startet)
@@ -245,6 +246,7 @@ export function stepGrid(race, dt) {
   f.gridT += dt;
   race.time += dt;
   updateHazards(race, dt);
+  updateServices(race, dt);
   checkGridStall(race);
 }
 
@@ -287,6 +289,7 @@ export function stepLights(race, dt) {
   if (f.arrived) f.gridT += dt;
   moveFormation(race, dt);
   updateHazards(race, dt);
+  updateServices(race, dt);
   checkGridStall(race);
   const t = race.lightsTimer;
   // Lange Pause: Fahrer werden nervös
@@ -409,6 +412,122 @@ export function abortStart(race) {
   race.laps = Math.max(3, race.laps - 1);
   race.emit('rc', 'START ABGEBROCHEN – Extra-Formationsrunde, die Renndistanz wird um eine Runde verkürzt.');
   beginFormation(race);
+  return true;
+}
+
+// ---------- Start verschieben: Feld fährt in die Boxengasse ----------
+// Jederzeit vor dem Start möglich (auch während der Formationsrunde). Das Feld beendet die Runde und
+// stellt sich in der Boxengasse auf; die Strecke gilt dann als gesperrt (wie bei Rot) – Medical Car,
+// Kehrmaschine und Kran dürfen ohne Safety Car raus. Danach neue Formationsrunde aus der Boxengasse.
+export function suspendStart(race) {
+  if (!['formation', 'grid', 'lights'].includes(race.phase) || race.neutral) return false;
+  const tr = race.track, L = tr.L;
+  const issue = race.startIssue;
+  race.startIssue = null;
+  for (const c of race.cars) if (c.jump) { c.d -= c.jump.moved; c.jump = null; }
+  if (issue && issue.type === 'stall') {
+    const c = race.carById[issue.carId];
+    toPitLane(race, c);
+    race.emit('rc', `${c.id} wird in die Boxengasse geschoben.`, { cars: [c.id] });
+  }
+  const f = race.formation;
+  if (f.stall) { const c = race.carById[f.stall.id]; f.stall = null; toPitLane(race, c); }
+  const open = race.hazards.some(h => !h.ended && h.type !== 'spin');
+  race.startLog.push({ type: issue ? issue.type : open ? 'hazard' : 'none', action: 'suspend', carId: issue ? issue.carId : null });
+  // Warteplätze in der Boxengasse in der aktuellen Reihenfolge auf der Strecke
+  const cars = race.cars.filter(c => !c.retired && !c.pitStart && f.order.includes(c.id)).sort((a, b) => b.d - a.d);
+  const lane = wrapD(tr, tr.pit.box - tr.pit.entry);
+  const gapM = Math.min(12, Math.max(4, (lane - 20) / Math.max(1, cars.length)));
+  cars.forEach((c, i) => {
+    const entryAbs = c.d + wrapD(tr, tr.pit.entry - c.d - 5) + 5;
+    c.pEntry = entryAbs;
+    c.pTarget = entryAbs + Math.max(10, lane - i * gapM);
+    c.fIncident = null;
+    c.pass = null;
+  });
+  race.laps = Math.max(3, race.laps - 1);
+  race.lightsTimer = 0;
+  race.phase = 'delay';
+  race.delay = { stage: 'toPit', t: 0, order: cars.map(c => c.id), gap: gapM };
+  race.emit('rc', `START VERSCHOBEN – das Feld fährt in die Boxengasse. Die Strecke ist für Bergungen frei. Renndistanz jetzt ${race.laps} Runden.`);
+  return true;
+}
+
+export function stepDelay(race, dt) {
+  const tr = race.track;
+  const D = race.delay;
+  race.time += dt;
+  D.t += dt;
+  if (D.stage === 'toPit') {
+    const cars = D.order.map(id => race.carById[id]).filter(c => !c.retired && !c.pitStart);
+    let ahead = null, all = true;
+    for (const car of cars) {
+      car.move = 0;
+      if (car.offTrack) {
+        car.v = 0;
+        all = false;
+        if (race.time >= car.offTrack.until) endOffTrack(race, car);
+        continue;
+      }
+      const toGo = car.pTarget - car.d;
+      let vt = Math.min(speedAt(tr, car.d) * F_SPEED, F_VMAX);
+      if (car.inPit) vt = Math.min(vt, tr.pitLaneSpeed);
+      vt = Math.min(vt, Math.sqrt(Math.max(0, 2 * 6 * (toGo - 0.2))));
+      let room = toGo;
+      if (ahead) {
+        const gap = ahead.d - car.d;
+        // Auf der Strecke 20 m Abstand, in der Boxengasse dicht auffahren bis zum Warteplatz
+        if (!car.inPit && gap < 60) vt = Math.min(vt, Math.max(4, ahead.v + (gap - 20) * 0.4));
+        room = Math.min(room, Math.max(0, gap - (D.gap - 0.5)));
+        vt = Math.min(vt, ahead.v + Math.sqrt(Math.max(0, 2 * 6 * (room - 0.2))));
+      }
+      if (vt > car.v) car.v = Math.min(vt, car.v + 5 * dt);
+      else car.v = Math.max(vt, car.v - 14 * dt);
+      car.move = Math.max(0, Math.min(car.v * dt, room));
+      if (car.move < car.v * dt) car.v = car.move / dt;
+      car.d += car.move;
+      if (!car.inPit && car.d >= car.pEntry) car.inPit = true;
+      if (car.pTarget - car.d > 0.6 || car.v > 0.3) all = false;
+      if (!car.retired) ahead = car;
+    }
+    if (all) {
+      D.stage = 'inPit';
+      race.emit('info', 'Alle Autos stehen in der Boxengasse. Nach der Bergung: neue Formationsrunde aus der Boxengasse.');
+    }
+  }
+  updateHazards(race, dt);
+  updateServices(race, dt);
+}
+
+// Strecke frei? Dann neue Formationsrunde aus der Boxengasse (Startaufstellung wie vorher)
+export function canResumeStart(race) {
+  return race.phase === 'delay' && race.delay.stage === 'inPit' && !race.hazards.some(h => !h.ended && h.type !== 'spin');
+}
+
+export function resumeStart(race) {
+  if (!canResumeStart(race)) return false;
+  const tr = race.track, L = tr.L;
+  const f = race.formation;
+  const cars = race.cars.filter(c => !c.retired && !c.pitStart && f.order.includes(c.id));
+  // Warteplätze in der Boxengasse nach Startaufstellung neu belegen (Positionen auf die Runde davor normieren)
+  const spots = cars.map(c => c.d - Math.ceil(c.d / L) * L).sort((a, b) => b - a);
+  const grid = [...cars].sort((a, b) => (a.fSlot ?? 99) - (b.fSlot ?? 99));
+  grid.forEach((c, i) => {
+    c.d = spots[i];
+    c.inPit = true;
+    c.v = 0;
+    c.move = 0;
+    const exitAbs = c.d + wrapD(tr, tr.pit.exit - c.d);
+    c.fTarget = (Math.floor(exitAbs / L) + 1) * L + slotD(c.fSlot ?? i);
+    c.fDepart = 1 + i * 1.3;
+    c.fIncident = null;
+    c.jump = null;
+    c.pEntry = c.pTarget = undefined;
+  });
+  race.formation = { n: f.n + 1, t: 0, gridT: 0, order: grid.map(c => c.id), backSlot: f.backSlot, stall: null, gridStall: null, gridBox: null, rainChecked: f.rainChecked };
+  race.delay = null;
+  race.phase = 'formation';
+  race.emit('rc', 'Boxenausfahrt offen – neue Formationsrunde aus der Boxengasse.');
   return true;
 }
 

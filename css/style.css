@@ -1540,3 +1540,20 @@ body { background: #15181d; }
 .start-screen .resume-btn { margin-top: 0; }
 .start-screen #startBtn { margin: 0 0 12px; }
 .wx-season-note { font-size: 12px; color: var(--pn-muted); margin-bottom: 2px; }
+
+/* ---------- Vollbild mit Warnstreifen rundherum (Briefing, Desk, Entscheidungen) ---------- */
+.hz-frame { border: 6px solid transparent !important; border-image: var(--hz) 6 !important; }
+.fs-overlay { align-items: stretch; }
+.fs-overlay .sheet { max-height: none; height: 100dvh; display: flex; flex-direction: column; padding-top: calc(16px + env(safe-area-inset-top)); }
+#briefBody { flex: 1; min-height: 0; overflow-y: auto; }
+#briefScreen .sheet-actions { margin-top: 16px; }
+#briefScreen .brief-chips { margin-bottom: 4px; }
+/* Desk: Knöpfe oben, Karte ausblendbar, Sektorwahl lesbar */
+.desk-top-btn { height: 34px; padding: 0 9px; font: 700 11px var(--mono); letter-spacing: .06em; flex: none; display: inline-flex; align-items: center; gap: 5px; }
+.desk-top-btn.active { color: #fff; border-color: #facc15; }
+.desk-top-btn .badge-count { margin: 0; }
+.desk .fs-t { min-width: 0; }
+.desk.no-map .desk-live { display: none; }
+.sec-pick.need.sel, .sec-pick.sel { color: #15181d; }
+.fs-screen.hz-frame { border-width: 5px !important; border-image: var(--hz) 5 !important; }
+.flag-sheet-sub:empty { display: none; }

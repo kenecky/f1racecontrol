@@ -37,7 +37,7 @@ import {
   saveRaceState, loadRaceState, clearRaceState, loadSeason, saveSeason, saveReplay, loadReplay,
 } from './storage.js';
 import { serializeRace, restoreRace } from './sim/persist.js';
-import { abortStart, startFromGridBehindSC, releaseFormation, startLights, lightsOut, restartLights, restartLightsOut, ALL_ON } from './sim/start.js';
+import { abortStart, suspendStart, resumeStart, startFromGridBehindSC, releaseFormation, startLights, lightsOut, restartLights, restartLightsOut, ALL_ON } from './sim/start.js';
 import { distanceFor, LENGTHS } from './sim/length.js';
 import { runScrutiny, TECH_CHECKS, EXTRA_CHECKS } from './sim/scrutiny.js';
 import { prepareBriefing } from './sim/regs.js';
@@ -177,6 +177,8 @@ const controlPanel = new ControlPanel({
       'start-lights': () => doStartLights(),
       'start-sc': () => startFromGridBehindSC(race),
       'seq-formation': () => releaseFormation(race),
+      'start-suspend': () => suspendStart(race),
+      'start-resume': () => resumeStart(race),
       'seq-out': () => doLightsOut(),
       'msg-yellow': () => sendMessage(race, 'yellow'),
       'msg-blue': () => sendMessage(race, 'blue'),
@@ -919,6 +921,7 @@ function startCtlState() {
   }
   if (!race || race.isSession || !race.preStart || race.phase === 'pre') return null;
   if (race.phase === 'ready') return { cls: 'go', text: '🏁 START FORMATION LAP', act: 'formation' };
+  if (race.phase === 'delay') return { cls: 'amber', text: 'START VERSCHOBEN ›', act: 'start' };
   if (race.phase === 'formation' || race.phase === 'grid') return { cls: 'amber', text: '🚦 AMPEL EINSCHALTEN', act: 'lights' };
   if (race.phase === 'lights') {
     if (race.lightsTimer < ALL_ON) {
@@ -1130,6 +1133,9 @@ function updateCasesBadge() {
   const b = $('casesBadge');
   b.textContent = n;
   b.classList.toggle('hidden', n === 0);
+  const d = $('deskDecBadge');
+  d.textContent = n;
+  d.classList.toggle('hidden', n === 0);
 }
 
 function updateBadge() {
@@ -1147,6 +1153,7 @@ function select(id) {
 function setSpeed(v) {
   settings.speed = v;
   $('speedBtn').textContent = `${v}×`;
+  $('deskSpeedBtn').textContent = `${v}×`;
   saveSettings(settings);
   renderSpeedMenu();
 }
@@ -1233,12 +1240,12 @@ function renderSpeedMenu() {
   $('slowToggle').checked = settings.slowOnIncident;
 }
 
-function toggleSpeedMenu(show) {
+function toggleSpeedMenu(show, anchor = $('speedBtn')) {
   const menu = $('speedMenu');
   const open = show ?? menu.classList.contains('hidden');
   if (!open) { menu.classList.add('hidden'); return; }
   renderSpeedMenu();
-  const r = $('speedBtn').getBoundingClientRect();
+  const r = anchor.getBoundingClientRect();
   menu.classList.remove('hidden');
   const w = menu.offsetWidth;
   menu.style.top = `${r.bottom + 6}px`;
@@ -1717,7 +1724,7 @@ $('slowToggle').addEventListener('change', e => {
   saveSettings(settings);
 });
 document.addEventListener('pointerdown', e => {
-  if (!e.target.closest('#speedMenu') && !e.target.closest('#speedBtn')) toggleSpeedMenu(false);
+  if (!e.target.closest('#speedMenu') && !e.target.closest('#speedBtn') && !e.target.closest('#deskSpeedBtn')) toggleSpeedMenu(false);
 });
 
 $('labelsBtn').addEventListener('click', () => {
@@ -2052,6 +2059,17 @@ document.addEventListener('touchmove', e => {
 // ---------- Start ----------
 
 $('speedBtn').textContent = `${settings.speed}×`;
+$('deskSpeedBtn').textContent = `${settings.speed}×`;
+// Desk: Tempo, Karte ein/aus, direkt zu den Entscheidungen
+$('deskSpeedBtn').addEventListener('click', e => { e.stopPropagation(); toggleSpeedMenu(undefined, $('deskSpeedBtn')); });
+function applyDeskMap() {
+  const off = settings.deskMap === false;
+  $('desk').classList.toggle('no-map', off);
+  $('deskMapBtn').classList.toggle('active', !off);
+}
+$('deskMapBtn').addEventListener('click', () => { settings.deskMap = settings.deskMap === false; saveSettings(settings); applyDeskMap(); });
+applyDeskMap();
+$('deskDecBtn').addEventListener('click', () => { closeDesk(); openDecisions(); });
 if (!LENGTHS[settings.length]) settings.length = 'medium';
 if (!['easy', 'medium', 'hard'].includes(settings.difficulty)) settings.difficulty = 'medium';
 appEl.classList.toggle('collapsed', settings.panelCollapsed);

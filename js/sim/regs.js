@@ -173,12 +173,30 @@ export function prepareBriefing(race) {
   if (decoy === hotspot) decoy = corners[(corners.findIndex(c => c.id === hotspot) + 2) % corners.length].id;
   const drivers = race.cars.map(c => c.id);
   const pick = () => drivers[Math.floor(r.next() * drivers.length)];
+  let decoy2 = r.pick(corners).id;
+  if (decoy2 === hotspot || decoy2 === decoy) decoy2 = corners[(corners.findIndex(c => c.id === hotspot) + 4) % corners.length].id;
+  const GENERAL = [
+    '„Die Boxenausfahrt ist sehr eng, bitte auf die Linie achten.“',
+    '„Beim Neustart bitte nicht wieder so lange warten.“',
+    '„Die Startaufstellung ist rutschig, Vorsicht beim Start.“',
+    '„Bitte bei Gelb früher reagieren, letztes Mal stand ein Auto ewig ungesichert da.“',
+    '„Die blauen Flaggen kamen zuletzt viel zu spät.“',
+    '„Das Safety Car war beim letzten Rennen viel zu langsam, die Reifen werden kalt.“',
+    '„Auf der Geraden bitte keine Manöver in der Bremszone tolerieren.“',
+  ];
+  const gen = [...GENERAL];
+  const takeGen = () => gen.splice(Math.floor(r.next() * gen.length), 1)[0];
   const notes = [
     { who: pick(), text: `„Am Ausgang von ${hotspot} gehen alle mit vier Rädern über die Linie – das muss überwacht werden.“` },
     { who: pick(), text: `„In ${decoy} ist der Randstein sehr hoch, aber da gewinnt man nichts.“` },
     { who: pick(), text: `„Bitte ${hotspot} konsequent kontrollieren, sonst ist es unfair.“` },
-    { who: pick(), text: r.pick(['„Die Boxenausfahrt ist sehr eng, bitte auf die Linie achten.“', '„Beim Neustart bitte nicht wieder so lange warten.“', '„Die Startaufstellung ist rutschig, Vorsicht beim Start.“']) },
+    { who: pick(), text: `„In ${decoy2} kürzt keiner ab, da liegt Kies direkt hinter dem Randstein.“` },
+    { who: pick(), text: takeGen() },
+    { who: pick(), text: takeGen() },
+    { who: pick(), text: takeGen() },
   ];
-  race.briefing = { hotspot, decoy, notes: r.chance(0.5) ? notes : [notes[1], notes[0], notes[3], notes[2]], tlCorners: null, done: false };
+  // Reihenfolge mischen (fest je Rennen)
+  for (let i = notes.length - 1; i > 0; i--) { const j = Math.floor(r.next() * (i + 1)); [notes[i], notes[j]] = [notes[j], notes[i]]; }
+  race.briefing = { hotspot, decoy, notes, tlCorners: null, done: false };
   return race.briefing;
 }

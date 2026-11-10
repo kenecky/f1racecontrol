@@ -38,6 +38,8 @@ function flagLevel(h, flag) {
 // Aktuelle Reaktionsstufe auf diese Gefahr
 export function responseLevel(race, h) {
   if (h.need === 'pit') return race.svc && race.svc.pitClosed ? 1 : 0;   // Boxengasse geschlossen?
+  // Start verschoben, Feld in der Boxengasse: Strecke gesperrt – jede Gefahr gilt als ausreichend abgesichert
+  if (race.phase === 'delay') return Math.max(flagLevel(h, race.flags[h.sector]), NEED_LEVEL[h.need] || 0);
   return Math.max(flagLevel(h, race.flags[h.sector]), neutralLevel(race));
 }
 
