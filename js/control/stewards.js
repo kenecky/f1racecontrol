@@ -147,7 +147,46 @@ export function revertPenalty(race, base) {
   if (v.penalty === 'dsq' && car.dsq) { car.dsq = false; if (car.finished) { car.retired = false; car.dnf = null; } }
   if (v.penalty === 'warning' || v.penalty === 'bw') car.warnings = Math.max(0, (car.warnings || 1) - 1);
   race.penaltyPoints[v.carId] = Math.max(0, (race.penaltyPoints[v.carId] || 0) - (v.points || 0));
+  if (car.giveBack && car.giveBack.caseId === base.id) car.giveBack = null;
   v.revoked = true;
+}
+
+// Urteil nachträglich revidieren (einmal je Fall) – kostet Glaubwürdigkeit
+export function canRevise(race, c) {
+  return ['decided', 'nfa'].includes(c.status) && !c.revised && !['protest', 'tlLap'].includes(c.type)
+    && !race.cases.some(x => x.type === 'protest' && x.base === c.id);
+}
+export function reviseCase(race, c) {
+  if (!canRevise(race, c)) return false;
+  const prev = c.verdict;
+  const car = prev && prev.carId ? race.carById[prev.carId] : null;
+  const served = car && (car.timePens.some(p => p.caseId === c.id && p.served) || (car.serving && car.serving.caseId === c.id));
+  revertPenalty(race, c);
+  c.revised = { prev, time: race.time };
+  c.verdict = null;
+  if (race.phase === 'finished') {
+    c.status = 'hearing';
+    c.hearing = c.hearing || hearingEvidence(race, c);
+  } else c.status = 'investigating';
+  race.revisions = (race.revisions || 0) + 1;
+  race.emit('rc', `Die Rennleitung überprüft ihr Urteil zu DOC ${c.id} erneut: ${c.title}${served ? ' (bereits verbüßte Strafen bleiben bestehen)' : ''}.`, { cars: c.cars });
+  return true;
+}
+
+// Präzedenzfälle: frühere Urteile derselben Art (dieses Rennen und – in der Saison – frühere Rennen)
+export function precedents(race, c) {
+  const out = [];
+  for (const x of race.cases) {
+    if (x === c || x.type !== c.type || !x.verdict || !['decided', 'nfa'].includes(x.status)) continue;
+    out.push({ where: `DOC ${x.id}, dieses Rennen`, carId: x.verdict.carId, penalty: x.verdict.penalty, points: x.verdict.points, status: x.status });
+  }
+  for (const p of race.precedents || []) if (p.type === c.type) out.push(p);
+  return out.slice(0, 4);
+}
+export function precedentText(p) {
+  const what = p.carId ? `${PENALTIES[p.penalty] ? PENALTIES[p.penalty].name : p.penalty} für ${p.carId}${p.points ? ` (${p.points} Strafpkt.)` : ''}`
+    : p.status === 'nfa' ? 'keine weitere Untersuchung' : 'keine Strafe';
+  return `${p.where}: ${what}`;
 }
 
 // ---------- Proteste und Anträge auf Überprüfung nach dem Rennen ----------

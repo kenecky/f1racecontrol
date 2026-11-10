@@ -1,6 +1,7 @@
 // Vorfälle zwischen Fahrern und Regelverstöße → Fälle für die Rennleitung.
 // Jeder Fall hat eine interne "Wahrheit" (wer schuld ist, welche Strafe angemessen wäre)
 // und Beweise, die der Spieler auswerten muss. Beweise können unklar oder parteiisch sein.
+import { msgFactor } from './messages.js';
 import { startSpin, stopCarAfterIncident, createDebris, cornerNear, cornerLabel, createHazard, retireCar } from './hazards.js';
 import { sectorIndexAt, wrapD } from './trackModel.js';
 import { aggressionOf, errorsOf } from './race.js';
@@ -383,7 +384,7 @@ export function rollTrackLimits(race, car) {
 // ---------- Boxengasse ----------
 
 export function rollPitSpeeding(race, car) {
-  if (!race.rng.chance(0.008)) return;
+  if (!race.rng.chance(0.008 * msgFactor(race, 'pit'))) return;
   const v = 80 + race.rng.range(0.6, 4.5);
   createCase(race, {
     type: 'pitSpeeding', cars: [car.id],

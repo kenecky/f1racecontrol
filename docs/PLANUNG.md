@@ -532,3 +532,15 @@ Auto unsicher abgestellt, Linie an der Boxengasse, Überholen in der Aufwärmrun
 außerdem keine Ereignisse Gewitter, Rettungshubschrauber, Gullydeckel, Person und Streckenposten auf der Strecke.
 
 Vibration bei neuen Vorfällen/Entscheidungen: im Tempo-Menü abschaltbar.
+
+### Fahrerakte, Präzedenzfälle, Urteil revidieren, Mitteilungen (v34)
+- **Fahrerakte (nur Saison):** Strafpunkte der letzten 12 Monate, Verwarnungen und die letzten Strafen – in der Fahrerkarte
+  und als Beweisstück „DRIVER RECORD“ in jedem Fall (nach Untersuchungsbeginn).
+- **Präzedenzfälle:** Beweisstück „PRECEDENTS“ mit bis zu 4 früheren Urteilen derselben Fallart (dieses Rennen, in der
+  Saison auch frühere Rennen; gespeichert werden die letzten 150).
+- **Urteil revidieren:** einmal je Fall, zweistufig bestätigt. Strafe wird zurückgenommen (bereits verbüßte bleiben),
+  der Fall geht zurück in die Untersuchung (nach dem Rennen: Anhörung). Kosten: Konsistenz −8 je Revision,
+  Pressestimme, in der Saison Ruf −1,5 bei allen Teams.
+- **RC MSG (Mitteilungen an alle Teams):** Gelbe Flaggen, Blaue Flaggen, Fahrverhalten in Zweikämpfen (Richtungswechsel,
+  Bremstests), Tempolimit Boxengasse → Verstöße 10 bzw. 15 Minuten lang halb so häufig, wiederholte Warnungen wirken
+  schwächer (bis 20 %). Track Limits: weitere Kurve während des Rennens überwachen lassen.

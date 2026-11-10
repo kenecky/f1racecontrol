@@ -1,5 +1,5 @@
 // Tab "Entscheidungen": Vorfälle untersuchen und Urteile fällen.
-import { PENALTIES } from '../control/stewards.js';
+import { PENALTIES, precedents, precedentText, canRevise } from '../control/stewards.js';
 import { ScenePlayer } from './scenePlayer.js';
 
 const STATUS = {
@@ -45,6 +45,8 @@ export class CasesPanel {
       if (act === 'car') { f.carId = b.dataset.val === '' ? null : b.dataset.val; if (f.carId === null) f.penalty = null; }
       else if (act === 'pen') f.penalty = b.dataset.val;
       else if (act === 'pts') f.points = Number(b.dataset.val);
+      else if (act === 'revise-arm') f.reviseArmed = true;
+      else if (act === 'revise') { f.reviseArmed = false; this.onAction(act, id, f); }
       else { this.onAction(act, id, f); }
       this.sig = '';
       this.onAction('render');
@@ -108,6 +110,18 @@ export class CasesPanel {
             <div class="scene-box" data-scene="${c.id}"></div>
             <div class="scene-hint">${c.status === 'new' ? 'TV-Bild – genauere Übersicht mit Hilfslinien nach „Untersuchen“' : 'Nachstellung aus Daten und Kameras – Hilfslinien zur Bewertung'}</div></div>` : '';
       const evHtml = evs.map(exhibit).join('');
+      // Fahrerakte (Saison) und Präzedenzfälle – nach Untersuchungsbeginn
+      let extra = '';
+      if (showAll && c.type !== 'protest') {
+        if (race.driverFile) for (const id of c.cars) {
+          const f = race.driverFile[id];
+          if (!f) continue;
+          extra += exhibit({ label: `DRIVER RECORD ${id}`, text: `${f.pts} Strafpunkte in 12 Monaten · ${f.warn} Verwarnung${f.warn === 1 ? '' : 'en'} in der Saison.${f.list.length ? ` Zuletzt: ${f.list.slice(0, 3).map(e => `${e.where} – ${e.what}: ${e.pen}`).join('; ')}.` : ' Bisher keine Strafen in dieser Saison.'}` });
+        }
+        const prec = precedents(race, c);
+        extra += exhibit({ label: 'PRECEDENTS', text: prec.length ? prec.map(precedentText).join('<br>') : 'Keine vergleichbaren Urteile bisher.' });
+      }
+      const revised = c.revised ? `<div class="ctl-small">Urteil revidiert – bisher: ${c.revised.prev && c.revised.prev.carId ? `${PENALTIES[c.revised.prev.penalty].name} für ${c.revised.prev.carId}` : 'keine Strafe'}.</div>` : '';
       const hearing = c.hearing ? `<div class="doc-sub">HEARING</div>${c.hearing.map(exhibit).join('')}` : '';
       const more = !showAll && c.evidence.length > evs.length
         ? '<div class="ev-more">Weitere Beweise (Telemetrie, Positionen, Funk) nach Untersuchungsbeginn.</div>' : '';
@@ -131,7 +145,7 @@ export class CasesPanel {
               ${row('OFFENCE', c.typeName)}
               ${decision}
             </table>
-            ${scene}${evHtml}${more}${hearing}
+            ${scene}${evHtml}${extra}${more}${hearing}${revised}
             ${stamp}
           </div>
           ${this.actions(race, c, finished)}
@@ -173,7 +187,13 @@ export class CasesPanel {
         <button class="ctl-btn ctl-sc" data-act="hearing">Fahrer zur Anhörung vorladen</button>`;
     }
     if (c.status === 'investigating' || c.status === 'hearing') return this.form(c, finished);
-    const v = c.verdict;
+    if (canRevise(race, c) && !this.single) {
+      const f = this.forms[c.id] || {};
+      return f.reviseArmed
+        ? `<div class="case-actions"><p class="ctl-small">Revidieren hebt das Urteil auf (bereits verbüßte Strafen bleiben) und kostet Ansehen bei den Teams und Punkte in der Konsistenz.</p>
+            <button class="ctl-btn ctl-red armed" data-act="revise">ZUM REVIDIEREN ERNEUT DRÜCKEN</button></div>`
+        : '<div class="case-actions"><button class="ctl-btn ctl-ghost" data-act="revise-arm">URTEIL REVIDIEREN</button></div>';
+    }
     return '';
   }
 

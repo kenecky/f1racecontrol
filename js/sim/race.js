@@ -1,5 +1,6 @@
 // Rennsimulation: Autos, Rundenzeiten, Überholen, Boxenstopps, Zeitnahme.
 // Unabhängig von der Darstellung – kann auch ohne Browser laufen (Tests).
+import { msgFactor } from './messages.js';
 import { createRng } from '../util/rng.js';
 import { speedAt, wrapD, inRange, crossed, accelAt, sectorIndexAt } from './trackModel.js';
 import {
@@ -482,7 +483,7 @@ export class Race {
             B.tried.add(key);
             if (underYellow) {
               // seltener Regelverstoß: Überholen trotz gelber Flagge
-              if (this.rng.chance(0.04 * aggressionOf(B) / 70)) {
+              if (this.rng.chance(0.04 * aggressionOf(B) / 70 * msgFactor(this, 'yellow'))) {
                 const fB = this.flags[sectorIndexAt(tr, B.d)], fA = this.flags[sectorIndexAt(tr, A.d)];
                 this.startPass(B, A, { zone: zoneName, violation: true });
                 createYellowPassCase(this, B, A, fB === 'double' || fA === 'double' ? 'double' : 'yellow');

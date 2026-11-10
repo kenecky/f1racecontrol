@@ -1,6 +1,7 @@
 // Weitere Entscheidungen: Fahrverhalten (blaue Flaggen, Weben, Bremstest, Safety-Car-Phasen,
 // Neustart, Schikane abgekürzt), unsicher abgestellt, Boxengasse (Linie, gesperrt, Arbeiten unter Rot,
 // Stau in der Fahrgasse im Qualifying).
+import { msgFactor } from './messages.js';
 import { wrapD } from './trackModel.js';
 import { cornerNear, cornerLabel } from './hazards.js';
 import { createCase, ev, measure, tvImpression } from './incidents.js';
@@ -12,7 +13,7 @@ const pct = x => `${Math.round(x)} %`;
 // ---------- Blaue Flaggen ----------
 export function rollBlueFlag(race, lapped, leader) {
   if (race.isSession || race.neutral) return;
-  if (!race.rng.chance(0.012 * aggressionOf(lapped) / 70 * (race.incScale || 1))) return;
+  if (!race.rng.chance(0.012 * aggressionOf(lapped) / 70 * (race.incScale || 1) * msgFactor(race, 'blue'))) return;
   const r = race.rng;
   const guilty = r.chance(0.6);
   const corners = guilty ? r.int(3, 6) : r.int(1, 3);
@@ -36,7 +37,7 @@ export function rollBlueFlag(race, lapped, leader) {
 export function rollDefending(race, attacker, defender, cornerId) {
   if (race.isSession || race.neutral) return;
   const r = race.rng;
-  if (!r.chance(0.0009 * aggressionOf(defender) / 70 * (race.incScale || 1))) return;
+  if (!r.chance(0.0009 * aggressionOf(defender) / 70 * (race.incScale || 1) * msgFactor(race, 'driving'))) return;
   const corner = race.track.corners.find(c => c.id === cornerId) || cornerNear(race.track, defender.d);
   if (r.chance(0.6)) {
     const guilty = r.chance(0.55);
@@ -195,7 +196,7 @@ export function rollUnsafeParking(race, car, h) {
 
 // ---------- Boxengasse ----------
 export function rollPitLine(race, car, exit) {
-  if (race.isSession || !race.rng.chance(0.006)) return;
+  if (race.isSession || !race.rng.chance(0.006 * msgFactor(race, 'pit'))) return;
   const r = race.rng;
   const over = r.chance(0.6);
   createCase(race, {

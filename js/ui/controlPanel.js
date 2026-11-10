@@ -3,10 +3,11 @@ import { canRestart, scInPossibleThisLap, scInLastSector } from '../sim/neutral.
 import { sectorIndexAt } from '../sim/trackModel.js';
 import { WARN_ICON } from './feed.js';
 import { hazardProgress, hazardWhere } from '../sim/hazards.js';
+import { MESSAGES, canSend, msgActive } from '../sim/messages.js';
 
 const TITLES = {
   vsc: 'VIRTUAL SAFETY CAR', sc: 'SAFETY CAR', red: 'RED FLAG', start: 'START PROCEDURE',
-  medical: 'MEDICAL CAR', sweeper: 'SWEEPER', crane: 'RECOVERY CRANE', pit: 'PIT LANE', bo: 'BLACK/ORANGE FLAG',
+  medical: 'MEDICAL CAR', sweeper: 'SWEEPER', crane: 'RECOVERY CRANE', pit: 'PIT LANE', bo: 'BLACK/ORANGE FLAG', msg: 'RACE CONTROL MESSAGE',
 };
 // Auslösende Aktionen brauchen zwei Drücke: ARM (scharf schalten) → DEPLOY
 const ARMED = new Set(['vsc-on', 'sc-on', 'red-on', 'med-go', 'sweep-go', 'crane-go', 'pit-close', 'bo-go']);
@@ -183,6 +184,28 @@ export class ControlPanel {
           ${c.boShown ? '' : `<button class="ctl-btn ctl-sc" data-action="bo-go:${i}">SCHWARZ-ORANGE FÜR ${c.id}</button>`}</div>`).join('')
         : '<div class="ctl-ok">Kein Auto mit losem oder beschädigtem Teil auf der Strecke.</div>';
       html += '<p class="ctl-small">Nur zeigen, wenn Teile abzufallen drohen (starke Vibration). Fällt ein Teil ab, bevor die Flagge gezeigt wurde, gibt es Abzug – eine unnötige Flagge ist unfair gegenüber dem Team.</p>';
+    }
+
+    if (kind === 'msg') {
+      sub = 'Mitteilung an alle Teams';
+      const live = race.phase === 'running' || (race.preStart && race.phase !== 'pre');
+      const st = race.rcMsgs || { until: {}, sent: [] };
+      html = '<p class="ctl-small">Eine Warnung an alle wirkt etwa 10 Minuten: Die Fahrer halten sich besser an die Regeln. Wiederholte Warnungen verlieren an Wirkung.</p>';
+      for (const key of ['yellow', 'blue', 'driving', 'pit']) {
+        const m = MESSAGES[key];
+        const act = msgActive(race, key);
+        const left = act ? mmss(st.until[key] - race.time) : '';
+        html += `<button class="ctl-btn ${act ? 'ctl-ghost' : 'ctl-vsc'}" data-action="msg-${key}" ${live && canSend(race, key) ? '' : 'disabled'}>${m.name}${act ? ` · aktiv ${left}` : ''}</button>`;
+      }
+      const b = race.briefing;
+      if (b && b.done && b.tlCorners) {
+        const free = race.track.corners.map((c, i) => ({ c, i })).filter(({ c }) => !b.tlCorners.includes(c.id));
+        if (this.sel.msg === undefined || !free.some(x => x.i === this.sel.msg)) this.sel.msg = free.length ? free[0].i : 0;
+        html += `<div class="ctl-section">TRACK LIMITS</div><div class="ctl-small">Überwacht: ${b.tlCorners.join(', ') || '–'}. Weitere Kurve wählen:</div>`;
+        html += free.length ? `<div class="sec-grid">${free.map(({ c, i }) => `<button class="sec-pick${i === this.sel.msg ? ' sel' : ''}" data-sec="${i}">${c.id}</button>`).join('')}</div>
+          <button class="ctl-btn ctl-vsc" data-action="msg-tl:${this.sel.msg}" ${live ? '' : 'disabled'}>${race.track.corners[this.sel.msg].id} ÜBERWACHEN</button>` : '<div class="ctl-ok">Alle Kurven werden überwacht.</div>';
+      }
+      if (st.sent.length) html += `<div class="ctl-section">GESENDET</div>${st.sent.slice(-5).reverse().map(x => `<div class="ctl-small">Rd ${x.lap} · ${x.key === 'tl' ? `TRACK LIMITS ${x.arg}` : MESSAGES[x.key].name}</div>`).join('')}`;
     }
 
     if (kind === 'pit') {

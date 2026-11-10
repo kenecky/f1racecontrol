@@ -27,7 +27,7 @@ import { WeatherPanel } from './ui/weatherPanel.js';
 import { hazardProgress, hazardWhere } from './sim/hazards.js';
 import { weatherLabel } from './sim/weather.js';
 import {
-  investigate, postpone, noFurtherAction, decide, openCases, stewardReport, unservedSecs, startHearing, PENALTIES, rollProtests,
+  investigate, postpone, noFurtherAction, decide, openCases, stewardReport, unservedSecs, startHearing, PENALTIES, rollProtests, reviseCase,
 } from './control/stewards.js';
 import {
   deployVSC, endVSC, deploySC, allowUnlap, scInThisLap, redFlag, restartRace, canRestart, endRaceUnderRed,
@@ -43,6 +43,7 @@ import { runScrutiny, TECH_CHECKS, EXTRA_CHECKS } from './sim/scrutiny.js';
 import { prepareBriefing } from './sim/regs.js';
 import { rateRace, AXES } from './control/rating.js';
 import { DIFFICULTY } from './sim/incidents.js';
+import { sendMessage } from './sim/messages.js';
 
 const SPEEDS = [1, 2, 4, 8, 16, 32];
 const $ = id => document.getElementById(id);
@@ -173,6 +174,11 @@ const controlPanel = new ControlPanel({
       'bo-go': i => showBlackOrange(race, race.cars[i]),
       'start-lights': () => doStartLights(),
       'start-sc': () => startFromGridBehindSC(race),
+      'msg-yellow': () => sendMessage(race, 'yellow'),
+      'msg-blue': () => sendMessage(race, 'blue'),
+      'msg-driving': () => sendMessage(race, 'driving'),
+      'msg-pit': () => sendMessage(race, 'pit'),
+      'msg-tl': i => sendMessage(race, 'tl', race.track.corners[i] && race.track.corners[i].id),
     };
     const [name, arg] = action.split(':');
     if (actions[name]) actions[name](arg !== undefined ? Number(arg) : undefined);
@@ -191,6 +197,7 @@ function caseAction(act, id, form) {
     else if (act === 'nfa') noFurtherAction(race, c);
     else if (act === 'post') postpone(race, c);
     else if (act === 'decide') decide(race, c, { carId: form.carId, penalty: form.penalty || 'none', points: form.points });
+    else if (act === 'revise') reviseCase(race, c);
     else if (act === 'decide-keep') decide(race, c, { carId: null, penalty: 'keep', points: 0 });
     else if (act === 'results') { finishFlow(); return; }
     casesPanel.render(race);
@@ -234,6 +241,7 @@ function newRace(seed = randomSeed()) {
   if (map.follow) { map.follow = null; map.resetView(); $('driverCard').classList.add('hidden'); followRestore = null; }
   let gridPenalties = {}, drivers = DRIVERS, roundNo = null, gridOrder = null, laps = null;
   const caution = {};   // Fahrer mit vielen Strafen fahren vorsichtiger
+  let seasonFile = null, seasonPrec = null;
   let kind = 'race';
   if (settings.mode === 'season') {
     season = getSeason();
@@ -253,6 +261,10 @@ function newRace(seed = randomSeed()) {
         const c = activePoints(season, d.id, ref) * 0.07 + (season.warnings[d.id] || 0) * 0.04;
         if (c > 0) caution[d.id] = c;
       }
+      // Fahrerakte und Präzedenzfälle (nur Saison)
+      seasonFile = {};
+      for (const d of drivers) seasonFile[d.id] = { pts: activePoints(season, d.id, ref), warn: season.warnings[d.id] || 0, list: ((season.file || {})[d.id] || []).slice(0, 4) };
+      seasonPrec = (season.precedents || []).slice(0, 60);
     }
     saveSeason(season);
   } else {
@@ -274,6 +286,7 @@ function newRace(seed = randomSeed()) {
     length: settings.length, difficulty: settings.mode === 'season' ? 'hard' : (settings.difficulty || 'medium'),
   };
   race = ['fp', 'quali', 'sq'].includes(kind) ? new Session(opts) : new Race(opts);
+  if (seasonFile) { race.driverFile = seasonFile; race.precedents = seasonPrec; }
   if (roundNo !== null) { race.seasonRound = roundNo; race.weekendIdx = season.weekend.idx; race.teamRep = { ...(season.rep || {}) }; }
   else race.singleIdx = settings.singleWk.idx;
   renderForecast();
@@ -932,6 +945,7 @@ function updateStatus() {
   $('sweepBtn').classList.toggle('on', Boolean(sv.sweeper));
   $('craneBtn').classList.toggle('on', sv.cranes.length > 0);
   $('pitBtn').classList.toggle('on', Boolean(sv.pitClosed));
+  $('msgBtn').classList.toggle('on', ['yellow', 'blue', 'driving', 'pit'].some(k => race.rcMsgs && race.rcMsgs.until[k] > race.time));
   const lamp = (id, on) => $(id).classList.toggle('on', Boolean(on));
   lamp('lampFlag', race.flags.some(f => f !== 'clear'));
   lamp('lampVsc', n && n.type === 'vsc');
@@ -1536,6 +1550,8 @@ function renderDriverCard() {
   for (const p of [...car.serve, ...(car.serving ? [car.serving] : [])]) pens.push(PENALTIES[p.type].short);
   if (car.warnings) pens.push(`${car.warnings} Verw.`);
   if (race.penaltyPoints[car.id]) pens.push(`${race.penaltyPoints[car.id]} Strafpkt.`);
+  const file = race.driverFile && race.driverFile[car.id];
+  const fileHtml = file ? `<div class="dc-file"><b>FAHRERAKTE</b> ${file.pts} Strafpunkte (12 Monate) · ${file.warn} Verwarnung${file.warn === 1 ? '' : 'en'}${file.list.length ? `<br>${file.list.slice(0, 3).map(e => `${e.where}: ${e.what} – ${e.pen}`).join('<br>')}` : ' · keine Strafen in dieser Saison'}</div>` : '';
   const careful = car.caution >= 0.2 ? `<span class="dc-tag">${car.caution >= 0.5 ? 'fährt sehr vorsichtig' : 'fährt vorsichtiger'}</span>` : '';
   const cell = (l, v) => `<div><span>${l}</span><b>${v}</b></div>`;
   el.style.setProperty('--team', car.team.color);
@@ -1556,7 +1572,7 @@ function renderDriverCard() {
       ${cell(race.isSession ? 'Startplatz' : 'Stopps', race.isSession ? '–' : car.stops)}
       ${cell('Strafen', pens.join(' · ') || 'keine')}
       ${cell('Startplatz', race.isSession ? '–' : car.gridPos)}
-    </div>`;
+    </div>${fileHtml}`;
 }
 $('driverCard').addEventListener('click', e => { if (e.target.closest('.dc-close')) stopFollow(); });
 
@@ -1690,6 +1706,7 @@ $('medBtn').addEventListener('click', () => openControl('medical'));
 $('sweepBtn').addEventListener('click', () => openControl('sweeper'));
 $('craneBtn').addEventListener('click', () => openControl('crane'));
 $('pitBtn').addEventListener('click', () => openControl('pit'));
+$('msgBtn').addEventListener('click', () => openControl('msg'));
 $('boBtn').addEventListener('click', () => openControl('bo'));
 
 // Kontrollpult auf-/zuklappen; eine Konsole öffnen klappt es wieder zu

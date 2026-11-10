@@ -1,6 +1,7 @@
 // Weitere Rennsituationen: Ölspur, loses Rad, Feuer, Tier oder Person auf der Strecke, Kanaldeckel,
 // loser Randstein, Kies auf der Fahrbahn, Marshal auf der Strecke, verlorene Teile, loser Frontflügel
 // (Schwarz-Orange-Flagge), Gelb missachtet, Unfall in der Boxengasse.
+import { msgFactor } from './messages.js';
 import { sectorIndexAt, wrapD } from './trackModel.js';
 import { createHazard, cornerNear, cornerLabel, retireCar } from './hazards.js';
 import { createCase, ev, measure, tvImpression } from './incidents.js';
@@ -206,7 +207,7 @@ export function updateEvents(race, dt) {
     if (car.secNow !== sec) {
       car.secNow = sec;
       const f = race.flags[sec];
-      if ((f === 'yellow' || f === 'double') && !race.neutral && !car.inPit && race.rng.chance(0.018 * aggressionOf(car) / 70)) {
+      if ((f === 'yellow' || f === 'double') && !race.neutral && !car.inPit && race.rng.chance(0.018 * aggressionOf(car) / 70 * msgFactor(race, 'yellow'))) {
         yellowIgnored(race, car, sec, f === 'double');
       }
     }

@@ -3,7 +3,7 @@
 import { SEASON_2026 } from '../data/season2026.js';
 import { TRACKS } from '../data/tracks/index.js';
 import { createRng } from '../util/rng.js';
-import { evaluateCase } from '../control/stewards.js';
+import { evaluateCase, PENALTIES } from '../control/stewards.js';
 
 export const POINTS = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
 export const SPRINT_POINTS = [8, 7, 6, 5, 4, 3, 2, 1];
@@ -140,6 +140,7 @@ export function finishSession(season, race, rating) {
   const notes = [];
   const date = roundDate(season, entry);
   wk.ratings.push({ kind, total: rating ? rating.total : null, stars: rating ? rating.stars : null });
+  recordFiles(season, race, entry, kind);
 
   if (kind === 'race') return applyRace(season, race, rating, notes);
 
@@ -167,6 +168,27 @@ export function finishSession(season, race, rating) {
   return notes;
 }
 
+// Fahrerakte und Präzedenzfälle der Saison
+function recordFiles(season, race, entry, kind) {
+  season.file = season.file || {};
+  season.precedents = season.precedents || [];
+  const gp = TRACKS[entry.track] ? TRACKS[entry.track].grandPrix.replace('Großer Preis von ', 'GP ') : entry.track;
+  const where = `${gp}, ${KIND_SHORT[kind]}`;
+  for (const c of race.cases) {
+    const v = c.verdict;
+    if (!v || v.revoked || !['decided', 'nfa'].includes(c.status) || c.type === 'protest') continue;
+    if (c.type !== 'tech' && c.type !== 'tlLap') {
+      season.precedents.unshift({ type: c.type, carId: v.carId, penalty: v.penalty, points: v.points || 0, status: c.status, where });
+    }
+    if (v.carId && v.penalty !== 'none') {
+      const list = season.file[v.carId] = season.file[v.carId] || [];
+      list.unshift({ what: c.typeName, pen: PENALTIES[v.penalty] ? PENALTIES[v.penalty].name : v.penalty, points: v.points || 0, where });
+      if (list.length > 12) list.length = 12;
+    }
+  }
+  if (season.precedents.length > 150) season.precedents.length = 150;
+}
+
 // Ruf der Rennleitung bei den Teams (−100 … +100): faire Urteile schaffen Vertrauen,
 // zu harte oder falsche Urteile verärgern das bestrafte Team, zu milde das benachteiligte.
 export function updateReputation(season, race, rating, notes) {
@@ -181,6 +203,9 @@ export function updateReputation(season, race, rating, notes) {
     if ((verdict === 'harsh' || verdict === 'wrong') && v.carId) add(team(v.carId), -6);
     if ((verdict === 'lenient' || verdict === 'wrong') && t.victim) add(team(t.victim), -4);
   }
+  // Revidierte Urteile kosten Glaubwürdigkeit bei allen Teams
+  for (let i = 0; i < (race.revisions || 0); i++) for (const t of new Set(race.cars.map(c => c.team.id))) add(t, -1.5);
+  if (race.revisions) notes.push(`Ruf: ${race.revisions} revidierte${race.revisions > 1 ? '' : 's'} Urteil${race.revisions > 1 ? 'e' : ''} – die Teams zweifeln an der Linie der Rennleitung.`);
   if (rating && rating.total >= 85) for (const c of race.cars) add(c.team.id, 0.5);
   if (rating && rating.total < 50) for (const c of race.cars) add(c.team.id, -1);
   delete season.rep.null;

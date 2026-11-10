@@ -1172,3 +1172,9 @@ body { background: var(--bg); }
 
 /* Schwer: Pause gesperrt, solange Fälle offen sind */
 .pause-btn.blocked { opacity: .45; }
+.act-msg { color: #a5b4fc; }
+.act-msg .act-led { background: #262a4a; }
+.act-msg.on { color: #c7d2fe; border-color: #818cf8; box-shadow: 0 0 10px rgba(129,140,248,.45), 0 3px 0 #050607; }
+.act-msg.on .act-led { background: #818cf8; box-shadow: 0 0 8px #818cf8; }
+.dc-file { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line-2); font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+.dc-file b { font: 700 9.5px var(--mono); letter-spacing: .12em; color: var(--text); margin-right: 4px; }

@@ -68,7 +68,8 @@ export function rateRace(race) {
   }
 
   // Konsistenz: gleiche Einstufung → gleiche Strafe und ähnliche Strafpunkte
-  let consistency = 100 - 15 * sr.inconsistent.length;
+  // Nachträglich revidierte Urteile wirken unsicher
+  let consistency = 100 - 15 * sr.inconsistent.length - 8 * (race.revisions || 0);
   const groups = new Map();
   for (const it of sr.items) {
     const v = it.c.verdict;
@@ -79,7 +80,7 @@ export function rateRace(race) {
   }
   for (const pts of groups.values()) if (pts.length > 1 && Math.max(...pts) - Math.min(...pts) > 1) consistency -= 5;
   // Nur bewertbar, wenn es mindestens zwei vergleichbare Urteile gab
-  const comparable = [...groups.values()].some(p => p.length > 1) || sr.inconsistent.length > 0;
+  const comparable = [...groups.values()].some(p => p.length > 1) || sr.inconsistent.length > 0 || (race.revisions || 0) > 0;
 
   // Rennfluss
   const over = fr.items.filter(i => i.h.maxResponse >= 3 && i.h.maxResponse - NEED_LEVEL[i.h.need] >= 2).length;
@@ -129,6 +130,7 @@ function buildVoices(race, fr, sr, scores, total, over) {
       say(`Teamchef ${team(t.victim)}`, `„Bei Entscheidung #${c.id} kommt ${t.offender} viel zu billig davon.“`, 'neg');
     }
   }
+  if (race.revisions) say('Presse', `„Die Rennleitung hat ${race.revisions === 1 ? 'ein Urteil' : `${race.revisions} Urteile`} nachträglich revidiert – das wirkt unsicher.“`, 'neg');
   if ((race.tlUnmonitored || 0) >= 3 && race.briefing) say('Fahrer', `„In ${race.briefing.hotspot} hat jeder abgekürzt – das hätte man in der Fahrerbesprechung festlegen müssen.“`, 'neg');
   if ((race.startLog || []).some(s => s.action === 'releasedRain')) say('Fahrervereinigung (GPDA)', '„Start auf Trockenreifen im Starkregen – das war unverantwortlich.“', 'neg');
   for (const e of race.svc ? race.svc.log : []) {
