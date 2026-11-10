@@ -74,7 +74,33 @@ const RADIO = {
 const radio = (race, key, o = '') => `„${race.rng.pick(RADIO[key]).replace(/\{o\}/g, o)}“`;
 const pick = (race, arr) => race.rng.pick(arr);
 
+// Schwierigkeitsgrad: welche Fallarten es gibt, wie viele Fälle, wie klar die Beweise sind
+export const DIFFICULTY = {
+  easy:   { name: 'Leicht', cases: 0.6,  clarity: 0.5, tvTruth: 0.9 },
+  medium: { name: 'Mittel', cases: 0.85, clarity: 0.8, tvTruth: 0.78 },
+  hard:   { name: 'Schwer', cases: 1,    clarity: 1,   tvTruth: 0.65 },
+};
+const MEDIUM_EX = ['fuelFlow', 'aeroMode', 'overtakeMode', 'tyrePressure', 'gridCrew', 'parcFerme', 'parkedQuali',
+  'slowOutlap', 'redWork', 'restartIrreg', 'language', 'pitQueue'];
+export const EXCLUDED = {
+  easy: [...MEDIUM_EX, 'complaint', 'weaving', 'brakeTest', 'blueFlag', 'yellowIgnored', 'unsafeRejoin', 'scContact',
+    'neutralPass', 'scGap', 'vscDelta', 'chicaneCut', 'unsafeParking', 'pitLine', 'outlapPass', 'gridBox', 'protest'],
+  medium: MEDIUM_EX,
+  hard: [],
+};
+export const diffOf = race => DIFFICULTY[race.difficulty] ? race.difficulty : 'hard';
+// Gibt es diese Fallart beim aktuellen Schwierigkeitsgrad?
+export function caseAllowed(race, type) {
+  return !EXCLUDED[diffOf(race)].includes(type);
+}
+const NEVER_DROP = new Set(['tech', 'tyreRule', 'protest', 'jumpStart']);
+
 export function createCase(race, props) {
+  const d = DIFFICULTY[diffOf(race)];
+  // Fall fällt weg (Vorfall passiert trotzdem, nur ohne Entscheidung) – eigener Zufall, Rennablauf bleibt gleich
+  if (!caseAllowed(race, props.type) || (d.cases < 1 && !NEVER_DROP.has(props.type) && race.chatRand() > d.cases)) {
+    return { ...props, id: null, dropped: true, evidence: props.evidence || [] };
+  }
   const leader = race.standings()[0];
   const c = {
     id: ++race.caseSeq,
@@ -119,7 +145,7 @@ export function rollBattleIncident(race, attacker, defender, zoneCorner, success
 
 // Messwert aus einer Verteilung (Beweise überlappen sich bewusst)
 export function measure(race, mean, sd, lo, hi) {
-  return Math.max(lo, Math.min(hi, mean + race.rng.gauss(sd)));
+  return Math.max(lo, Math.min(hi, mean + race.rng.gauss(sd) * DIFFICULTY[diffOf(race)].clarity));
 }
 const pct = x => `${Math.round(x)} %`;
 
@@ -133,7 +159,7 @@ const RULE_YELLOW = 'Unter Gelb darf nicht überholt werden – außer an einem 
 export function tvImpression(race, truthHint, falseHint) {
   const r = race.rng;
   if (!r.chance(0.55)) return '';
-  return ' ' + (r.chance(0.65) ? truthHint : falseHint);
+  return ' ' + (r.chance(DIFFICULTY[diffOf(race)].tvTruth) ? truthHint : falseHint);
 }
 
 function collision(race, A, B, cornerId) {

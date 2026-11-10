@@ -121,6 +121,10 @@
       <input id="slowToggle" type="checkbox">
       <span>Bei neuen Vorfällen und Entscheidungen auf 1× abbremsen</span>
     </label>
+    <label class="switch-row">
+      <input id="vibrateToggle" type="checkbox">
+      <span>Vibration bei neuen Vorfällen und Entscheidungen</span>
+    </label>
   </div>
 
   <div id="flagSheet" class="flag-sheet hidden">
@@ -209,13 +213,20 @@
             <option value="full">Lang – volle Renndistanz</option>
           </select>
         </label>
+        <label id="diffRow" class="setup-row"><span class="setup-label">SCHWIERIGKEIT</span>
+          <select id="diffSel">
+            <option value="easy">Leicht – klare Fälle, Auto-Pause</option>
+            <option value="medium">Mittel – mehr Fallarten</option>
+            <option value="hard">Schwer – alle Fälle, Pause gesperrt</option>
+          </select>
+        </label>
       </div>
       <p class="intro">Du bist der Rennleiter. Beobachte das Rennen und greif ein, wenn es nötig ist. Fahrer und Teams agieren selbstständig.</p>
       <div id="resumeBox"></div>
       <button id="startBtn" class="primary-btn">Rennen starten</button>
       <button id="seasonBtn" class="secondary-btn season-btn hidden">🏆 Saison-Übersicht</button>
       <div id="history" class="history"></div>
-      <div class="app-version">Version 32</div>
+      <div class="app-version">Version 33</div>
       <details class="options">
         <summary>Optionen</summary>
         <label>Rennen-Nr. (gleiche Nr. = gleiches Rennen)

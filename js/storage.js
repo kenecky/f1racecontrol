@@ -14,6 +14,8 @@ const DEFAULTS = {
   trackId: 'redbullring', // Strecke im Einzelrennen
   startMode: 'standing', // Start: standing | sc (hinter dem Safety Car)
   length: 'medium',      // Dauer: short | medium | full
+  difficulty: 'medium',  // Einzelrennen: easy | medium | hard (Saison immer hard)
+  vibrate: true,         // Vibration bei neuen Vorfällen
 };
 
 const HISTORY_KEY = 'f1rc.history.v1';

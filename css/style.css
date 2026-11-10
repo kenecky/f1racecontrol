@@ -1169,3 +1169,6 @@ body { background: var(--bg); }
 .rep-bar { position: relative; height: 5px; background: var(--bg-3); margin-top: 4px; border-radius: 2px; }
 .rep-bar i { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
 .media-line { padding: 7px 0; border-bottom: 1px solid var(--line-2); font-size: 13px; font-family: Georgia, serif; }
+
+/* Schwer: Pause gesperrt, solange Fälle offen sind */
+.pause-btn.blocked { opacity: .45; }

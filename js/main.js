@@ -42,6 +42,7 @@ import { distanceFor, LENGTHS } from './sim/length.js';
 import { runScrutiny, TECH_CHECKS, EXTRA_CHECKS } from './sim/scrutiny.js';
 import { prepareBriefing } from './sim/regs.js';
 import { rateRace, AXES } from './control/rating.js';
+import { DIFFICULTY } from './sim/incidents.js';
 
 const SPEEDS = [1, 2, 4, 8, 16, 32];
 const $ = id => document.getElementById(id);
@@ -270,7 +271,7 @@ function newRace(seed = randomSeed()) {
   map.setTrack(track);
   const opts = {
     track, teams: TEAMS, drivers, seed, weather: settings.weatherMode, gridPenalties, gridOrder, laps, fullLaps, kind, caution,
-    length: settings.length,
+    length: settings.length, difficulty: settings.mode === 'season' ? 'hard' : (settings.difficulty || 'medium'),
   };
   race = ['fp', 'quali', 'sq'].includes(kind) ? new Session(opts) : new Race(opts);
   if (roundNo !== null) { race.seasonRound = roundNo; race.weekendIdx = season.weekend.idx; race.teamRep = { ...(season.rep || {}) }; }
@@ -295,7 +296,7 @@ function newRace(seed = randomSeed()) {
   closeFlags();
   closeControl();
   map.selected = null;
-  $('seedInfo').textContent = `Rennen #${seed}`;
+  $('seedInfo').textContent = `Rennen #${seed} · ${(DIFFICULTY[race.difficulty] || DIFFICULTY.hard).name}`;
   renderHistory();
   $('seedInput').value = '';
   $('resultScreen').classList.add('hidden');
@@ -314,6 +315,7 @@ function renderEventCard() {
   $('seasonBtn').classList.toggle('hidden', !isSeason);
   $('singleSetup').classList.toggle('hidden', isSeason);
   $('sessionBox').classList.toggle('hidden', isSeason);
+  $('diffRow').classList.toggle('hidden', isSeason);
   $('seasonCard').classList.toggle('hidden', !isSeason);
   const entry = isSeason && season ? currentRound(season) : null;
   const wk = isSeason ? (entry ? season.weekend : null) : settings.singleWk;
@@ -836,6 +838,7 @@ function onStartIssue() {
 function onNewHazard() {
   seenHazards = race.hazards.length;
   sound.alert();
+  vibrate([120, 60, 120]);
   acc = 0;
   if (settings.slowOnIncident && settings.speed > 1) {
     setSpeed(1);
@@ -852,6 +855,7 @@ function timingOpts() {
 
 function refreshUi() {
   updateStatus();
+  $('pauseBtn').classList.toggle('blocked', Boolean(pauseBlocked()));
   updateAlert();
   flagPanel.render(race);
   controlPanel.render(race);
@@ -861,7 +865,13 @@ function refreshUi() {
     const c = race.cases[race.cases.length - 1];
     seenCases = race.cases.length;
     sound.chime();
-    if (settings.slowOnIncident && settings.speed > 1) {
+    vibrate(80);
+    if (race.difficulty === 'easy' && !paused && race.phase !== 'finished') {
+      paused = true;
+      acc = 0;
+      updatePauseBtn();
+      toast(`Neue Entscheidung #${c.id}: ${c.typeName} – Spiel pausiert`);
+    } else if (settings.slowOnIncident && settings.speed > 1) {
       setSpeed(1);
       toast(`Neue Entscheidung #${c.id}: ${c.typeName} – Tempo auf 1×`);
     } else if (activeTab !== 'cases') toast(`Neue Entscheidung #${c.id}: ${c.typeName}`);
@@ -1391,8 +1401,25 @@ $('startBtn').addEventListener('click', () => {
   startRace();
 });
 
+// Schwer: keine Pause, solange Fälle offen sind (neu oder in Untersuchung)
+function pendingCases() {
+  return race ? race.cases.filter(c => c.status === 'new' || c.status === 'investigating').length : 0;
+}
+function pauseBlocked() {
+  return race && race.difficulty === 'hard' && !paused && !['finished', 'chequered'].includes(race.phase) && pendingCases() > 0;
+}
+function vibrate(pattern) {
+  if (settings.vibrate === false || !navigator.vibrate) return;
+  try { navigator.vibrate(pattern); } catch { /* nicht unterstützt */ }
+}
+
 $('pauseBtn').addEventListener('click', () => {
   if (!race || race.phase === 'pre') return;
+  if (pauseBlocked()) {
+    const n = pendingCases();
+    toast(`Schwer: Pause erst möglich, wenn alle Fälle bearbeitet sind (${n} offen)`);
+    return;
+  }
   paused = !paused;
   updatePauseBtn();
   if (paused) autosave();
@@ -1415,6 +1442,12 @@ $('soundToggle').addEventListener('change', e => {
   saveSettings(settings);
   sound.unlock();
   sound.setEnabled(settings.sound);
+});
+$('vibrateToggle').checked = settings.vibrate !== false;
+$('vibrateToggle').addEventListener('change', e => {
+  settings.vibrate = e.target.checked;
+  saveSettings(settings);
+  if (e.target.checked) vibrate(60);
 });
 $('slowToggle').addEventListener('change', e => {
   settings.slowOnIncident = e.target.checked;
@@ -1708,6 +1741,11 @@ $('weatherSel').addEventListener('change', e => {
   saveSettings(settings);
   if (race && race.phase === 'pre') newRace(race.seed);
 });
+$('diffSel').addEventListener('change', e => {
+  settings.difficulty = e.target.value;
+  saveSettings(settings);
+  if (race && race.phase === 'pre') newRace(race.seed);
+});
 $('lengthSel').addEventListener('change', e => {
   settings.length = e.target.value;
   saveSettings(settings);
@@ -1785,6 +1823,7 @@ document.addEventListener('touchmove', e => {
 $('speedBtn').textContent = `${settings.speed}×`;
 $('weatherSel').value = settings.weatherMode;
 $('lengthSel').value = LENGTHS[settings.length] ? settings.length : 'medium';
+$('diffSel').value = ['easy', 'medium', 'hard'].includes(settings.difficulty) ? settings.difficulty : 'medium';
 appEl.classList.toggle('collapsed', settings.panelCollapsed);
 applyTower();
 $('labelsBtn').classList.toggle('active', settings.showLabels);

@@ -25,10 +25,10 @@ export function rollRaceEvents(race, lap) {
   const per = 1 / Math.max(8, race.laps);              // Wahrscheinlichkeit pro Rennen auf Runden verteilen
   const at = () => r.range(0, tr.L);
   if (r.chance(0.10 * per * (tr.def.id === 'montreal' ? 4 : 1))) animal(race, at());
-  if (r.chance(0.012 * per)) person(race, at());
-  if (tr.def.street && r.chance(0.16 * per)) manhole(race, at());
+  if (r.chance(0.012 * per) && race.difficulty !== 'easy') person(race, at());
+  if (tr.def.street && r.chance(0.16 * per) && race.difficulty !== 'easy') manhole(race, at());
   if (r.chance(0.05 * per)) looseKerb(race);
-  if (r.chance(0.05 * per)) marshalOnTrack(race);
+  if (r.chance(0.05 * per) && race.difficulty !== 'easy') marshalOnTrack(race);
   if (r.chance(0.12 * per)) partsOff(race);
   if (r.chance(0.035 * per)) pitIncident(race);
 }

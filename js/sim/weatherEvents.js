@@ -13,13 +13,13 @@ function plan(race) {
   const wx = race.weather;
   const p = { storms: [], heli: null, heat: null };
   wx.showers.forEach((s, i) => {
-    if (s.peak > 0.55 && r.chance(0.25)) {
+    if (s.peak > 0.55 && r.chance(0.25) && race.difficulty !== 'easy') {
       const t0 = Math.max(60, s.t0 + 120);
       p.storms.push({ i, t0, t1: Math.max(t0 + 240, s.t1 - 200) });
     }
   });
   const fog = wx.mode === 'rain' ? 0.06 : 0.015;
-  if (r.chance(fog)) p.heli = { t0: r.range(300, 2400), dur: r.range(300, 900) };
+  if (r.chance(fog) && race.difficulty !== 'easy') p.heli = { t0: r.range(300, 2400), dur: r.range(300, 900) };
   if (HOT_TRACKS.includes(race.track.def.id) && r.chance(0.35)) p.heat = { t: r.range(0.55, 0.9) };
   race.wxPlan = p;
   return p;

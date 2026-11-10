@@ -512,3 +512,23 @@ wird in der Garage abgestellt.
 - Nach dem Rennen: Proteste und Anträge auf Überprüfung mit neuen Beweisen (Urteil bleibt / aufheben / ersetzen).
 - Fahrerbesprechung vor dem Rennen: Track-Limits-Kurven festlegen.
 - Saison: Ruf der Rennleitung bei den Teams, Medienecho.
+
+### Schwierigkeitsgrad (v33, nur Einzelrennen – Saison immer „Schwer“)
+| | Leicht | Mittel | Schwer |
+|---|---|---|---|
+| Anteil der Fälle | 60 % | 85 % | 100 % |
+| Streuung der Messwerte | ×0,5 | ×0,8 | ×1 |
+| TV-Eindruck stimmt | 90 % | 78 % | 65 % |
+| Pause | automatisch bei jedem neuen Fall | frei | gesperrt, solange Fälle neu/in Untersuchung sind |
+| Proteste / Überprüfungen | keine | nur Proteste | beides |
+
+Nicht auf „Mittel“ (und „Leicht“): Energiefluss, aktive Aero, Overtake-Modus, Reifendruck, Mechaniker in der
+Startaufstellung, Parc fermé, absichtlich abgestellt (Quali), zu langsame Aufwärmrunde, Arbeiten unter Rot,
+unregelmäßiger Neustart, Schimpfwörter, Behinderung in der Boxengasse.
+
+Zusätzlich nicht auf „Leicht“: Beschwerde eines Teams, Richtungswechsel, Bremstest, blaue Flaggen, Gelb missachtet,
+unsichere Rückkehr, Berührung hinter dem SC, Überholen unter SC/VSC, Abstand zum SC, VSC-Delta, Schikane abgekürzt,
+Auto unsicher abgestellt, Linie an der Boxengasse, Überholen in der Aufwärmrunde, falsche Startposition, Proteste –
+außerdem keine Ereignisse Gewitter, Rettungshubschrauber, Gullydeckel, Person und Streckenposten auf der Strecke.
+
+Vibration bei neuen Vorfällen/Entscheidungen: im Tempo-Menü abschaltbar.

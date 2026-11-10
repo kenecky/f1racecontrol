@@ -38,8 +38,9 @@ export const errorsOf = car => car.driver.errors * (1 - 0.3 * (car.caution || 0)
 export class Race {
   constructor({
     track, teams, drivers, seed, weather = 'dry', gridPenalties = {},
-    kind = 'race', laps = null, gridOrder = null, durationSec = null, fullLaps = null, caution = {},
+    kind = 'race', laps = null, gridOrder = null, durationSec = null, fullLaps = null, caution = {}, difficulty = 'hard',
   }) {
+    this.difficulty = difficulty;   // easy | medium | hard (Saison immer hard)
     this.kind = kind;            // race | sprint | fp | quali | sq
     this.gridPenalties = gridPenalties;
     this.gridOrder = gridOrder;  // Startaufstellung aus dem Qualifying (Fahrer-IDs)

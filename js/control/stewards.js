@@ -154,6 +154,7 @@ export function revertPenalty(race, base) {
 export function rollProtests(race) {
   if (race.protestsDone) return 0;
   race.protestsDone = true;
+  if (race.difficulty === 'easy') return 0;   // Proteste ab „Mittel“, Überprüfungsanträge nur auf „Schwer“
   const r = race.rng;
   let n = 0;
   for (const c of [...race.cases]) {
@@ -170,6 +171,7 @@ export function rollProtests(race) {
       review = Boolean(v.carId && race.carById[v.carId].team === team);
     }
     if (!team) continue;
+    if (review && race.difficulty === 'medium') continue;
     n++;
     const extra = hearingEvidence(race, c).filter(e => e.kind !== 'hearing');
     const pc = {
