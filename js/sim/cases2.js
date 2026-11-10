@@ -334,6 +334,30 @@ export function rollOutlapPass(race, car) {
 }
 
 // ---------- Schimpfwörter im Funk ----------
+// Funksprüche mit Schimpfwörtern (zensiert). to: rc = gegen die Rennleitung, driver = gegen einen Fahrer ({o}), self = Frust ohne Ziel
+const SWEAR = [
+  { to: 'rc', t: 'What the f*** is race control doing?! Are they blind?!' },
+  { to: 'rc', t: "Seriously?! That's a f***ing joke of a penalty!" },
+  { to: 'rc', t: 'He pushed me off! The stewards need to wake the f*** up!' },
+  { to: 'rc', t: 'Sh*t, sh*t, sh*t! Who is running this circus?!' },
+  { to: 'rc', t: 'Unbelievable. F***ing unbelievable. Five seconds for that?!' },
+  { to: 'rc', t: 'What a load of sh*t! The stewards are asleep!' },
+  { to: 'driver', t: '{o} is a complete f***ing id**t! Look at that!' },
+  { to: 'rc', t: 'Tell race control they can shove that blue flag up their a**!' },
+  { to: 'rc', t: 'Are you f***ing kidding me? Yellow flag? Where?!' },
+  { to: 'rc', t: 'Who the f*** came up with this rule?!' },
+  { to: 'driver', t: '{o} just drove straight into me, the f***ing moron!' },
+  { to: 'self', t: 'F***! F***! The tyres are f***ing gone!' },
+  { to: 'driver', t: 'Get this d*ckhead {o} out of my way!' },
+  { to: 'self', t: "Oh for f***'s sake, again?! Every single lap!" },
+  { to: 'rc', t: 'Race control, you are an absolute f***ing disgrace!' },
+  { to: 'self', t: 'This car is a piece of sh*t, mate. Honestly.' },
+  { to: 'driver', t: 'Did you see that?! {o} brake-tested me, the b*stard!' },
+  { to: 'driver', t: 'Who gave this guy a superlicence?! {o} is a f***ing danger!' },
+  { to: 'self', t: 'Stop talking to me in the f***ing corners!' },
+  { to: 'rc', t: 'Give him a penalty, for f***\'s sake! Do your f***ing job!' },
+];
+
 export function rollLanguage(race) {
   if (race.phase !== 'running' || !race.rng.chance(0.0004)) return;
   if (race.languageDone) return;
@@ -342,16 +366,22 @@ export function rollLanguage(race) {
   const car = r.pick(race.cars.filter(c => !c.retired));
   if (!car) return;
   const broadcast = r.chance(0.7);
-  race.emit('radio', `Funk ${car.id}: „Was für ein [PIEP] Manöver, das ist doch [PIEP]!“`, { cars: [car.id] });
+  const line = r.pick(SWEAR);
+  const other = r.pick(race.cars.filter(c => c !== car && !c.retired)) || car;
+  const text = line.t.replace(/\{o\}/g, other.id);
+  const target = line.to === 'rc' ? 'die Rennleitung bzw. die Kommissare' : line.to === 'driver' ? `${other.id} (anderer Fahrer)` : 'niemanden direkt – Frust über die Situation, das Auto oder das eigene Team';
+  race.emit('radio', `Funk ${car.id}: „${text}“`, { cars: [car.id] });
+  const expected = line.to === 'rc' ? ['fine'] : line.to === 'driver' ? ['warning', 'fine'] : ['warning'];
   createCase(race, {
     type: 'language', cars: [car.id],
     title: `Schimpfwörter im Funk von ${car.id}`,
-    summary: `${car.id} flucht im Funk${broadcast ? ' – der Spruch wird im TV übertragen' : ''}.`,
+    summary: `${car.id} flucht im Funk${line.to === 'rc' ? ' über die Rennleitung' : line.to === 'driver' ? ` über ${other.id}` : ''}${broadcast ? ' – der Spruch wird im TV übertragen' : ''}.`,
     evidence: [
-      ev('radio', 'Aufzeichnung', 'Zwei Schimpfwörter, an die Rennleitung gerichtet.', true),
+      ev('radio', 'TEAM RADIO TRANSCRIPT', `${car.id}: „${text}“`, true),
+      ev('data', 'Gerichtet an', target),
       ev('data', 'Übertragung', broadcast ? 'Live im Fernsehen gesendet.' : 'Nur im internen Teamfunk, nicht gesendet.'),
-      ev('data', 'Leitlinie', 'Beleidigende Sprache in der Öffentlichkeit: Verwarnung oder Geldstrafe. Interner Funk wird meist nicht bestraft.'),
+      ev('data', 'Leitlinie', 'Öffentliche Beleidigung von Offiziellen: Geldstrafe. Beleidigung anderer Fahrer: Verwarnung oder Geldstrafe. Fluchen ohne Ziel: höchstens Verwarnung. Interner, nicht gesendeter Funk wird nicht bestraft.'),
     ],
-    truth: broadcast ? { offender: car.id, expected: ['warning', 'fine'], points: [0, 0] } : { offender: null, expected: ['none'], points: [0, 0] },
+    truth: broadcast ? { offender: car.id, expected, points: [0, 0] } : { offender: null, expected: ['none'], points: [0, 0] },
   });
 }
