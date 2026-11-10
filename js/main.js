@@ -880,7 +880,7 @@ function startCtlState() {
     }
   }
   if (!race || race.isSession || !race.preStart || race.phase === 'pre') return null;
-  if (race.phase === 'ready') return { cls: 'go', text: '🏁 FORMATION FREIGEBEN', act: 'formation' };
+  if (race.phase === 'ready') return { cls: 'go', text: '🏁 START FORMATION LAP', act: 'formation' };
   if (race.phase === 'formation' || race.phase === 'grid') return { cls: 'amber', text: '🚦 AMPEL EINSCHALTEN', act: 'lights' };
   if (race.phase === 'lights') {
     if (race.lightsTimer < ALL_ON) {
@@ -1137,7 +1137,6 @@ function closeDesk() {
   map.showSectors = false;
   map.highlightSector = null;
   deskKind = null;
-  coverClose();
 }
 function markDesk() {
   for (const id of Object.values(KIND_BTN)) $(id).classList.remove('cur');
@@ -1897,22 +1896,7 @@ $('alertBanner').addEventListener('click', () => {
 });
 $('vscBtn').addEventListener('click', () => openControl('vsc'));
 $('scBtn').addEventListener('click', () => openControl('sc'));
-$('redBtn').addEventListener('click', () => {
-  coverClose();
-  const rs = race && race.neutral && race.neutral.restart;
-  openControl(race && !race.isSession && ((race.preStart && race.phase !== 'pre') || rs) ? 'start' : 'red');
-});
-// Schutzklappe der roten Flagge: erst öffnen, dann drücken (schließt sich nach 5 s wieder)
-let coverTimer = null;
-function coverClose() {
-  clearTimeout(coverTimer);
-  $('redCover').parentElement.classList.remove('open');
-}
-$('redCover').addEventListener('click', () => {
-  $('redCover').parentElement.classList.add('open');
-  clearTimeout(coverTimer);
-  coverTimer = setTimeout(coverClose, 5000);
-});
+$('redBtn').addEventListener('click', () => openControl('red'));
 $('ctlCloseBtn').addEventListener('click', closeDesk);
 $('medBtn').addEventListener('click', () => openControl('medical'));
 $('sweepBtn').addEventListener('click', () => openControl('sweeper'));

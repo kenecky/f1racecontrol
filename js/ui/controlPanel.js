@@ -268,8 +268,8 @@ export class ControlPanel {
       if (!live) {
         html += `<div class="ctl-status">${race.phase === 'pre' ? 'Der Start wurde noch nicht freigegeben.' : 'Das Rennen ist gestartet.'}</div>`;
       } else if (ph === 'ready') {
-        html += `<p class="ctl-text">Die Autos stehen in der Startaufstellung. Gib die Formationsrunde frei, schalte danach die Startampel ein – aber erst, wenn alle Autos in ihren Startboxen stehen. Wenn alle fünf Lichter brennen, löschst du sie mit LIGHTS OUT (üblich: innerhalb von 3 Sekunden).</p>
-          <button class="ctl-btn ctl-green ctl-big" data-action="seq-formation">FORMATIONSRUNDE FREIGEBEN</button>`;
+        html += `<p class="ctl-text">Die Autos stehen in der Startaufstellung. Starte die Formationsrunde mit START FORMATION LAP, schalte danach die Startampel ein – aber erst, wenn alle Autos in ihren Startboxen stehen. Wenn alle fünf Lichter brennen, löschst du sie mit LIGHTS OUT (üblich: innerhalb von 3 Sekunden).</p>
+          <button class="ctl-btn ctl-green ctl-big" data-action="seq-formation">START FORMATION LAP</button>`;
       } else if (issue && !issue.released && f && f.arrived) {
         html += issue.type === 'rain'
           ? '<div class="ctl-status warn">⚠ Starker Regen in der Startaufstellung – die Autos stehen auf Trockenreifen</div><p class="ctl-text">Start abbrechen (Startverschiebung, Reifenwechsel) oder hinter dem Safety Car starten.</p>'
