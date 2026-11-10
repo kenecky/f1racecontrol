@@ -1299,3 +1299,25 @@ body { background: var(--bg); }
 .dec-doc-foot:empty { display: none; }
 .dec-doc-foot .verdict-form, .dec-doc-foot .case-actions { margin: 0; padding: 0; border: 0; background: transparent; }
 .dec-doc-foot .ctl-btn { height: 44px; }
+/* Start-Konsole im Desk: Ablauf, Startampel, großer Knopf */
+.desk .deck-grid { grid-template-columns: repeat(6, 1fr); gap: 5px; }
+.desk .deck-grid .act { height: 42px; font-size: 9px; letter-spacing: .02em; }
+.act-start { color: #e6e9ef; }
+.act-start.on { color: #fff; border-color: #e6e9ef; box-shadow: 0 0 10px rgba(230,233,239,.35), 0 3px 0 #050607; }
+.act-start.on .act-led { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+.seq { display: flex; gap: 4px; margin: 6px 0 8px; }
+.seq-step { flex: 1; text-align: center; font: 700 8.5px var(--mono); letter-spacing: .06em; padding: 5px 2px; border: 1px solid var(--line-2); color: #5f6878; white-space: nowrap; overflow: hidden; }
+.seq-step.done { color: var(--st-green); border-color: rgba(34,197,94,.4); }
+.seq-step.now { color: #0b0f17; background: #e6e9ef; border-color: #e6e9ef; }
+.ctl-kv b.warn, .ctl-status.warn { color: var(--st-yellow); }
+.ctl-kv b.ok, .ctl-status.ok { color: var(--st-green); }
+.sl-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 10px 0 12px; }
+.sl { display: flex; gap: 8px; padding: 8px 10px; background: #050608; border: 2px solid #1b1f26; border-radius: 6px; }
+.sl-col { display: flex; flex-direction: column; gap: 6px; padding: 5px; background: #121418; border-radius: 4px; }
+.sl-col i { width: 26px; height: 26px; border-radius: 50%; background: #2a0b0b; box-shadow: inset 0 0 6px #000; }
+.sl-col i.on { background: radial-gradient(circle at 40% 35%, #ff8a80, #e10600 60%); box-shadow: 0 0 14px #ff2a1a; }
+.sl-txt { font: 700 10px var(--mono); letter-spacing: .12em; color: var(--muted); }
+.sl.all + .sl-txt { color: #ff5a4a; }
+.ctl-amber { color: var(--st-amber); border-color: var(--st-amber); background: rgba(251,191,36,.08); }
+.ctl-foot .ctl-big { height: 60px; font-size: 14px; letter-spacing: .1em; }
+.ctl-foot .lights-out { background: #e10600; color: #fff; border-color: #ff3b30; font-size: 18px; letter-spacing: .2em; }

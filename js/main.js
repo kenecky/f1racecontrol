@@ -176,6 +176,8 @@ const controlPanel = new ControlPanel({
       'bo-go': i => showBlackOrange(race, race.cars[i]),
       'start-lights': () => doStartLights(),
       'start-sc': () => startFromGridBehindSC(race),
+      'seq-formation': () => releaseFormation(race),
+      'seq-out': () => doLightsOut(),
       'msg-yellow': () => sendMessage(race, 'yellow'),
       'msg-blue': () => sendMessage(race, 'blue'),
       'msg-driving': () => sendMessage(race, 'driving'),
@@ -184,6 +186,7 @@ const controlPanel = new ControlPanel({
     };
     const [name, arg] = action.split(':');
     if (actions[name]) actions[name](arg !== undefined ? Number(arg) : undefined);
+    if (name === 'restart-standing' && race.neutral && race.neutral.restart) openControl('start');
     controlPanel.sig = '';
     refreshUi();
   },
@@ -736,6 +739,7 @@ function startRace() {
   $('startScreen').classList.add('hidden');
   race.start('standing');
   recorder = race.isSession ? null : new Recorder(race);
+  if (!race.isSession) openControl('start');
   paused = false;
   updatePauseBtn();
   requestWakeLock();
@@ -856,7 +860,14 @@ function doStartLights() {
     setSpeed(1);
     toast('Startampel läuft – Tempo 1×');
   }
-  closeControl();
+}
+
+// Lights out (Start oder Neustart); danach Desk kurz offen lassen und zur großen Karte wechseln
+function doLightsOut() {
+  const ok = race.neutral && race.neutral.restart ? restartLightsOut(race) : lightsOut(race);
+  if (!ok) return;
+  if (speedBeforeLights) { setSpeed(speedBeforeLights); speedBeforeLights = null; }
+  setTimeout(() => { if (deskKind === 'start') closeDesk(); }, 1500);
 }
 
 function startCtlState() {
@@ -894,20 +905,12 @@ function updateStartCtl() {
   el.style.top = al.classList.contains('hidden') ? '' : `${al.offsetTop + al.offsetHeight + 6}px`;
   el.className = `start-ctl start-${st.cls}`;
   el.textContent = st.text;
-  el.disabled = !st.act;
+  el.disabled = false;
   el.dataset.act = st.act || '';
 }
 
-$('startCtl').addEventListener('click', () => {
-  const act = $('startCtl').dataset.act;
-  if (act === 'formation') releaseFormation(race);
-  else if (act === 'lights') doStartLights();
-  else if (act === 'out' && (race.neutral && race.neutral.restart ? restartLightsOut(race) : lightsOut(race))) {
-    if (speedBeforeLights) { setSpeed(speedBeforeLights); speedBeforeLights = null; }
-  }
-  updateStartCtl();
-  refreshUi();
-});
+// Knopf auf der Karte: öffnet die Start-Konsole im Desk (dort laufen Freigabe, Ampel und Lights out)
+$('startCtl').addEventListener('click', () => openControl('start'));
 
 function onStartIssue() {
   seenStartIssue = race.startIssueSeq;
@@ -1015,6 +1018,7 @@ function updateStatus() {
   $('sweepBtn').classList.toggle('on', Boolean(sv.sweeper));
   $('craneBtn').classList.toggle('on', sv.cranes.length > 0);
   $('pitBtn').classList.toggle('on', Boolean(sv.pitClosed));
+  $('startDeskBtn').classList.toggle('on', Boolean(!race.isSession && ((race.preStart && race.phase !== 'pre') || (n && n.restart))));
   $('msgBtn').classList.toggle('on', ['yellow', 'blue', 'driving', 'pit'].some(k => race.rcMsgs && race.rcMsgs.until[k] > race.time));
   const lamp = (id, on) => $(id).classList.toggle('on', Boolean(on));
   lamp('lampFlag', race.flags.some(f => f !== 'clear'));
@@ -1116,7 +1120,7 @@ const deskMap = new TrackMap($('deskMap'), track);
 deskMap.padTop = 34;
 deskMap.onSelectSector = idx => openFlags(idx);
 deskMap.onSelectCar = () => {};
-const KIND_BTN = { flags: 'flagBtn', vsc: 'vscBtn', sc: 'scBtn', red: 'redBtn', start: 'redBtn', medical: 'medBtn', sweeper: 'sweepBtn', crane: 'craneBtn', pit: 'pitBtn', bo: 'boBtn', msg: 'msgBtn' };
+const KIND_BTN = { flags: 'flagBtn', vsc: 'vscBtn', sc: 'scBtn', red: 'redBtn', start: 'startDeskBtn', medical: 'medBtn', sweeper: 'sweepBtn', crane: 'craneBtn', pit: 'pitBtn', bo: 'boBtn', msg: 'msgBtn' };
 let deskKind = null, lastDeskKind = 'flags';
 function deskOpen() { return !$('desk').classList.contains('hidden'); }
 function showDesk() {
@@ -1136,7 +1140,7 @@ function closeDesk() {
   coverClose();
 }
 function markDesk() {
-  for (const [k, id] of Object.entries(KIND_BTN)) if (k !== 'start') $(id).classList.remove('cur');
+  for (const id of Object.values(KIND_BTN)) $(id).classList.remove('cur');
   if (deskKind) $(KIND_BTN[deskKind]).classList.add('cur');
 }
 function renderDeskHead() {
@@ -1895,7 +1899,8 @@ $('vscBtn').addEventListener('click', () => openControl('vsc'));
 $('scBtn').addEventListener('click', () => openControl('sc'));
 $('redBtn').addEventListener('click', () => {
   coverClose();
-  openControl(race && race.preStart && race.phase !== 'pre' && !race.isSession ? 'start' : 'red');
+  const rs = race && race.neutral && race.neutral.restart;
+  openControl(race && !race.isSession && ((race.preStart && race.phase !== 'pre') || rs) ? 'start' : 'red');
 });
 // Schutzklappe der roten Flagge: erst öffnen, dann drücken (schließt sich nach 5 s wieder)
 let coverTimer = null;
@@ -1914,6 +1919,7 @@ $('sweepBtn').addEventListener('click', () => openControl('sweeper'));
 $('craneBtn').addEventListener('click', () => openControl('crane'));
 $('pitBtn').addEventListener('click', () => openControl('pit'));
 $('msgBtn').addEventListener('click', () => openControl('msg'));
+$('startDeskBtn').addEventListener('click', () => openControl('start'));
 $('boBtn').addEventListener('click', () => openControl('bo'));
 
 // Kontrollpult öffnen: passende Konsole zur aktuellen Meldung, sonst die zuletzt benutzte

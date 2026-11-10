@@ -4,6 +4,7 @@ import { sectorIndexAt } from '../sim/trackModel.js';
 import { WARN_ICON } from './feed.js';
 import { hazardProgress, hazardWhere } from '../sim/hazards.js';
 import { MESSAGES, canSend, msgActive } from '../sim/messages.js';
+import { ALL_ON } from '../sim/start.js';
 
 const TITLES = {
   vsc: 'VIRTUAL SAFETY CAR', sc: 'SAFETY CAR', red: 'RED FLAG', start: 'START PROCEDURE',
@@ -103,7 +104,7 @@ export class ControlPanel {
       scInPossibleThisLap(race),
       race.cars.filter(c => c.unlap).length, race.cars.filter(c => c.redQueued).length,
       active.map(h => Math.round(hazardProgress(h) * 50)), canRestart(race),
-      race.phase, race.startIssue && race.startIssue.carId, race.startIssue && race.startIssue.released, race.laps,
+      race.phase, race.lightsOn, kind === 'start' && Math.floor(((n && n.restart ? n.lightsTimer : race.lightsTimer) || 0) * 5), kind === 'start' && race.formation && race.cars.filter(c => c.fTarget !== undefined && c.fTarget - c.d <= 0.6).length, race.formation && race.formation.arrived, race.startIssue && race.startIssue.carId, race.startIssue && race.startIssue.released, race.laps,
       this.armed && this.armed.action, this.sel[kind],
       race.svc && [!!race.svc.medical, race.svc.medical && race.svc.medical.phase, !!race.svc.sweeper, race.svc.cranes.map(c => c.sector), race.svc.pitClosed],
     ]);
@@ -236,32 +237,59 @@ export class ControlPanel {
     }
 
     if (kind === 'start') {
-      sub = 'Formationsrunde und Startfreigabe';
-      const issue = race.startIssue;
-      const atGrid = (race.phase === 'grid' || race.phase === 'lights') && race.formation && race.formation.arrived;
-      if (race.phase === 'ready') {
-        html = `<div class="ctl-status">Autos in der Startaufstellung</div>
-          <p class="ctl-text">Mit „Formationsrunde freigeben“ (Knopf auf der Karte) beginnt die Formationsrunde. Danach schaltest du die Startampel ein – aber erst, wenn alle Autos in ihren Startboxen stehen. Wenn alle fünf Lichter brennen, löschst du sie per Klick (üblich: innerhalb von 3 Sekunden).</p>`;
-      } else if (race.phase === 'formation') {
-        html = `<div class="ctl-status">${race.formation && race.formation.n > 1 ? 'Extra-' : ''}Formationsrunde läuft</div>
-          <p class="ctl-text">Die Autos wärmen Reifen und Bremsen auf. Defekte oder Dreher sind möglich – sichere Gefahren wie im Rennen mit Flaggen ab. Wer seinen Platz verliert, startet von hinten; wer nicht losfährt, aus der Boxengasse.</p>`;
-      } else if (atGrid && issue && !issue.released) {
-        html = issue.type === 'rain'
-          ? `<div class="ctl-status">⚠ Starker Regen in der Startaufstellung – die Autos stehen auf Trockenreifen</div>
-          <p class="ctl-text">Start abbrechen (Startverschiebung, Reifenwechsel) oder hinter dem Safety Car starten.</p>`
-          : `<div class="ctl-status">⚠ ${issue.carId} steht mit abgestorbenem Motor in der Startaufstellung</div>
-          <p class="ctl-text">Schalte die Startampel jetzt nicht ein – ein stehendes Auto beim Start ist gefährlich.</p>
-          <button class="ctl-btn ctl-red" data-action="start-abort">Start abbrechen – Extra-Formationsrunde</button>
-          <p class="ctl-small">${issue.type === 'rain' ? 'Alle wechseln auf Regenreifen.' : `${issue.carId} wird in die Boxengasse geschoben und startet von dort.`} Das Rennen wird um eine Runde verkürzt (dann ${Math.max(3, race.laps - 1)} Runden).</p>
-          <button class="ctl-btn ctl-sc" data-action="start-sc">Start hinter dem Safety Car</button>
-          <button class="ctl-btn ctl-ghost" data-action="start-lights">Startampel trotzdem einschalten</button>`;
-      } else if (atGrid) {
-        html = `<div class="ctl-status">${race.phase === 'lights' ? 'Startampel läuft' : 'Startaufstellung komplett – Startampel über den Knopf auf der Karte'}</div>
-          <button class="ctl-btn ctl-ghost" data-action="start-abort">Start abbrechen – Extra-Formationsrunde</button>
-          <button class="ctl-btn ctl-ghost" data-action="start-sc">Start hinter dem Safety Car</button>
-          <p class="ctl-small">Nur bei einem Problem in der Startaufstellung oder auf der Strecke. Ein Startabbruch kostet eine Runde Renndistanz.</p>`;
+      const rs = Boolean(n && n.type === 'red' && n.restart);
+      const ph = rs ? n.phase : race.phase;
+      const lt = rs ? n.lightsTimer : race.lightsTimer;
+      const f = race.formation;
+      const issue = rs ? null : race.startIssue;
+      sub = rs ? 'Neustart nach der roten Flagge' : 'Formationsrunde · Startampel · Lights out';
+      const live = rs ? ['formation', 'grid', 'lights'].includes(ph) : race.preStart && ph !== 'pre';
+      // Ablauf
+      const STEPS = [['ready', 'FREIGABE'], ['formation', 'FORMATION'], ['grid', 'GRID'], ['lights', 'AMPEL'], ['go', 'START']];
+      const order = STEPS.map(x => x[0]);
+      const curI = !live ? 4 : order.indexOf(ph === 'formation' && f && f.arrived ? 'grid' : ph);
+      html = `<div class="seq">${STEPS.filter(x => !rs || x[0] !== 'ready').map(([k, l]) => {
+        const i = order.indexOf(k);
+        return `<span class="seq-step${i < curI ? ' done' : i === curI ? ' now' : ''}">${i < curI ? '✓ ' : ''}${l}</span>`;
+      }).join('')}</div>`;
+      // Startboxen
+      const grid = f && f.order ? f.order.map(id => race.carById[id]).filter(c => c && !c.retired && !c.pitStart) : [];
+      const inBox = f && f.arrived ? grid.length : grid.filter(c => c.fTarget !== undefined && c.fTarget - c.d <= 0.6).length;
+      const pitStart = race.cars.filter(c => c.pitStart && !c.retired).length;
+      if (live && ph !== 'ready') {
+        html += `<div class="ctl-kv"><div><span>IN DER STARTBOX</span><b class="${inBox < grid.length ? 'warn' : 'ok'}">${inBox}/${grid.length}</b></div><div><span>${rs ? 'NEUSTART' : 'FORMATION'}</span><b>${rs ? 'STEHEND' : f && f.n > 1 ? `${f.n}. RUNDE` : '1. RUNDE'}</b></div><div><span>BOXENGASSE</span><b>${pitStart}</b></div></div>`;
+      }
+      // Startampel
+      const lit = race.lightsOn;
+      const allOn = ph === 'lights' && lt >= ALL_ON;
+      html += `<div class="sl-wrap"><div class="sl${allOn ? ' all' : ''}">${[0, 1, 2, 3, 4].map(i => `<div class="sl-col"><i class="${i < lit ? 'on' : ''}"></i><i class="${i < lit ? 'on' : ''}"></i></div>`).join('')}</div>
+        <div class="sl-txt">${ph === 'lights' ? (allOn ? `ALLE LICHTER AN · ${(lt - ALL_ON).toFixed(1).replace('.', ',')} s` : lit ? `${lit} / 5` : 'PRE-START') : !live ? 'LICHTER AUS – RENNEN LÄUFT' : 'AMPEL AUS'}</div></div>`;
+      // Lage und Hauptaktion
+      if (!live) {
+        html += `<div class="ctl-status">${race.phase === 'pre' ? 'Der Start wurde noch nicht freigegeben.' : 'Das Rennen ist gestartet.'}</div>`;
+      } else if (ph === 'ready') {
+        html += `<p class="ctl-text">Die Autos stehen in der Startaufstellung. Gib die Formationsrunde frei, schalte danach die Startampel ein – aber erst, wenn alle Autos in ihren Startboxen stehen. Wenn alle fünf Lichter brennen, löschst du sie mit LIGHTS OUT (üblich: innerhalb von 3 Sekunden).</p>
+          <button class="ctl-btn ctl-green ctl-big" data-action="seq-formation">FORMATIONSRUNDE FREIGEBEN</button>`;
+      } else if (issue && !issue.released && f && f.arrived) {
+        html += issue.type === 'rain'
+          ? '<div class="ctl-status warn">⚠ Starker Regen in der Startaufstellung – die Autos stehen auf Trockenreifen</div><p class="ctl-text">Start abbrechen (Startverschiebung, Reifenwechsel) oder hinter dem Safety Car starten.</p>'
+          : `<div class="ctl-status warn">⚠ ${issue.carId} steht mit abgestorbenem Motor in der Startaufstellung</div><p class="ctl-text">Schalte die Startampel jetzt nicht ein – ein stehendes Auto beim Start ist gefährlich.</p>`;
+        html += `<p class="ctl-small">${issue.type === 'rain' ? 'Alle wechseln auf Regenreifen.' : `${issue.carId} wird in die Boxengasse geschoben und startet von dort.`} Ein Startabbruch kostet eine Runde (dann ${Math.max(3, race.laps - 1)} Runden).</p>
+          <button class="ctl-btn ctl-red" data-action="start-abort">START ABBRECHEN</button>
+          <button class="ctl-btn ctl-sc" data-action="start-sc">START HINTER DEM SC</button>
+          <button class="ctl-btn ctl-ghost" data-action="start-lights">STARTAMPEL TROTZDEM EINSCHALTEN</button>`;
+      } else if (ph === 'formation' && !(f && f.arrived)) {
+        html += `<p class="ctl-text">${f && f.n > 1 ? 'Extra-' : ''}Formationsrunde: Die Autos wärmen Reifen und Bremsen auf. Defekte oder Dreher sind möglich – sichere Gefahren wie im Rennen mit Flaggen ab.</p>
+          <button class="ctl-btn ctl-ghost ctl-big" data-action="start-lights">AMPEL EINSCHALTEN · NOCH ${grid.length - inBox} UNTERWEGS</button>
+          <p class="ctl-small">Ampel erst einschalten, wenn alle Autos stehen – sonst großer Abzug bei der Sicherheit.</p>`;
+      } else if (ph === 'grid' || ph === 'formation') {
+        html += `<div class="ctl-status ok">Startaufstellung komplett</div>
+          ${rs ? '' : '<button class="ctl-btn ctl-ghost" data-action="start-abort">START ABBRECHEN</button><button class="ctl-btn ctl-ghost" data-action="start-sc">START HINTER SC</button>'}
+          <button class="ctl-btn ctl-amber ctl-big" data-action="start-lights">STARTAMPEL EINSCHALTEN</button>`;
+      } else if (ph === 'lights' && !allOn) {
+        html += `<button class="ctl-btn ctl-ghost ctl-big" disabled>${lit ? `LICHTER ${lit} / 5 …` : 'PRE-START …'}</button>`;
       } else {
-        html = `<div class="ctl-status">${race.phase === 'pre' ? 'Der Start wurde noch nicht freigegeben.' : race.phase === 'lights' ? 'Startampel läuft.' : 'Das Rennen ist gestartet.'}</div>`;
+        html += `<button class="ctl-btn ctl-red ctl-big lights-out" data-action="seq-out">LIGHTS OUT</button>`;
       }
     }
 

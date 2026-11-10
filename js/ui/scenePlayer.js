@@ -204,6 +204,23 @@ export class ScenePlayer {
       for (let s = a; s <= z; s += 2) { const [x, y] = P(s, lat); s === a ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
     };
     ctx.lineJoin = 'round';
+    // Strichmuster fest an der Strecke verankert (nicht an der Kamera) – sonst wandern sie beim Mitfahren
+    const dashes = (lat, a, z, on, off, width, color) => {
+      const per = on + off;
+      ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
+      for (let x = Math.floor(a / per) * per; x < z; x += per) {
+        const p1 = Math.max(a, x), p2 = Math.min(z, x + on);
+        if (p2 <= p1) continue;
+        const [x1, y1] = P(p1, lat), [xm, ym] = P((p1 + p2) / 2, lat), [x2, y2] = P(p2, lat);
+        ctx.moveTo(x1, y1); ctx.lineTo(xm, ym); ctx.lineTo(x2, y2);
+      }
+      ctx.stroke();
+    };
+    const quad = (sa, sb, la, lb, fill) => {
+      const c = [P(sa, la), P(sb, la), P(sb, lb), P(sa, lb)];
+      ctx.beginPath(); ctx.moveTo(...c[0]); for (const q of c.slice(1)) ctx.lineTo(...q); ctx.closePath();
+      ctx.fillStyle = fill; ctx.fill();
+    };
     // Auslaufzonen
     for (const ro of track.runoffs || []) {
       const a = relD(track, ro.from, scene.d0), z = relD(track, ro.to, scene.d0);
@@ -216,12 +233,21 @@ export class ScenePlayer {
     // Boxengasse: Mauer, Fahrgasse, Arbeitsgasse, Garagen
     if (scene.pit) {
       const sd = scene.pit.side;
+      // Fahr- und Arbeitsgasse (Asphalt)
       path(sd * (PIT.wall + 6.5)); ctx.strokeStyle = '#2f333a'; ctx.lineWidth = 13 * k; ctx.stroke();
-      path(sd * (PIT.garage + 3)); ctx.strokeStyle = '#3a3f48'; ctx.lineWidth = 6 * k; ctx.stroke();
-      ctx.setLineDash([3 * k, 2 * k]); ctx.strokeStyle = '#1b1e24'; ctx.lineWidth = 5.6 * k; ctx.stroke(); ctx.setLineDash([]);
+      // Garagen: einzelne Boxen an festen Stellen, abwechselnd hell/dunkel mit farbiger Kante
+      const BOX = 7, cols = ['#d23c3c', '#3d6fd1', '#e8812a', '#20a39e', '#9aa4b2', '#2d8a4e', '#c9a227', '#7a5bd1', '#e2e8f0', '#ff6f91'];
+      for (let x = Math.floor((s0 + BOX / 2) / BOX) * BOX - BOX / 2; x < s1; x += BOX) {   // Box des freigegebenen Autos liegt mittig bei s = 0
+        const i = Math.round(x / BOX);
+        quad(x + 0.3, x + BOX - 0.3, sd * PIT.garage, sd * (PIT.garage + 6), (i & 1) ? '#353a43' : '#2b2f37');
+        quad(x + 0.3, x + BOX - 0.3, sd * PIT.garage, sd * (PIT.garage + 0.7), cols[((i % cols.length) + cols.length) % cols.length]);
+        // Haltepunkt der Box in der Arbeitsgasse
+        dashes(sd * (PIT.work - 1.6), x + 1.5, x + BOX - 1.5, 0.25, 0.25, Math.max(1, 0.15 * k), 'rgba(255,255,255,.35)');
+      }
+      path(sd * (PIT.garage + 6.4)); ctx.strokeStyle = '#1b1e24'; ctx.lineWidth = 1.2 * k; ctx.stroke();
       path(sd * PIT.wall); ctx.strokeStyle = '#c8ced8'; ctx.lineWidth = Math.max(1.5, 0.8 * k); ctx.stroke();
-      path(sd * (PIT.fast + 2.2)); ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = Math.max(1, 0.18 * k);
-      ctx.setLineDash([2 * k, 1.5 * k]); ctx.stroke(); ctx.setLineDash([]);
+      // Trennlinie zwischen Fahr- und Arbeitsgasse
+      dashes(sd * (PIT.fast + 2.2), s0, s1, 2, 1.5, Math.max(1, 0.18 * k), 'rgba(255,255,255,.75)');
     }
     // Asphalt, weiße Linien
     path(0); ctx.strokeStyle = '#2b2f37'; ctx.lineWidth = HALF_W * 2 * k; ctx.stroke();
@@ -233,7 +259,7 @@ export class ScenePlayer {
       if (z < s0 || a > s1 || z < a) continue;
       path(kb.side * (HALF_W + 0.5), Math.max(a, s0), Math.min(z, s1));
       ctx.lineWidth = 1.0 * k; ctx.strokeStyle = '#fff'; ctx.stroke();
-      ctx.setLineDash([1 * k, 1 * k]); ctx.strokeStyle = '#d0201a'; ctx.stroke(); ctx.setLineDash([]);
+      dashes(kb.side * (HALF_W + 0.5), Math.max(a, s0), Math.min(z, s1), 1, 1, 1.0 * k, '#d0201a');
     }
     // Autos
     const t = this.t;

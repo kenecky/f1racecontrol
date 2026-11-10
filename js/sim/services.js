@@ -134,14 +134,18 @@ export function updateServices(race, dt) {
     const field = race.cars.filter(c => !c.retired && !c.pitStart);
     if (sm.phase === 'wait') {
       const last = Math.min(...field.map(c => c.d));
-      if (race.phase === 'running' && last > wrapD(tr, tr.pit.exit) + 60) { sm.phase = 'go'; sm.d += tr.L; race.emit('info', 'Medical Car folgt dem Feld in der ersten Runde.'); }
+      if (race.phase === 'running' && last > wrapD(tr, tr.pit.exit) + 60) { sm.phase = 'go'; sm.d += tr.L; sm.d0 = sm.d; race.emit('info', 'Medical Car folgt dem Feld in der ersten Runde.'); }
     } else {
       const last = Math.min(...field.map(c => c.d));
       const vt = Math.min(MED_SPEED + 8, speedAt(tr, sm.d) * 0.9, Math.max(10, (last - 60 - sm.d) * 2 + 20));
       const prev = sm.d;
       sm.d += vt * dt;
       sm.v = vt;
-      if (crossed(tr, prev, sm.d, tr.pit.entry) && sm.d > tr.L) { s.startMed = null; }
+      // Ende der ersten Runde: an der Boxeneinfahrt (liegt meist vor der Ziellinie) hinein
+      if (crossed(tr, prev, sm.d, tr.pit.entry) && sm.d - (sm.d0 ?? sm.d - tr.L) > tr.L * 0.5) {
+        s.startMed = null;
+        race.emit('info', 'Medical Car fährt nach der ersten Runde in die Boxengasse.');
+      }
     }
   }
   // Kehrmaschine: fährt den Sektor ab und räumt

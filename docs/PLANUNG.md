@@ -581,3 +581,13 @@ Vibration bei neuen Vorfällen/Entscheidungen: im Tempo-Menü abschaltbar.
 - **Entscheidungen (Reiter „DECISIONS“):** Vollbild-Liste mit Live-Zeile (Runde, Status, Tempo, „Pause gesperrt“ auf
   Schwer), Zählern (neu, in Untersuchung, nach dem Rennen, entschieden), Filter OFFEN/ENTSCHIEDEN/ALLE und Knopf
   „Nächsten neuen Fall öffnen“. Fall im Vollbild: Dokument mit großer Szene, ‹ › zum Blättern, Urteil fest unten.
+
+### Startablauf im Desk, Medical Car, Szene Boxengasse (v39)
+- **Start-Konsole (Schalter „START“ im Desk):** öffnet sich beim Rennstart automatisch. Ablaufleiste
+  (Freigabe → Formation → Grid → Ampel → Start), Autos in der Startbox, Startampel mit fünf Lichtern, großer Knopf unten:
+  FORMATIONSRUNDE FREIGEBEN → STARTAMPEL EINSCHALTEN → LIGHTS OUT. Probleme in der Startaufstellung (Motor aus, Regen)
+  mit Startabbruch / Start hinter dem SC hier. Gilt auch für den stehenden Neustart nach Rot. Der Knopf auf der Karte
+  öffnet die Start-Konsole; nach Lights out schließt der Desk nach 1,5 s.
+- **Medical Car der ersten Runde:** fährt an der Boxeneinfahrt am Ende von Runde 1 hinein (vorher erst nach Runde 2).
+- **Szene Unsafe Release:** Garagen, Linien und Randsteine sind fest an der Strecke verankert (vorher wanderte das
+  Strichmuster mit der Kamera und wirkte rückwärts). Garagen als einzelne Boxen mit farbiger Kante.
