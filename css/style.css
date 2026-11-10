@@ -1321,3 +1321,99 @@ body { background: var(--bg); }
 .ctl-amber { color: var(--st-amber); border-color: var(--st-amber); background: rgba(251,191,36,.08); }
 .ctl-foot .ctl-big { height: 60px; font-size: 14px; letter-spacing: .1em; }
 .ctl-foot .lights-out { background: #e10600; color: #fff; border-color: #ff3b30; font-size: 18px; letter-spacing: .2em; }
+
+/* ---------- Pult-Stil: Farben für Gehäuse, Karten, Tasten und Monitore ---------- */
+:root {
+  --pn-bg-1: #3a414d; --pn-bg-2: #2c323c; --pn-bg-3: #272c35;
+  --pn-card: #414957; --pn-card-hi: #5d6779; --pn-edge: #14171c; --pn-line: #1b1f26;
+  --pn-key-1: #2a2f38; --pn-key-2: #1b1f26; --pn-key-hi: #3f4754; --pn-key-edge: #0c0e12;
+  --pn-screen: #06090d; --pn-text: #f1f4f8; --pn-muted: #c3cad6; --pn-dim: #8892a2;
+}
+
+/* ---------- Startseite im Pult-Stil ---------- */
+.start-screen { background: #15181d; backdrop-filter: none; align-items: stretch; }
+.start-screen .sheet { max-height: 100dvh; min-height: 100dvh; border: 0; border-radius: 0; color: var(--pn-text);
+  background: linear-gradient(180deg, var(--pn-bg-1), var(--pn-bg-2) 30%, var(--pn-bg-3)); padding: 0 12px calc(20px + var(--safe-bottom)); }
+.start-screen .brand { margin: 0 -12px 12px; padding: calc(16px + env(safe-area-inset-top)) 16px 14px; background: var(--pn-line);
+  border-bottom: 6px solid transparent; border-image: repeating-linear-gradient(-45deg, #facc15 0 12px, #15181d 12px 24px) 6; }
+.start-screen .brand-sub { color: #aab3c2; }
+.start-screen .mode-switch { background: #15181d; border: 2px solid var(--pn-key-edge); border-radius: 6px; box-shadow: 0 1px 0 var(--pn-card-hi); margin-bottom: 0; }
+.start-screen .mode-btn { color: var(--pn-dim); border-radius: 4px; }
+.start-screen .mode-btn.active { background: #facc15; color: #15181d; box-shadow: none; }
+/* Karten */
+.start-screen .st-card { margin: 10px 0 0; padding: 10px; background: var(--pn-card); border: 1px solid var(--pn-line); border-radius: 6px;
+  box-shadow: inset 0 1px 0 var(--pn-card-hi), 0 2px 0 var(--pn-edge); }
+.start-screen .setup-opts { margin: 0; gap: 0; }
+.start-screen .setup-label { color: #dfe4ec; font-size: 10.5px; margin-bottom: 8px; }
+/* Großes Streckenbild als Monitor */
+.start-screen .gp-preview { position: relative; display: block; overflow: hidden; border: 3px solid var(--pn-edge); border-radius: 6px;
+  background: radial-gradient(circle at 30% 15%, #1f2b3b, var(--pn-screen) 75%); box-shadow: inset 0 0 14px rgba(0,0,0,.9), 0 1px 0 var(--pn-card-hi); }
+.start-screen #trackPreview { display: block; width: 100%; height: 176px; border: 0; }
+.gp-round { position: absolute; left: 10px; top: 8px; right: 10px; font: 700 9.5px var(--mono); letter-spacing: .08em; color: #facc15; text-transform: uppercase; }
+.start-screen .gp-info { position: absolute; left: 0; right: 0; bottom: 0; flex-direction: row; align-items: baseline; gap: 12px; padding: 24px 12px 9px;
+  background: linear-gradient(transparent, rgba(3,5,8,.92)); font: 11px var(--mono); color: var(--pn-muted); }
+.start-screen .gp-info b { flex: 1; min-width: 0; font-size: 15px; line-height: 1.2; color: #fff; }
+.start-screen .gp-info span { color: #fff; font-weight: 700; font-size: 14px; }
+.start-screen .gp-info small { color: var(--pn-dim); }
+/* Rennleiste zum seitlichen Wischen */
+.start-screen .gp-list { height: auto; display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden; border: 0; background: transparent;
+  margin-top: 10px; padding: 0 0 5px; scrollbar-width: none; overscroll-behavior-x: contain; }
+.start-screen .gp-list::-webkit-scrollbar { display: none; }
+.start-screen .gp-item { flex: none; width: auto; height: 50px; padding: 0 12px; border-radius: 5px; background: linear-gradient(var(--pn-key-1), var(--pn-key-2));
+  border: 2px solid var(--pn-key-edge); box-shadow: inset 0 1px 0 var(--pn-key-hi), 0 3px 0 var(--pn-key-edge); }
+.start-screen .gp-item b, .start-screen .gp-item small { overflow: visible; }
+.start-screen .gp-item b { color: #dfe4ec; }
+.start-screen .gp-item small, .start-screen .gp-no { color: var(--pn-dim); }
+.start-screen .gp-item.on { background: #facc15; border-color: #facc15; box-shadow: 0 0 12px rgba(250,204,21,.45), 0 3px 0 var(--pn-key-edge); }
+.start-screen .gp-item.on b, .start-screen .gp-item.on small, .start-screen .gp-item.on .gp-no { color: #15181d; }
+/* Auswahl-Tasten mit Leuchtstreifen */
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
+.seg-b { --c: #facc15; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 54px; padding: 7px 4px 9px;
+  border-radius: 5px; background: linear-gradient(var(--pn-key-1), var(--pn-key-2)); border: 2px solid var(--pn-key-edge);
+  box-shadow: inset 0 1px 0 var(--pn-key-hi), 0 3px 0 var(--pn-key-edge); color: #9aa4b2; }
+.seg-b::before { content: ''; width: 60%; height: 5px; border-radius: 3px; background: #2f343c; margin-bottom: 3px; }
+.seg-b i { font-style: normal; font-size: 16px; line-height: 1.1; }
+.seg-b b { font-size: 12.5px; font-weight: 700; }
+.seg-b small { font-size: 9.5px; line-height: 1.2; text-align: center; color: #7f8998; }
+.seg-b.on { color: #fff; border-color: var(--c); box-shadow: 0 0 12px color-mix(in srgb, var(--c) 55%, transparent), 0 3px 0 var(--pn-key-edge); }
+.seg-b.on::before { background: var(--c); box-shadow: 0 0 8px var(--c); }
+.seg-b.on small { color: #d5dbe5; }
+.seg-len .seg-b { --c: #60a5fa; }
+.seg-diff .seg-b[data-v="easy"] { --c: #22c55e; }
+.seg-diff .seg-b[data-v="medium"] { --c: #fbbf24; }
+.seg-diff .seg-b[data-v="hard"] { --c: #ef4444; }
+.start-screen #forecast { margin: 8px 0 0; color: var(--pn-text); font-size: 12.5px; }
+/* Teile des Rennwochenendes als Schalter */
+.start-screen .sess-checks input { position: absolute; opacity: 0; pointer-events: none; }
+.start-screen .sess-checks label { position: relative; min-height: 46px; padding: 9px 8px 9px 34px; border-radius: 5px; color: #9aa4b2;
+  background: linear-gradient(var(--pn-key-1), var(--pn-key-2)); border: 2px solid var(--pn-key-edge); box-shadow: inset 0 1px 0 var(--pn-key-hi), 0 3px 0 var(--pn-key-edge); }
+.start-screen .sess-checks label::before { content: ''; position: absolute; left: 9px; top: 50%; width: 18px; height: 18px; margin-top: -9px; border-radius: 4px;
+  border: 2px solid currentColor; opacity: .45; box-sizing: border-box; }
+.start-screen .sess-checks label:has(input:checked) { color: #fff; border-color: #22c55e; box-shadow: 0 0 10px rgba(34,197,94,.45), 0 3px 0 var(--pn-key-edge); }
+.start-screen .sess-checks label:has(input:checked)::before { content: '✓'; opacity: 1; color: #22c55e; font: 800 12px/14px system-ui, sans-serif; text-align: center; }
+.start-screen .sess-checks small { color: inherit; opacity: .7; }
+.start-screen .sess-checks .locked { opacity: .8; }
+.start-screen .weekend-steps { margin-top: 10px; }
+.start-screen .weekend-steps:empty { display: none; }
+.start-screen .sess-checks.hidden + .weekend-steps { margin-top: 0; }
+.start-screen .wstep { background: var(--pn-line); color: #aab3c2; }
+.start-screen .wstep.done { color: var(--st-green); }
+.start-screen .wstep.now { background: #facc15; color: #15181d; }
+.start-screen .wsep { color: var(--pn-muted); }
+/* Text, Startknopf, Verlauf, Optionen */
+.start-screen .intro { color: var(--pn-muted); margin: 14px 2px 12px; }
+.start-screen .primary-btn { height: 60px; margin-bottom: 12px; border-radius: 8px; background: linear-gradient(180deg, #34d977, #16a34a); color: #062611;
+  border: 2px solid var(--pn-key-edge); box-shadow: 0 0 20px rgba(34,197,94,.5), 0 4px 0 var(--pn-key-edge); font-size: 16px; letter-spacing: .12em; }
+.start-screen .primary-btn:disabled { filter: grayscale(1); opacity: .5; box-shadow: 0 4px 0 var(--pn-key-edge); }
+.start-screen .secondary-btn { height: 50px; margin: 0 0 12px; border-radius: 6px; color: var(--pn-text); background: linear-gradient(var(--pn-key-1), var(--pn-key-2));
+  border: 2px solid var(--pn-key-edge); box-shadow: inset 0 1px 0 var(--pn-key-hi), 0 3px 0 var(--pn-key-edge); }
+.start-screen .resume-btn { margin-bottom: 6px; }
+.start-screen .resume-info { color: var(--pn-muted); }
+.start-screen .history { margin-top: 0; }
+.start-screen .history:empty { display: none; }
+.start-screen .history-title, .start-screen .history-best { color: var(--pn-muted); }
+.start-screen .history-row { border-bottom-color: var(--pn-bg-2); }
+.start-screen .link-btn { color: #7db4ff; }
+.start-screen .options { color: var(--pn-muted); }
+.start-screen .options input { background: var(--pn-screen); border: 2px solid var(--pn-edge); border-radius: 5px; color: var(--pn-text); }
+.start-screen .app-version { color: #aab3c2; }

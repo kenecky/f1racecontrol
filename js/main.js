@@ -321,6 +321,7 @@ function newRace(seed = randomSeed()) {
   $('seedInput').value = '';
   $('resultScreen').classList.add('hidden');
   $('startScreen').classList.remove('hidden');
+  drawStartHero();
   refreshUi();
   updatePauseBtn();
 }
@@ -333,30 +334,72 @@ function renderEventCard() {
   $('modeSingle').classList.toggle('active', !isSeason);
   $('modeSeason').classList.toggle('active', isSeason);
   $('seasonBtn').classList.toggle('hidden', !isSeason);
-  $('singleSetup').classList.toggle('hidden', isSeason);
-  $('sessionBox').classList.toggle('hidden', isSeason);
+  $('gpList').classList.toggle('hidden', isSeason);
+  $('sessionChecks').classList.toggle('hidden', isSeason);
   $('diffRow').classList.toggle('hidden', isSeason);
-  $('seasonCard').classList.toggle('hidden', !isSeason);
   const entry = isSeason && season ? currentRound(season) : null;
   const wk = isSeason ? (entry ? season.weekend : null) : settings.singleWk;
   $('startBtn').disabled = false;
+  const km = `<div><span>${(def.lengthM / 1000).toFixed(3).replace('.', ',')}</span> km</div>`;
+  const gpName = def.grandPrix.replace('Großer Preis ', 'GP ');
   if (isSeason && !entry) {
     $('evRound').textContent = `Saison ${season.year} beendet`;
-    $('evGp').textContent = 'Alle Rennen gefahren';
-    $('evTrack').textContent = 'Öffne die Saison-Übersicht für die Endwertung.';
+    $('gpInfo').innerHTML = '<b>Alle Rennen gefahren</b><div>Endwertung in der Saison-Übersicht</div>';
     $('startBtn').disabled = true;
   } else if (isSeason) {
     $('evRound').textContent = `Saison ${season.year} · Rennen ${entry.round}/${SEASON_2026.length} · ${new Date(roundDate(season, entry)).toLocaleDateString('de-DE')}`;
-    $('evGp').textContent = def.grandPrix;
-    $('evTrack').textContent = `${def.name} · ${def.country}`;
-    $('evLaps').textContent = race.isSession ? Math.round(race.info.segments.reduce((s, x) => s + x.dur, 0) / 60) : race.laps;
-    $('evLapsLabel').textContent = race.isSession ? 'Minuten' : 'Runden';
-    $('evKm').textContent = (def.lengthM / 1000).toFixed(3).replace('.', ',');
+    const n = race.isSession ? Math.round(race.info.segments.reduce((s, x) => s + x.dur, 0) / 60) : race.laps;
+    $('gpInfo').innerHTML = `<b>${gpName}</b><div><span>${n}</span> ${race.isSession ? 'Min.' : 'Runden'}</div>${km}`;
   } else {
+    $('evRound').textContent = '';
     renderSingleSetup();
+    const parts = singleParts();
+    const race_ = distanceFor(track, 'race', settings.length).laps;
+    const sprint_ = distanceFor(track, 'sprint', settings.length).laps;
+    $('gpInfo').innerHTML = `<b>${gpName}</b>
+      <div><span>${parts.includes('race') ? race_ : sprint_}</span> Runden${parts.includes('race') && parts.includes('sprint') ? ` <small>(Sprint ${sprint_})</small>` : ''}</div>${km}`;
   }
-  $('weekendSteps').innerHTML = wk && wk.sessions.length > 1 ? wk.sessions.map((k, i) => `<span class="wstep${i < wk.idx ? ' done' : i === wk.idx ? ' now' : ''}">${i < wk.idx ? '✓ ' : ''}${KIND_SHORT[k]}</span>`).join('<span class="wsep">›</span>') : '';
+  const steps = wk && wk.sessions.length > 1;
+  $('weekendSteps').innerHTML = steps ? wk.sessions.map((k, i) => `<span class="wstep${i < wk.idx ? ' done' : i === wk.idx ? ' now' : ''}">${i < wk.idx ? '✓ ' : ''}${KIND_SHORT[k]}</span>`).join('<span class="wsep">›</span>') : '';
+  // Saison: Karte „Rennwochenende“ zeigt nur den Ablauf (die Teile stehen fest)
+  $('sessionBox').classList.toggle('hidden', isSeason && !steps);
+  renderSegs();
+  drawStartHero();
   if (!savedRace) $('startBtn').textContent = `${KIND_NAME[race.kind]} starten`;
+}
+
+// Auswahl-Tasten auf der Startseite (Wetter, Dauer, Schwierigkeit)
+const SEGS = {
+  weatherSeg: { key: 'weatherMode', items: [['random', '🎲', 'Zufällig'], ['dry', '☀️', 'Trocken'], ['rain', '🌧', 'Regen'], ['changeable', '🌦', 'Wechselhaft']] },
+  lengthSeg: { key: 'length', items: [['short', '', 'Kurz', '¼ Distanz'], ['medium', '', 'Mittel', '½ Distanz'], ['full', '', 'Lang', 'volle Distanz']] },
+  diffSeg: { key: 'difficulty', items: [['easy', '', 'Leicht', 'klare Fälle · Auto-Pause'], ['medium', '', 'Mittel', 'mehr Fallarten'], ['hard', '', 'Schwer', 'alle Fälle · keine Pause']] },
+};
+function renderSegs() {
+  for (const [id, { key, items }] of Object.entries(SEGS)) {
+    const cur = items.some(x => x[0] === settings[key]) ? settings[key] : items[1][0];
+    $(id).innerHTML = items.map(([v, icon, label, sub]) =>
+      `<button class="seg-b${v === cur ? ' on' : ''}" data-v="${v}" role="radio" aria-checked="${v === cur}">${icon ? `<i>${icon}</i>` : ''}<b>${label}</b>${sub ? `<small>${sub}</small>` : ''}</button>`).join('');
+  }
+}
+for (const [id, { key }] of Object.entries(SEGS)) {
+  $(id).addEventListener('click', e => {
+    const b = e.target.closest('[data-v]');
+    if (!b || settings[key] === b.dataset.v) return;
+    settings[key] = b.dataset.v;
+    saveSettings(settings);
+    if (race && race.phase === 'pre') newRace(race.seed); else renderSegs();
+  });
+}
+
+// Großes Streckenbild und Rennleiste (neu zeichnen, sobald die Startseite sichtbar ist)
+function drawStartHero() {
+  drawTrackPreview($('trackPreview'), track);
+  const list = $('gpList');
+  const on = list.querySelector('.gp-item.on');
+  if (on && list.clientWidth && !list.dataset.scrolled) {
+    list.scrollLeft = on.offsetLeft - list.offsetLeft - (list.clientWidth - on.offsetWidth) / 2;
+    list.dataset.scrolled = '1';
+  }
 }
 
 function setMode(mode) {
@@ -421,20 +464,10 @@ function renderSingleSetup() {
     }).join('');
   }
   for (const b of list.children) b.classList.toggle('on', b.dataset.track === settings.trackId);
-  const on = list.querySelector('.gp-item.on');
-  if (on && !list.dataset.scrolled) { list.scrollTop = on.offsetTop - list.offsetTop - 40; list.dataset.scrolled = '1'; }
-  drawTrackPreview($('trackPreview'), track);
-  const def = track.def;
-  const parts = singleParts();
-  const race_ = distanceFor(track, 'race', settings.length).laps;
-  const sprint_ = distanceFor(track, 'sprint', settings.length).laps;
-  $('gpInfo').innerHTML = `<b>${def.grandPrix.replace('Großer Preis ', 'GP ')}</b>
-    <div><span>${parts.includes('race') ? race_ : sprint_}</span> Runden${parts.includes('race') && parts.includes('sprint') ? ` <small>(Sprint ${sprint_})</small>` : ''}</div>
-    <div><span>${(def.lengthM / 1000).toFixed(3).replace('.', ',')}</span> km</div>`;
-  for (const cb of $('sessionChecks').querySelectorAll('input')) cb.checked = parts.includes(cb.value);
+  for (const cb of $('sessionChecks').querySelectorAll('input')) cb.checked = singleParts().includes(cb.value);
 }
 
-// Kleine Streckenvorschau (Umriss mit Start/Ziel)
+// Streckenbild auf der Startseite (Umriss mit Start/Ziel); unten bleibt Platz für die Beschriftung
 function drawTrackPreview(cv, tr) {
   const r = cv.getBoundingClientRect();
   if (!r.width) return;
@@ -445,17 +478,20 @@ function drawTrackPreview(cv, tr) {
   ctx.clearRect(0, 0, r.width, r.height);
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (let i = 0; i < tr.N; i += 4) { minX = Math.min(minX, tr.xs[i]); maxX = Math.max(maxX, tr.xs[i]); minY = Math.min(minY, tr.ys[i]); maxY = Math.max(maxY, tr.ys[i]); }
-  const pad = 10;
-  const k = Math.min((r.width - 2 * pad) / (maxX - minX), (r.height - 2 * pad) / (maxY - minY));
-  const ox = (r.width - (maxX - minX) * k) / 2 - minX * k, oy = (r.height - (maxY - minY) * k) / 2 - minY * k;
+  const pad = 14, padTop = 22, padBottom = 46;
+  const k = Math.min((r.width - 2 * pad) / (maxX - minX), (r.height - padTop - padBottom) / (maxY - minY));
+  const ox = (r.width - (maxX - minX) * k) / 2 - minX * k;
+  const oy = padTop + (r.height - padTop - padBottom - (maxY - minY) * k) / 2 - minY * k;
   ctx.beginPath();
   for (let i = 0; i <= tr.N; i += 2) { const j = i % tr.N; const x = ox + tr.xs[j] * k, y = oy + tr.ys[j] * k; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
   ctx.closePath();
   ctx.lineJoin = 'round';
-  ctx.strokeStyle = '#3a4352'; ctx.lineWidth = 6; ctx.stroke();
-  ctx.strokeStyle = '#d8dde6'; ctx.lineWidth = 2.2; ctx.stroke();
+  ctx.shadowColor = 'rgba(250, 204, 21, .35)'; ctx.shadowBlur = 14;
+  ctx.strokeStyle = '#3a4352'; ctx.lineWidth = 8; ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = '#f1f4f8'; ctx.lineWidth = 2.6; ctx.stroke();
   const x0 = ox + tr.xs[0] * k, y0 = oy + tr.ys[0] * k;
-  ctx.fillStyle = '#ef4444'; ctx.fillRect(x0 - 3, y0 - 3, 6, 6);
+  ctx.fillStyle = '#ef4444'; ctx.fillRect(x0 - 4, y0 - 4, 8, 8);
 }
 
 $('gpList').addEventListener('click', e => {
@@ -1944,21 +1980,6 @@ $('menuBtn').addEventListener('click', () => {
     newRace();
   }
 });
-$('weatherSel').addEventListener('change', e => {
-  settings.weatherMode = e.target.value;
-  saveSettings(settings);
-  if (race && race.phase === 'pre') newRace(race.seed);
-});
-$('diffSel').addEventListener('change', e => {
-  settings.difficulty = e.target.value;
-  saveSettings(settings);
-  if (race && race.phase === 'pre') newRace(race.seed);
-});
-$('lengthSel').addEventListener('change', e => {
-  settings.length = e.target.value;
-  saveSettings(settings);
-  if (race && race.phase === 'pre') newRace(race.seed);
-});
 $('modeSingle').addEventListener('click', () => setMode('single'));
 $('modeSeason').addEventListener('click', () => setMode('season'));
 $('seasonBtn').addEventListener('click', () => showSeason());
@@ -2029,9 +2050,8 @@ document.addEventListener('touchmove', e => {
 // ---------- Start ----------
 
 $('speedBtn').textContent = `${settings.speed}×`;
-$('weatherSel').value = settings.weatherMode;
-$('lengthSel').value = LENGTHS[settings.length] ? settings.length : 'medium';
-$('diffSel').value = ['easy', 'medium', 'hard'].includes(settings.difficulty) ? settings.difficulty : 'medium';
+if (!LENGTHS[settings.length]) settings.length = 'medium';
+if (!['easy', 'medium', 'hard'].includes(settings.difficulty)) settings.difficulty = 'medium';
 appEl.classList.toggle('collapsed', settings.panelCollapsed);
 applyTower();
 $('labelsBtn').classList.toggle('active', settings.showLabels);

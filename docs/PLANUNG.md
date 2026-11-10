@@ -591,3 +591,11 @@ Vibration bei neuen Vorfällen/Entscheidungen: im Tempo-Menü abschaltbar.
 - **Medical Car der ersten Runde:** fährt an der Boxeneinfahrt am Ende von Runde 1 hinein (vorher erst nach Runde 2).
 - **Szene Unsafe Release:** Garagen, Linien und Randsteine sind fest an der Strecke verankert (vorher wanderte das
   Strichmuster mit der Kamera und wirkte rückwärts). Garagen als einzelne Boxen mit farbiger Kante.
+
+### Startseite im Pult-Stil (v42)
+- Vollbild in hellerem Metallgrau statt Schwarz, Kopf mit gelb-schwarzem Warnstreifen, jeder Bereich als eigene Karte.
+- Grand Prix: großes Streckenbild als Monitor (Name, Runden, Länge; in der Saison zusätzlich Rennen x/24 und Datum),
+  darunter im Einzelrennen die Rennleiste zum seitlichen Wischen.
+- Wetter, Dauer und Schwierigkeit als Tasten mit Leuchtstreifen (gelb, blau, Ampelfarben) statt Auswahllisten;
+  Teile des Rennwochenendes als Schalter mit Haken. Startknopf grün beleuchtet.
+- Farbwerte des Pult-Stils als Variablen (`--pn-*`) in `css/style.css` – Grundlage für die Umstellung des Spiels.

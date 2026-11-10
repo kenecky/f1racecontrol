@@ -173,7 +173,7 @@
     </div>
   </div>
 
-  <div id="startScreen" class="overlay">
+  <div id="startScreen" class="overlay start-screen">
     <div class="sheet">
       <div class="brand">
         <img class="brand-mark brand-img" src="icons/icon-192.png" alt="">
@@ -186,38 +186,22 @@
         <button id="modeSingle" class="mode-btn">Einzelrennen</button>
         <button id="modeSeason" class="mode-btn">Saison 2026</button>
       </div>
-      <!-- Einzelrennen: Rennen aus der Liste wählen -->
-      <div id="singleSetup" class="setup">
+      <!-- Grand Prix: großes Streckenbild (beide Modi), Rennleiste nur im Einzelrennen -->
+      <div id="gpCard" class="setup st-card">
         <div class="setup-label">GRAND PRIX</div>
-        <div class="setup-top">
-          <div id="gpList" class="gp-list" role="listbox" aria-label="Rennen auswählen"></div>
-          <div class="gp-preview">
-            <canvas id="trackPreview"></canvas>
-            <div id="gpInfo" class="gp-info"></div>
-          </div>
+        <div class="gp-preview">
+          <canvas id="trackPreview"></canvas>
+          <div id="evRound" class="gp-round"></div>
+          <div id="gpInfo" class="gp-info"></div>
         </div>
-      </div>
-      <!-- Saison: nächstes Rennen -->
-      <div id="seasonCard" class="event-card">
-        <div id="evRound" class="event-round"></div>
-        <div id="evGp" class="event-gp"></div>
-        <div id="evTrack" class="event-track"></div>
-        <div class="event-facts">
-          <div><b id="evLaps"></b><span id="evLapsLabel">Runden</span></div>
-          <div><b id="evKm"></b><span>km</span></div>
-        </div>
+        <div id="gpList" class="gp-list" role="listbox" aria-label="Rennen auswählen"></div>
       </div>
       <div class="setup-opts">
-        <label class="setup-row"><span class="setup-label">WETTER</span>
-          <select id="weatherSel">
-            <option value="random">Zufällig (je nach Strecke)</option>
-            <option value="dry">Trocken</option>
-            <option value="rain">Regen (trocknet ab, evtl. weiterer Schauer)</option>
-            <option value="changeable">Wechselhaft (Schauer im Rennen)</option>
-          </select>
-        </label>
-        <div id="forecast" class="forecast"></div>
-        <div id="sessionBox" class="setup-row">
+        <div class="setup-row st-card"><span class="setup-label">WETTER</span>
+          <div id="weatherSeg" class="seg seg-wx" role="radiogroup" aria-label="Wetter"></div>
+          <div id="forecast" class="forecast"></div>
+        </div>
+        <div id="sessionBox" class="setup-row st-card">
           <span class="setup-label">RENNWOCHENENDE</span>
           <div id="sessionChecks" class="sess-checks">
             <label><input type="checkbox" value="fp"> Freies Training</label>
@@ -225,30 +209,22 @@
             <label><input type="checkbox" value="sprint"> Sprint <small>(mit Sprint-Qualifying)</small></label>
             <label class="locked"><input type="checkbox" value="race" checked disabled> Rennen <small>(immer)</small></label>
           </div>
+          <div id="weekendSteps" class="weekend-steps"></div>
         </div>
-        <div id="weekendSteps" class="weekend-steps"></div>
-        <label class="setup-row"><span class="setup-label">DAUER</span>
-          <select id="lengthSel">
-            <option value="short">Kurz – ¼ Renndistanz, kurze Sessions</option>
-            <option value="medium">Mittel – ½ Renndistanz</option>
-            <option value="full">Lang – volle Renndistanz</option>
-          </select>
-        </label>
-        <label id="diffRow" class="setup-row"><span class="setup-label">SCHWIERIGKEIT</span>
-          <select id="diffSel">
-            <option value="easy">Leicht – klare Fälle, Auto-Pause</option>
-            <option value="medium">Mittel – mehr Fallarten</option>
-            <option value="hard">Schwer – alle Fälle, Pause gesperrt</option>
-          </select>
-        </label>
+        <div class="setup-row st-card"><span class="setup-label">DAUER</span>
+          <div id="lengthSeg" class="seg seg-len" role="radiogroup" aria-label="Dauer"></div>
+        </div>
+        <div id="diffRow" class="setup-row st-card"><span class="setup-label">SCHWIERIGKEIT</span>
+          <div id="diffSeg" class="seg seg-diff" role="radiogroup" aria-label="Schwierigkeit"></div>
+        </div>
       </div>
       <p class="intro">Du bist der Rennleiter. Beobachte das Rennen und greif ein, wenn es nötig ist. Fahrer und Teams agieren selbstständig.</p>
       <div id="resumeBox"></div>
       <button id="startBtn" class="primary-btn">Rennen starten</button>
       <button id="seasonBtn" class="secondary-btn season-btn hidden">🏆 Saison-Übersicht</button>
-      <div id="history" class="history"></div>
-      <div class="app-version">Version 41</div>
-      <details class="options">
+      <div id="history" class="history st-card"></div>
+      <div class="app-version">Version 42</div>
+      <details class="options st-card">
         <summary>Optionen</summary>
         <label>Rennen-Nr. (gleiche Nr. = gleiches Rennen)
           <input id="seedInput" type="number" inputmode="numeric" placeholder="zufällig">
