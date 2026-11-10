@@ -4,8 +4,8 @@ import { stewardReport, PENALTIES } from './stewards.js';
 import { NEED_LEVEL, NEED_LABEL } from '../sim/hazards.js';
 import { createRng } from '../util/rng.js';
 
-const HAZARD_WEIGHT = { yellow: 10, double: 15, vsc: 18, sc: 25, red: 35 };
-const LATE = { yellow: 20, double: 20, vsc: 30, sc: 30, red: 45 };
+const HAZARD_WEIGHT = { yellow: 10, double: 15, vsc: 18, sc: 25, red: 35, pit: 12 };
+const LATE = { yellow: 20, double: 20, vsc: 30, sc: 30, red: 45, pit: 30 };
 const CASE_COST = { ok: 0, lenient: 9, harsh: 9, wrong: 15, open: 15, pending: 0 };
 export const AXES = [
   { id: 'safety', name: 'Sicherheit', weight: 0.35, hint: 'Gefahren rechtzeitig und ausreichend abgesichert' },
@@ -32,9 +32,9 @@ export function rateRace(race) {
   let safety = 100;
   for (const it of fr.items) {
     const h = it.h;
-    const w = HAZARD_WEIGHT[h.need] * (it.weight ?? 1);
+    const w = (HAZARD_WEIGHT[h.need] ?? 10) * (it.weight ?? 1);
     if (it.verdict === 'missed') safety -= w;
-    else if (it.verdict === 'late') safety -= w * clamp((h.adequateAt - h.start - LATE[h.need]) / 60, 0.25, 0.8);
+    else if (it.verdict === 'late') safety -= w * clamp((h.adequateAt - h.start - (LATE[h.need] ?? 30)) / 60, 0.25, 0.8);
   }
 
   // Start: stehendes Auto in der Startaufstellung, Startabbruch ohne Grund

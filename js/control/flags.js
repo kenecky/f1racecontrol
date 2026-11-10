@@ -28,7 +28,7 @@ export function trackStatus(race) {
 import { NEED_LEVEL, NEED_LABEL } from '../sim/hazards.js';
 
 // Sekunden: bis dahin gilt die Reaktion als rechtzeitig
-const LATE = { yellow: 20, double: 20, vsc: 30, sc: 30, red: 45 };
+const LATE = { yellow: 20, double: 20, vsc: 30, sc: 30, red: 45, pit: 30 };
 const RESPONSE_LABEL = ['keine', 'Gelb', 'Doppelt Gelb', 'VSC', 'Safety Car', 'Rote Flagge'];
 
 // Bilanz der Entscheidungen für den Rennbericht
@@ -51,7 +51,7 @@ export function flagReport(race) {
         : `Nötig: ${NEED_LABEL[h.need]} – deine höchste Reaktion: ${RESPONSE_LABEL[h.maxResponse]}`;
     } else {
       const rt = h.adequateAt - h.start;
-      verdict = rt <= LATE[h.need] ? 'ok' : 'late';
+      verdict = rt <= (LATE[h.need] ?? 30) ? 'ok' : 'late';
       note = `${verdict === 'ok' ? 'Reaktion' : 'zu spät'} nach ${Math.round(rt)} s (nötig: ${NEED_LABEL[h.need]})`;
     }
     if (h.maxResponse >= 3 && h.maxResponse - need >= 2) note += ` · ${RESPONSE_LABEL[h.maxResponse]} war überzogen`;

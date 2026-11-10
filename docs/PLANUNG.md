@@ -599,3 +599,8 @@ Vibration bei neuen Vorfällen/Entscheidungen: im Tempo-Menü abschaltbar.
 - Wetter, Dauer und Schwierigkeit als Tasten mit Leuchtstreifen (gelb, blau, Ampelfarben) statt Auswahllisten;
   Teile des Rennwochenendes als Schalter mit Haken. Startknopf grün beleuchtet.
 - Farbwerte des Pult-Stils als Variablen (`--pn-*`) in `css/style.css` – Grundlage für die Umstellung des Spiels.
+
+### Korrektur Bewertung bei Vorfällen in der Boxengasse (v43)
+Für Gefahren mit der Maßnahme „Boxengasse schließen“ fehlten Gewicht und Frist in der Bewertung: Die Reaktion galt immer
+als zu spät und die Sicherheits-Note wurde ungültig („NaN/100“). Jetzt: Gewicht 12, rechtzeitig innerhalb von 30 s.
+Einträge ohne gültige Punktzahl werden im Verlauf und in der Statistik ausgeblendet.

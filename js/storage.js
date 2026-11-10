@@ -23,7 +23,8 @@ const HISTORY_KEY = 'f1rc.history.v1';
 // Bewertungen der letzten Rennen (neueste zuerst, max. 100)
 export function loadHistory() {
   try {
-    return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    // Einträge ohne gültige Punktzahl (alter Fehler in der Bewertung) werden ausgeblendet
+    return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]').filter(e => e && Number.isFinite(e.total));
   } catch {
     return [];
   }
@@ -31,6 +32,7 @@ export function loadHistory() {
 
 export function saveHistoryEntry(entry) {
   try {
+    if (!Number.isFinite(entry.total)) return;
     const list = loadHistory().filter(e => e.key !== entry.key);
     list.unshift(entry);
     localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, 100)));
