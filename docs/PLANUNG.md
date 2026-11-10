@@ -572,3 +572,12 @@ Vibration bei neuen Vorfällen/Entscheidungen: im Tempo-Menü abschaltbar.
 - Wiedergabe im Vollbild (Ergebnis: „▶ Replay des Rennens“, Startbildschirm: „Replay ›“): Karte mit allen Autos,
   Ranking zum Zeitpunkt (antippen = verfolgen), Zeitleiste mit Bändern für VSC/SC/Rot und Markierungen für Vorfälle,
   Fälle, Führungswechsel und Zielflagge, Tempo 4×/16×/32×/64×, Ereignisliste zum Springen (6 s vor dem Ereignis).
+
+### Kontrollpult und Entscheidungen im Vollbild (v38)
+- **Kontrollpult („CONTROL ▲“):** Vollbild mit Kopfzeile (Runde, Uhr), Live-Karte (Sektor antippen → Flaggen),
+  Konsolenwahl (10 Schalter, LED = aktiv, Rahmen = gewählt), Details der Konsole (beim SC: Kennzahlen, Strategie,
+  Track Status mit Bergung und Einsatzfahrzeugen) und Aktionsknöpfen unten am Daumen. Öffnet die Konsole zur aktuellen
+  Meldung, sonst die zuletzt benutzte. Das Rennen läuft weiter.
+- **Entscheidungen (Reiter „DECISIONS“):** Vollbild-Liste mit Live-Zeile (Runde, Status, Tempo, „Pause gesperrt“ auf
+  Schwer), Zählern (neu, in Untersuchung, nach dem Rennen, entschieden), Filter OFFEN/ENTSCHIEDEN/ALLE und Knopf
+  „Nächsten neuen Fall öffnen“. Fall im Vollbild: Dokument mit großer Szene, ‹ › zum Blättern, Urteil fest unten.

@@ -26,8 +26,9 @@ function stratHtml(n) {
 }
 
 export class ControlPanel {
-  constructor({ root, title, sub, body, onAction }) {
+  constructor({ root, title, sub, body, foot = null, onAction }) {
     this.root = root;
+    this.foot = foot;     // Aktionsknöpfe unten (Vollbild-Pult)
     this.titleEl = title;
     this.subEl = sub;
     this.body = body;
@@ -35,7 +36,7 @@ export class ControlPanel {
     this.sig = '';
     this.armed = null;
     this.sel = {};          // gewählter Sektor je Konsole
-    body.addEventListener('click', e => {
+    const onClick = e => {
       const pick = e.target.closest('[data-sec]');
       if (pick) { this.sel[this.kind] = Number(pick.dataset.sec); this.sig = ''; this.render(this.lastRace); return; }
       const b = e.target.closest('[data-action]');
@@ -50,7 +51,9 @@ export class ControlPanel {
       }
       this.armed = null;
       onAction(a);
-    });
+    };
+    body.addEventListener('click', onClick);
+    if (foot) foot.addEventListener('click', onClick);
   }
 
   get isOpen() {
@@ -74,11 +77,17 @@ export class ControlPanel {
     if (!active.length) return '<div class="ctl-ok">✓ Keine offene Gefahr auf der Strecke.</div>';
     return active.map(h => {
       const p = Math.round(hazardProgress(h) * 100);
+      // Einsatzfahrzeuge in diesem Sektor
+      const sv = race.svc || { cranes: [] };
+      const svc = [];
+      if (!h.global && sv.medical && sv.medical.sector === h.sector) svc.push(`<span class="svc-med">MEDICAL ${sv.medical.phase === 'onsite' ? 'vor Ort' : sv.medical.phase === 'out' ? 'unterwegs' : 'fährt zurück'}</span>`);
+      if (!h.global && sv.cranes.some(c => c.sector === h.sector)) svc.push('<span class="svc-crane">KRAN im Einsatz</span>');
+      if (!h.global && sv.sweeper && sv.sweeper.sector === h.sector) svc.push('<span class="svc-crane">KEHRMASCHINE im Einsatz</span>');
       return `
         <div class="ctl-hazard">
-          <div>${WARN_ICON} ${hazardWhere(h)}: ${h.desc}</div>
+          <div>${WARN_ICON} <b>${hazardWhere(h)}:</b> ${h.desc}</div>
           <div class="progress"><span style="width:${p}%"></span></div>
-          <div class="ctl-small">Bergung ${p} %</div>
+          <div class="ctl-small">Bergung ${p} %${svc.length ? ` · ${svc.join(' · ')}` : ''}</div>
         </div>`;
     }).join('');
   }
@@ -135,7 +144,9 @@ export class ControlPanel {
         const laps = Math.max(0, leader.lap - (n.startLap ?? leader.lap));
         const unlapping = race.cars.filter(c => c.unlap).map(c => c.id);
         if (n.phase === 'out') {
-          html = `<div class="ctl-status">Safety Car seit ${since}${n.startLap !== undefined ? ` · ${laps} Rd` : ''}</div>${stratHtml(n)}`;
+          const sec0 = race.sc && !race.sc.inPit ? sectorIndexAt(race.track, race.sc.d) + 1 : null;
+          html = `<div class="ctl-status">Safety Car seit ${since}${n.startLap !== undefined ? ` · ${laps} Rd` : ''}</div>
+            <div class="ctl-kv"><div><span>SC VOR</span><b>${leader ? leader.id : '–'}</b></div><div><span>SC IN</span><b>${sec0 ? `SEKTOR ${sec0}` : 'BOX'}</b></div><div><span>AUTOS</span><b>${race.cars.filter(c => !c.retired && !c.finished).length}</b></div></div>${stratHtml(n)}`;
           if (n.release && n.release.length) html += `<p class="ctl-small">Boxenausfahrt: ${n.release.length} Autos warten noch.</p>`;
           html += n.unlap
             ? `<div class="ctl-small">${unlapping.length ? `Zurückrunden läuft: ${unlapping.join(', ')}` : 'Überrundete haben sich zurückgerundet.'}</div>`
@@ -290,5 +301,10 @@ export class ControlPanel {
       html = html.replace(new RegExp(`(<button class="ctl-btn[^"]*)("[^>]*data-action="${this.armed.action}"[^>]*>)([^<]*)`), '$1 armed$2ARMED – ZUM AUSLÖSEN ERNEUT DRÜCKEN');
     }
     this.body.innerHTML = html + `<div class="ctl-section">TRACK STATUS</div>${this.hazardsHtml(race)}`;
+    // Vollbild-Pult: Aktionsknöpfe nach unten an den Daumen
+    if (this.foot) {
+      this.foot.innerHTML = '';
+      for (const b of [...this.body.children].filter(x => x.matches('button.ctl-btn'))) this.foot.appendChild(b);
+    }
   }
 }

@@ -152,6 +152,7 @@ const controlPanel = new ControlPanel({
   title: $('ctlTitle'),
   sub: $('ctlSub'),
   body: $('ctlBody'),
+  foot: $('ctlFoot'),
   onAction: action => {
     const actions = {
       'vsc-on': () => deployVSC(race),
@@ -191,7 +192,7 @@ const controlPanel = new ControlPanel({
 function caseAction(act, id, form) {
     const c = id ? race.cases.find(x => x.id === id) : null;
     if (act === 'scene-full') { openSceneFull(c, form.t); return; }
-    if (act === 'scene-map') { startMapReplay(c); return; }
+    if (act === 'scene-map') { closeDecisions(); startMapReplay(c); return; }
     if (act === 'investigate') investigate(race, c);
     else if (act === 'investigate-now') { c.status = 'investigating'; race.emit('rc', `Entscheidung #${c.id} wird untersucht: ${c.title}`); }
     else if (act === 'hearing') startHearing(race, c);
@@ -200,15 +201,16 @@ function caseAction(act, id, form) {
     else if (act === 'decide') decide(race, c, { carId: form.carId, penalty: form.penalty || 'none', points: form.points });
     else if (act === 'revise') reviseCase(race, c);
     else if (act === 'decide-keep') decide(race, c, { carId: null, penalty: 'keep', points: 0 });
-    else if (act === 'results') { finishFlow(); return; }
+    else if (act === 'results') { closeDecisions(); finishFlow(); return; }
     casesPanel.render(race);
+    if (decOpen()) renderDec(true);
     updateCasesBadge();
     if (act !== 'render') { renderTiming($('timing'), race, timingOpts()); autosave(); }
     if (postOpen()) renderPost(act === 'render');
 }
-const casesPanel = new CasesPanel($('cases'), { onAction: caseAction });
+const casesPanel = new CasesPanel($('decDocBody'), { onAction: caseAction, single: true, actionsEl: $('decDocFoot') });
 // Nach dem Rennen: offene Entscheidungen einzeln abarbeiten
-const postPanel = new CasesPanel($('postBody'), { onAction: caseAction, single: true });
+const postPanel = new CasesPanel($('postBody'), { onAction: caseAction, single: true, noRevise: true });
 
 let race = null;
 let savedRace = null;   // gespeichertes Rennen, das fortgesetzt werden kann
@@ -282,6 +284,7 @@ function newRace(seed = randomSeed()) {
   let fullLaps = null;
   if (kind === 'race' || kind === 'sprint') ({ laps, full: fullLaps } = distanceFor(track, kind, settings.length));
   map.setTrack(track);
+  deskMap.setTrack(track);
   const opts = {
     track, teams: TEAMS, drivers, seed, weather: settings.weatherMode, gridPenalties, gridOrder, laps, fullLaps, kind, caution,
     length: settings.length, difficulty: settings.mode === 'season' ? 'hard' : (settings.difficulty || 'medium'),
@@ -307,8 +310,8 @@ function newRace(seed = randomSeed()) {
   feed.reset();
   unread = 0;
   updateBadge();
-  closeFlags();
-  closeControl();
+  closeDesk();
+  closeDecisions();
   map.selected = null;
   $('seedInfo').textContent = `Rennen #${seed} · ${(DIFFICULTY[race.difficulty] || DIFFICULTY.hard).name}`;
   renderHistory();
@@ -615,6 +618,7 @@ function resumeRace() {
   if (!race.isSession) loadReplay().then(prev => { if (race && !race.isSession) recorder = new Recorder(race, prev); });
   track = race.track;
   map.setTrack(track);
+  deskMap.setTrack(track);
   savedRace = null;
   paused = true;
   acc = 0;
@@ -789,6 +793,12 @@ function frame(now) {
     }
     map.paused = paused;
     map.draw(race, renderD);
+    if (deskOpen()) {
+      deskMap.paused = paused;
+      deskMap.showSectors = map.showSectors;
+      deskMap.highlightSector = map.highlightSector;
+      deskMap.draw(race, renderD);
+    }
     updateStartCtl();
     updateSound(now);
 
@@ -931,7 +941,8 @@ function refreshUi() {
   updateAlert();
   flagPanel.render(race);
   controlPanel.render(race);
-  if (activeTab === 'cases') casesPanel.render(race);
+  if (decOpen()) renderDec();
+  if (deskOpen()) renderDeskHead();
   updateCasesBadge();
   if (race.cases.length > seenCases) {
     const c = race.cases[race.cases.length - 1];
@@ -946,7 +957,7 @@ function refreshUi() {
     } else if (settings.slowOnIncident && settings.speed > 1) {
       setSpeed(1);
       toast(`Neue Entscheidung #${c.id}: ${c.typeName} – Tempo auf 1×`);
-    } else if (activeTab !== 'cases') toast(`Neue Entscheidung #${c.id}: ${c.typeName}`);
+    } else if (!decOpen()) toast(`Neue Entscheidung #${c.id}: ${c.typeName}`);
   }
   if (map.follow) renderDriverCard();
   if (weatherPanel.isOpen && weatherPanel.offset === 0) weatherPanel.drawRadar();
@@ -1100,45 +1111,77 @@ function setSpeed(v) {
 
 // ---------- Flaggen-Panel ----------
 
-// Konsolen (Flaggen, VSC/SC/Rot, Start) liegen über dem unteren Bereich zwischen Karte und Pult
-function placeConsoles() {
-  const app = appEl.getBoundingClientRect();
-  const mapBottom = mapWrap.getBoundingClientRect().bottom;
-  const deckTop = document.querySelector('.actions').getBoundingClientRect().top;
-  const top = Math.max(mapBottom - 1, app.top + window.innerHeight * 0.38);
-  for (const id of ['flagSheet', 'controlSheet']) {
-    const el = $(id);
-    el.style.top = `${Math.min(top, deckTop - 220)}px`;
-    el.style.bottom = `${window.innerHeight - deckTop}px`;
-  }
+// Kontrollpult im Vollbild: Live-Karte, Konsolenwahl, Details, Aktionsknöpfe unten
+const deskMap = new TrackMap($('deskMap'), track);
+deskMap.padTop = 34;
+deskMap.onSelectSector = idx => openFlags(idx);
+deskMap.onSelectCar = () => {};
+const KIND_BTN = { flags: 'flagBtn', vsc: 'vscBtn', sc: 'scBtn', red: 'redBtn', start: 'redBtn', medical: 'medBtn', sweeper: 'sweepBtn', crane: 'craneBtn', pit: 'pitBtn', bo: 'boBtn', msg: 'msgBtn' };
+let deskKind = null, lastDeskKind = 'flags';
+function deskOpen() { return !$('desk').classList.contains('hidden'); }
+function showDesk() {
+  if (deskOpen()) return;
+  $('desk').classList.remove('hidden');
+  $('deckBtn').setAttribute('aria-expanded', 'true');
+  renderDeskHead();
 }
-window.addEventListener('resize', () => { if (flagPanel.isOpen || controlPanel.isOpen) placeConsoles(); });
+function closeDesk() {
+  $('desk').classList.add('hidden');
+  $('deckBtn').setAttribute('aria-expanded', 'false');
+  flagPanel.close();
+  controlPanel.close();
+  map.showSectors = false;
+  map.highlightSector = null;
+  deskKind = null;
+  coverClose();
+}
+function markDesk() {
+  for (const [k, id] of Object.entries(KIND_BTN)) if (k !== 'start') $(id).classList.remove('cur');
+  if (deskKind) $(KIND_BTN[deskKind]).classList.add('cur');
+}
+function renderDeskHead() {
+  if (!race) return;
+  $('deskSub').textContent = `${$('lapLabel').textContent.toUpperCase()} ${$('lap').textContent} · ${$('clock').textContent}`;
+  const f = $('flag');
+  $('deskTag').textContent = f.textContent;
+  $('deskTag').className = `desk-tag ${f.className}`;
+  $('deskSpeed').textContent = paused ? 'PAUSE' : `LIVE · ${settings.speed}×`;
+}
 
 function openFlags(idx = null) {
   if (!race) return;
-  placeConsoles();
-  closeControl();
+  showDesk();
+  controlPanel.close();
+  deskKind = lastDeskKind = 'flags';
   map.showSectors = true;
   map.highlightSector = idx;
   flagPanel.open(race, idx);
+  markDesk();
 }
 
 function openControl(kind) {
   if (!race) return;
-  closeFlags();
-  if (controlPanel.isOpen && controlPanel.kind === kind) { closeControl(); return; }
-  placeConsoles();
-  controlPanel.open(race, kind);
-}
-
-function closeControl() {
-  controlPanel.close();
-}
-
-function closeFlags() {
+  showDesk();
   flagPanel.close();
   map.showSectors = false;
   map.highlightSector = null;
+  deskKind = lastDeskKind = kind;
+  controlPanel.open(race, kind);
+  markDesk();
+}
+
+function closeControl() {
+  if (deskKind && deskKind !== 'flags') closeDesk();
+  else controlPanel.close();
+}
+
+function closeFlags() {
+  if (deskKind === 'flags') closeDesk();
+  else {
+    flagPanel.close();
+    map.showSectors = false;
+    map.highlightSector = null;
+  }
 }
 
 // ---------- Tempo-Menü ----------
@@ -1371,6 +1414,8 @@ function postPending() {
   return openCases(race).length > 0 || Boolean(race.scrutiny && !race.scrutiny.done);
 }
 function finishFlow() {
+  closeDecisions();
+  closeDesk();
   resultShown = true;
   if (!race.protestsDone && !openCases(race).length && rollProtests(race) > 0) { seenCases = race.cases.length; autosave(); }
   closeFlags();
@@ -1455,6 +1500,105 @@ function setTab(tab) {
     $('panel-cases').scrollTop = 0;   // beim Öffnen immer oben beginnen
   }
 }
+
+// ---------- Entscheidungen im Vollbild ----------
+const DEC_STATUS = {
+  new: ['NOTED', '#facc15'], investigating: ['INVESTIGATION', '#fb923c'], post: ['POST-RACE', '#60a5fa'],
+  hearing: ['HEARING', '#c084fc'], decided: ['DECISION', '#22c55e'], nfa: ['NFA', '#9aa4b2'],
+};
+const DEC_ORDER = { new: 0, investigating: 1, hearing: 2, post: 3, decided: 4, nfa: 5 };
+const OPEN_ST = ['new', 'investigating', 'post', 'hearing'];
+let decFilter = 'open', decDocId = null, decSig = '';
+function decOpen() { return !$('decScreen').classList.contains('hidden'); }
+function decCases() {
+  if (!race) return [];
+  const list = race.cases.filter(c => decFilter === 'all' || (decFilter === 'open' ? OPEN_ST.includes(c.status) : !OPEN_ST.includes(c.status)));
+  return list.sort((a, b) => (decFilter === 'open' ? DEC_ORDER[a.status] - DEC_ORDER[b.status] : 0) || b.id - a.id);
+}
+function openDecisions(id = null) {
+  if (!race) return;
+  $('decScreen').classList.remove('hidden');
+  if (id) showDecDoc(id); else showDecList();
+}
+function closeDecisions() {
+  $('decScreen').classList.add('hidden');
+  decDocId = null;
+}
+function showDecList() {
+  decDocId = null;
+  $('decListView').classList.remove('hidden');
+  $('decDocView').classList.add('hidden');
+  renderDec(true);
+}
+function showDecDoc(id) {
+  decDocId = id;
+  casesPanel.onlyId = id;
+  casesPanel.sig = '';
+  $('decListView').classList.add('hidden');
+  $('decDocView').classList.remove('hidden');
+  $('decDocBody').scrollTop = 0;
+  renderDec(true);
+}
+function renderDec(force = false) {
+  if (!race || !decOpen()) return;
+  const live = race.phase === 'finished' ? 'RENNEN BEENDET' : `${paused ? 'PAUSE' : 'LIVE'} · ${$('lapLabel').textContent.toUpperCase()} ${$('lap').textContent} · ${$('flag').textContent} · ${settings.speed}×`;
+  if (decDocId !== null) {
+    const list = decCases();
+    const i = list.findIndex(c => c.id === decDocId);
+    const c = race.cases.find(x => x.id === decDocId);
+    if (!c) { showDecList(); return; }
+    const name = { open: 'OFFEN', done: 'ENTSCHIEDEN', all: 'ALLE' }[decFilter];
+    $('decDocTitle').innerHTML = `DOC ${c.id}${i >= 0 ? ` · ${i + 1} / ${list.length} ${name}` : ''}<small>${c.typeName.toUpperCase()} · ${c.when || (c.lap ? `RD ${c.lap}` : 'VOR DEM START')} · ${live}</small>`;
+    $('decPrev').disabled = i <= 0;
+    $('decNextDoc').disabled = i < 0 ? !list.some(x => x.id !== c.id) : i >= list.length - 1;
+    casesPanel.render(race);
+    return;
+  }
+  const count = st => race.cases.filter(c => st.includes(c.status)).length;
+  const list = decCases();
+  const sig = JSON.stringify([decFilter, live, pauseBlocked(), race.cases.map(c => [c.id, c.status, c.verdict && c.verdict.penalty])]);
+  if (!force && sig === decSig) return;
+  decSig = sig;
+  $('decSub').textContent = `${race.track.def.grandPrix.replace('Großer Preis von ', 'GP ').replace('Großer Preis der ', 'GP ')} · ${(KIND_NAME[race.kind] || '').toUpperCase()}`;
+  $('decLive').innerHTML = `<i class="${race.phase === 'finished' ? 'off' : paused ? 'pz' : ''}"></i><span>${live}</span>${pauseBlocked() ? '<b>PAUSE GESPERRT (SCHWER)</b>' : ''}`;
+  $('decCount').innerHTML = [['NEU', ['new'], '#facc15'], ['UNTERSUCH.', ['investigating'], '#fb923c'], ['NACH RENNEN', ['post', 'hearing'], '#60a5fa'], ['ENTSCHIEDEN', ['decided', 'nfa'], '#e6e9ef']]
+    .map(([l, st, col]) => `<div><b style="color:${count(st) ? col : '#4b5563'}">${count(st)}</b><span>${l}</span></div>`).join('');
+  for (const b of $('decTabs').children) {
+    b.classList.toggle('on', b.dataset.f === decFilter);
+    if (b.dataset.f === 'open') b.textContent = `OFFEN (${count(OPEN_ST)})`;
+  }
+  $('decList').innerHTML = list.length ? list.map(c => {
+    const [lab, col] = DEC_STATUS[c.status];
+    const v = c.verdict;
+    const meta = [c.when ? c.when.toUpperCase() : c.lap ? `RD ${c.lap}` : 'VOR DEM START', c.typeName.toUpperCase()];
+    if (v && v.carId) meta.push(`${PENALTIES[v.penalty].short} ${v.carId}`);
+    else if (c.scene) meta.push('🎥 SZENE');
+    const done = !OPEN_ST.includes(c.status);
+    return `<button class="dec-it${c.status === 'new' ? ' new' : c.status === 'investigating' ? ' inv' : ''}${done ? ' done' : ''}" data-doc="${c.id}">
+      <span class="dec-no">DOC<b>${c.id}</b></span><span><span class="dec-tt">${c.title}</span><span class="dec-mt">${meta.join(' · ')}</span></span>
+      <span class="dec-st" style="color:${col};border-color:${col}">${lab}</span></button>`;
+  }).join('') : `<div class="empty"><div class="empty-icon">⚖️</div>${race.cases.length ? 'Keine Fälle in dieser Ansicht.' : 'Noch keine Entscheidungen.<br>Vorfälle zwischen Fahrern und Regelverstöße erscheinen hier.'}</div>`;
+  const next = decCases().find(c => c.status === 'new') || race.cases.filter(c => c.status === 'new').sort((a, b) => a.id - b.id)[0];
+  const btn = $('decNext');
+  if (race.phase === 'finished' && !next) { btn.textContent = 'ERGEBNIS ANZEIGEN ›'; btn.dataset.mode = 'results'; btn.disabled = false; }
+  else { btn.textContent = next ? 'NÄCHSTEN NEUEN FALL ÖFFNEN ›' : 'KEINE NEUEN FÄLLE'; btn.dataset.mode = next ? String(next.id) : ''; btn.disabled = !next; }
+}
+$('decList').addEventListener('click', e => { const b = e.target.closest('[data-doc]'); if (b) showDecDoc(Number(b.dataset.doc)); });
+$('decTabs').addEventListener('click', e => { const b = e.target.closest('[data-f]'); if (b) { decFilter = b.dataset.f; renderDec(true); $('decList').scrollTop = 0; } });
+$('decClose').addEventListener('click', closeDecisions);
+$('decBack').addEventListener('click', showDecList);
+$('decNext').addEventListener('click', () => {
+  const m = $('decNext').dataset.mode;
+  if (m === 'results') { closeDecisions(); finishFlow(); } else if (m) showDecDoc(Number(m));
+});
+const decStep = d => {
+  const list = decCases();
+  const i = list.findIndex(c => c.id === decDocId);
+  if (i >= 0 && list[i + d]) showDecDoc(list[i + d].id);
+  else if (i < 0 && d > 0 && list.length) showDecDoc(list[0].id);   // entschiedener Fall fällt aus „Offen“: weiter zum ersten offenen
+};
+$('decPrev').addEventListener('click', () => decStep(-1));
+$('decNextDoc').addEventListener('click', () => decStep(1));
 
 let toastTimer = null;
 function toast(text) {
@@ -1657,6 +1801,7 @@ timingEl.addEventListener('click', e => {
 
 document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => {
   if (suppressTabClick) return;
+  if (b.dataset.tab === 'cases') { openDecisions(); return; }
   if (settings.panelCollapsed) animatePanel(false, mapWrap.getBoundingClientRect().height);
   setTab(b.dataset.tab);
 }));
@@ -1733,11 +1878,9 @@ const dragEnd = () => {
 window.addEventListener('pointerup', dragEnd);
 window.addEventListener('pointercancel', dragEnd);
 
-$('flagBtn').addEventListener('click', () => {
-  if (flagPanel.isOpen) closeFlags();
-  else openFlags();
-});
-$('flagCloseBtn').addEventListener('click', closeFlags);
+$('flagBtn').addEventListener('click', () => openFlags());
+$('flagCloseBtn').addEventListener('click', closeDesk);
+$('deskClose').addEventListener('click', closeDesk);
 $('allGreenBtn').addEventListener('click', () => {
   clearAllFlags(race);
   flagPanel.render(race);
@@ -1765,7 +1908,7 @@ $('redCover').addEventListener('click', () => {
   clearTimeout(coverTimer);
   coverTimer = setTimeout(coverClose, 5000);
 });
-$('ctlCloseBtn').addEventListener('click', closeControl);
+$('ctlCloseBtn').addEventListener('click', closeDesk);
 $('medBtn').addEventListener('click', () => openControl('medical'));
 $('sweepBtn').addEventListener('click', () => openControl('sweeper'));
 $('craneBtn').addEventListener('click', () => openControl('crane'));
@@ -1773,21 +1916,16 @@ $('pitBtn').addEventListener('click', () => openControl('pit'));
 $('msgBtn').addEventListener('click', () => openControl('msg'));
 $('boBtn').addEventListener('click', () => openControl('bo'));
 
-// Kontrollpult auf-/zuklappen; eine Konsole öffnen klappt es wieder zu
-function setDeck(open) {
-  const deck = $('deck');
-  if (open) {
-    deck.style.bottom = `${window.innerHeight - document.querySelector('.actions').getBoundingClientRect().top}px`;
-    closeFlags();
-    closeControl();
-  }
-  deck.classList.toggle('hidden', !open);
-  $('deckBtn').setAttribute('aria-expanded', String(open));
-}
-$('deckBtn').addEventListener('click', () => setDeck($('deck').classList.contains('hidden')));
-$('deck').addEventListener('click', e => {
-  const b = e.target.closest('.act');
-  if (b && b.id !== 'redCover') setTimeout(() => setDeck(false), 0);
+// Kontrollpult öffnen: passende Konsole zur aktuellen Meldung, sonst die zuletzt benutzte
+$('deckBtn').addEventListener('click', () => {
+  if (!race) return;
+  if (deskOpen()) { closeDesk(); return; }
+  const el = $('alertBanner');
+  if (!el.classList.contains('hidden') && el.dataset.kind) {
+    if (el.dataset.kind === 'flags') openFlags(Number(el.dataset.sector));
+    else openControl(el.dataset.kind);
+  } else if (lastDeskKind === 'flags') openFlags();
+  else openControl(lastDeskKind);
 });
 
 document.querySelectorAll('.act[data-soon]').forEach(b => b.addEventListener('click', () => {
@@ -1804,8 +1942,7 @@ $('closeResultBtn').addEventListener('click', () => $('resultScreen').classList.
 $('openCasesBtn').addEventListener('click', () => {
   if (race && race.phase === 'finished') { $('resultScreen').classList.add('hidden'); finishFlow(); return; }
   $('resultScreen').classList.add('hidden');
-  setCollapsed(false);
-  setTab('cases');
+  openDecisions();
 });
 $('menuBtn').addEventListener('click', () => {
   if (!race || race.phase === 'pre') return;

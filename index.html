@@ -77,25 +77,6 @@
       </div>
     </main>
 
-    <!-- Kontrollpult: klappt über der Leiste auf -->
-    <div id="deck" class="deck hidden">
-      <div class="deck-title">RACE CONTROL · DESK</div>
-      <div class="deck-grid">
-        <button id="flagBtn" class="act act-flag act-live"><i class="act-led"></i>FLAGS</button>
-        <button id="vscBtn" class="act act-vsc act-live"><i class="act-led"></i>VSC</button>
-        <button id="scBtn" class="act act-sc act-live"><i class="act-led"></i>SC</button>
-        <div class="act-cover-wrap">
-          <button id="redBtn" class="act act-red act-live"><i class="act-led"></i>RED</button>
-          <button id="redCover" class="act-cover" aria-label="Schutzklappe der roten Flagge öffnen"><span>LIFT COVER</span></button>
-        </div>
-        <button id="medBtn" class="act act-med act-live"><i class="act-led"></i>MEDICAL</button>
-        <button id="sweepBtn" class="act act-svc act-live"><i class="act-led"></i>SWEEPER</button>
-        <button id="craneBtn" class="act act-svc act-live"><i class="act-led"></i>CRANE</button>
-        <button id="pitBtn" class="act act-pit act-live"><i class="act-led"></i>PIT LANE</button>
-        <button id="boBtn" class="act act-bo act-live"><i class="act-led"></i>BLK/ORG</button>
-        <button id="msgBtn" class="act act-msg act-live"><i class="act-led"></i>RC MSG</button>
-      </div>
-    </div>
     <footer class="actions">
       <button id="deckBtn" class="deck-btn" aria-expanded="false">
         <span class="deck-lamps">
@@ -128,6 +109,26 @@
     </label>
   </div>
 
+  <!-- Kontrollpult im Vollbild -->
+  <div id="desk" class="fs-screen desk hidden">
+    <div class="fs-top"><div class="fs-t">RACE CONTROL · DESK<small id="deskSub"></small></div><button id="deskClose" class="x-btn" aria-label="Schließen">✕</button></div>
+    <div class="desk-live"><canvas id="deskMap"></canvas><span id="deskTag" class="desk-tag"></span><span id="deskSpeed" class="desk-speed"></span></div>
+      <div id="deck" class="deck-grid">
+        <button id="flagBtn" class="act act-flag act-live"><i class="act-led"></i>FLAGS</button>
+        <button id="vscBtn" class="act act-vsc act-live"><i class="act-led"></i>VSC</button>
+        <button id="scBtn" class="act act-sc act-live"><i class="act-led"></i>SC</button>
+        <div class="act-cover-wrap">
+          <button id="redBtn" class="act act-red act-live"><i class="act-led"></i>RED</button>
+          <button id="redCover" class="act-cover" aria-label="Schutzklappe der roten Flagge öffnen"><span>LIFT COVER</span></button>
+        </div>
+        <button id="medBtn" class="act act-med act-live"><i class="act-led"></i>MEDICAL</button>
+        <button id="sweepBtn" class="act act-svc act-live"><i class="act-led"></i>SWEEPER</button>
+        <button id="craneBtn" class="act act-svc act-live"><i class="act-led"></i>CRANE</button>
+        <button id="pitBtn" class="act act-pit act-live"><i class="act-led"></i>PIT LANE</button>
+        <button id="boBtn" class="act act-bo act-live"><i class="act-led"></i>BLK/ORG</button>
+        <button id="msgBtn" class="act act-msg act-live"><i class="act-led"></i>RC MSG</button>
+      </div>
+    <div id="deskBody" class="desk-body">
   <div id="flagSheet" class="flag-sheet hidden">
     <div class="flag-sheet-head">
       <div>
@@ -151,6 +152,27 @@
       <button id="ctlCloseBtn" class="pill-btn">ESC</button>
     </div>
     <div id="ctlBody" class="ctl-body"></div>
+    <div id="ctlFoot" class="ctl-foot"></div>
+  </div>
+
+    </div>
+  </div>
+
+  <!-- Entscheidungen im Vollbild -->
+  <div id="decScreen" class="fs-screen dec hidden">
+    <div id="decListView" class="dec-view">
+      <div class="fs-top"><div class="fs-t">STEWARDS · DECISIONS<small id="decSub"></small></div><button id="decClose" class="x-btn" aria-label="Schließen">✕</button></div>
+      <div id="decLive" class="dec-live"></div>
+      <div id="decCount" class="dec-count"></div>
+      <div id="decTabs" class="dec-tabs"><button data-f="open">OFFEN</button><button data-f="done">ENTSCHIEDEN</button><button data-f="all">ALLE</button></div>
+      <div id="decList" class="dec-list"></div>
+      <div class="dec-foot"><button id="decNext" class="ctl-btn ctl-sc"></button></div>
+    </div>
+    <div id="decDocView" class="dec-view hidden">
+      <div class="fs-top"><button id="decPrev" class="x-btn" aria-label="Vorheriger Fall">‹</button><div id="decDocTitle" class="fs-t fs-center"></div><button id="decNextDoc" class="x-btn" aria-label="Nächster Fall">›</button><button id="decBack" class="x-btn" aria-label="Zur Liste">✕</button></div>
+      <div id="decDocBody" class="dec-doc-body"></div>
+      <div id="decDocFoot" class="dec-doc-foot"></div>
+    </div>
   </div>
 
   <div id="startScreen" class="overlay">
@@ -227,7 +249,7 @@
       <button id="startBtn" class="primary-btn">Rennen starten</button>
       <button id="seasonBtn" class="secondary-btn season-btn hidden">🏆 Saison-Übersicht</button>
       <div id="history" class="history"></div>
-      <div class="app-version">Version 37</div>
+      <div class="app-version">Version 38</div>
       <details class="options">
         <summary>Optionen</summary>
         <label>Rennen-Nr. (gleiche Nr. = gleiches Rennen)

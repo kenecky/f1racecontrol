@@ -59,7 +59,7 @@ export class TrackMap {
     this.bg.height = Math.round((rect.height + 2 * BG_MARGIN) * dpr);
     const tr = this.track;
     const pad = 34;    // Rand: Gras und Auslaufzonen ragen über die Mittellinie hinaus
-    const padTop = 76; // Platz für Einblendungen (Vorfälle, VSC, SC …)
+    const padTop = this.padTop ?? 76; // Platz für Einblendungen (Vorfälle, VSC, SC …)
     const padL = this.padLeft ? this.padLeft + 40 : pad; // Platz für den Ranking-Tower
     const bounds = (ang, h = this.h) => {
       const c = Math.cos(ang), sn = Math.sin(ang);

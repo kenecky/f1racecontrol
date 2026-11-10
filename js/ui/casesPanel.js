@@ -19,8 +19,10 @@ const SESSION = { race: 'Rennen', sprint: 'Sprint', quali: 'Qualifying', sq: 'Sp
 const EV_ICON = { video: '🎥', telemetry: '📊', position: '📍', radio: '📻', data: '📋', hearing: '🗣️' };
 
 export class CasesPanel {
-  constructor(el, { onAction, single = false }) {
+  constructor(el, { onAction, single = false, actionsEl = null, noRevise = false }) {
     this.el = el;
+    this.actionsEl = actionsEl;   // Aktionen/Urteil in eigenem Bereich (Vollbild: unten fest)
+    this.noRevise = noRevise;
     this.onAction = onAction;
     this.single = single;     // nur ein Fall (Nachbereitung nach dem Rennen), immer aufgeklappt
     this.onlyId = null;
@@ -28,11 +30,11 @@ export class CasesPanel {
     this.forms = {};
     this.sig = '';
     this.players = new Map();   // Rennszenen je Fall (Wiedergabezeit bleibt beim Neuzeichnen erhalten)
-    el.addEventListener('click', e => {
+    const onClick = e => {
       const b = e.target.closest('[data-act]');
       if (!b || b.disabled) return;
       const card = b.closest('.case');
-      const id = card ? Number(card.dataset.id) : null;
+      const id = card ? Number(card.dataset.id) : this.onlyId;
       const act = b.dataset.act;
       if (act === 'toggle' && this.single) return;
       if (act === 'toggle') {
@@ -50,7 +52,9 @@ export class CasesPanel {
       else { this.onAction(act, id, f); }
       this.sig = '';
       this.onAction('render');
-    });
+    };
+    el.addEventListener('click', onClick);
+    if (actionsEl) actionsEl.addEventListener('click', onClick);
   }
 
   render(race) {
@@ -62,6 +66,10 @@ export class CasesPanel {
     if (sig === this.sig) return;
     this.sig = sig;
 
+    if (this.actionsEl) {
+      const c = race.cases.find(x => x.id === this.onlyId);
+      this.actionsEl.innerHTML = c ? this.actions(race, c, finished) : '';
+    }
     if (!race.cases.length) {
       this.el.innerHTML = `<div class="empty"><div class="empty-icon">⚖️</div>Noch keine Entscheidungen.<br>Vorfälle zwischen Fahrern und Regelverstöße erscheinen hier.</div>`;
       return;
@@ -148,7 +156,7 @@ export class CasesPanel {
             ${scene}${evHtml}${extra}${more}${hearing}${revised}
             ${stamp}
           </div>
-          ${this.actions(race, c, finished)}
+          ${this.actionsEl ? '' : this.actions(race, c, finished)}
         </div>`;
     }
     return `
@@ -187,7 +195,7 @@ export class CasesPanel {
         <button class="ctl-btn ctl-sc" data-act="hearing">Fahrer zur Anhörung vorladen</button>`;
     }
     if (c.status === 'investigating' || c.status === 'hearing') return this.form(c, finished);
-    if (canRevise(race, c) && !this.single) {
+    if (canRevise(race, c) && !this.noRevise) {
       const f = this.forms[c.id] || {};
       return f.reviseArmed
         ? `<div class="case-actions"><p class="ctl-small">Revidieren hebt das Urteil auf (bereits verbüßte Strafen bleiben) und kostet Ansehen bei den Teams und Punkte in der Konsistenz.</p>
