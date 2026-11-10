@@ -21,7 +21,8 @@ const MS_LEN = 100;              // Mini-Sektor-Länge (m) für Abstandsberechnu
 
 import { COMPOUNDS, wetLoss, bestCompound } from './tyres.js';
 import { createWeather, updateWeather } from './weather.js';
-import { stepFormation, stepGrid, stepLights, releasePitStarters, stepRestart, PRESTART } from './start.js';
+import { stepFormation, stepGrid, stepLights, releasePitStarters, stepRestart, toPitLane, PRESTART } from './start.js';
+import { rollRegs, lateToGrid, checkTyreRule } from './regs.js';
 import { prepareScrutiny } from './scrutiny.js';
 import { ambientRadio, T } from './texts.js';
 import { updateServices, svc } from './services.js';
@@ -111,7 +112,13 @@ export class Race {
     });
     this.carById = Object.fromEntries(this.cars.map(c => [c.id, c]));
     this.carryOver = [];       // Startplatzstrafen für das nächste Rennen
+    // Start aus der Boxengasse (z. B. Parc-fermé-Verstoß) – keine normale Startplatzstrafe
+    this.pitStartIds = Object.entries(gridPenalties).filter(([, p]) => p >= 99).map(([id]) => id);
+    if (this.pitStartIds.length) {
+      this.gridPenalties = gridPenalties = Object.fromEntries(Object.entries(gridPenalties).map(([id, p]) => [id, p >= 99 ? p - 99 : p]).filter(([, p]) => p > 0));
+    }
     this.setupGrid();
+    for (const id of this.pitStartIds) if (this.carById[id]) this.emit('rc', `${id} startet aus der Boxengasse.`, { cars: [id] });
     for (const [id, places] of Object.entries(gridPenalties)) {
       if (this.carById[id]) this.emit('rc', `${id} startet mit einer Startplatzstrafe von ${places} Plätzen von Platz ${this.carById[id].gridPos}.`, { cars: [id] });
     }
@@ -204,6 +211,10 @@ export class Race {
       startBehindSC(this);
       return;
     }
+    // Boxengassenstarter: Strafe aus dem Qualifying oder zu spät in der Startaufstellung
+    for (const id of this.pitStartIds || []) if (this.carById[id] && !this.carById[id].retired) toPitLane(this, this.carById[id]);
+    const late = lateToGrid(this);
+    if (late) { toPitLane(this, late); this.emit('rc', `${late.id} kommt zu spät aus der Boxengasse – die Ausfahrt ist geschlossen. ${late.id} startet aus der Boxengasse.`, { cars: [late.id] }); }
     // Autos stehen in der Startaufstellung – die Rennleitung gibt die Formationsrunde frei
     this.phase = 'ready';
     this.emit('info', 'Alle Autos in der Startaufstellung. Die Rennleitung gibt die Formationsrunde frei.');
@@ -384,7 +395,7 @@ export class Race {
     // Massenunfall: neue Führungsrunde → würfeln, dann an einer Gruppe auslösen
     if (!this.isSession) {
       const leadLap = Math.max(0, ...this.cars.filter(c => !c.retired).map(c => c.lap));
-      if (leadLap > this.maxLeaderLap) { this.maxLeaderLap = leadLap; rollPileup(this, leadLap); rollRaceEvents(this, leadLap); }
+      if (leadLap > this.maxLeaderLap) { this.maxLeaderLap = leadLap; rollPileup(this, leadLap); rollRaceEvents(this, leadLap); rollRegs(this, leadLap); }
       checkPileup(this);
     }
     rollVscDelta(this, DT);
@@ -394,6 +405,7 @@ export class Race {
     if (this.phase === 'chequered' && this.cars.every(c => c.finished || c.retired)) {
       this.phase = 'finished';
       this.emit('finish', 'Alle Autos im Ziel. Rennen beendet.');
+      checkTyreRule(this);
       prepareScrutiny(this);
     }
   }

@@ -6,6 +6,8 @@ import { rollLapIncidents } from './hazards.js';
 import { createLapCase, createImpedingCase } from './incidents.js';
 import { sessionDurations } from './length.js';
 import { rollPitQueue } from './cases2.js';
+import { rollParcFerme } from './regs.js';
+import { prepareScrutiny } from './scrutiny.js';
 
 export const SESSION_INFO = {
   fp:    { name: 'Freies Training',   short: 'FP', segments: [{ id: 'FP', dur: 1200 }] },
@@ -317,6 +319,8 @@ export class Session extends Race {
       return;
     }
     this.phase = 'finished';
+    rollParcFerme(this);
+    prepareScrutiny(this);     // technische Abnahme auch nach dem Qualifying
     const order = this.standings();
     this.emit('finish', `${this.info.name} beendet. ${this.kind === 'fp' ? 'Schnellster' : 'Pole Position'}: ${order[0].driver.first} ${order[0].driver.last}.`);
   }
@@ -357,7 +361,9 @@ export class Session extends Race {
 
   // Startaufstellung (Fahrer-IDs) aus dem Ergebnis
   resultOrder() {
-    return this.standings().map(c => c.id);
+    // Disqualifizierte (z. B. technische Abnahme) starten von hinten
+    const st = this.standings();
+    return [...st.filter(c => !c.dsq), ...st.filter(c => c.dsq)].map(c => c.id);
   }
 }
 

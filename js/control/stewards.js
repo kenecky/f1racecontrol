@@ -13,6 +13,7 @@ export const PENALTIES = {
   grid3:    { name: 'Startplatzstrafe 3 Plätze (nächstes Rennen)',  short: '−3 SP',  sev: 2, places: 3 },
   grid5:    { name: 'Startplatzstrafe 5 Plätze (nächstes Rennen)',  short: '−5 SP',  sev: 3, places: 5 },
   grid10:   { name: 'Startplatzstrafe 10 Plätze (nächstes Rennen)', short: '−10 SP', sev: 4, places: 10 },
+  pitstart: { name: 'Start aus der Boxengasse (nächstes Rennen)', short: 'PIT', sev: 4.5, places: 99 },
 };
 
 import { hearingEvidence } from '../sim/incidents.js';
@@ -117,7 +118,7 @@ export const CARRY_OVER = { '5s': 3, '10s': 5, giveback: 3, dt: 5, sg: 10 };
 function carryOver(race, car, places, why) {
   race.carryOver = race.carryOver || [];
   race.carryOver.push({ carId: car.id, places, why });
-  race.emit('rc', `${car.id}: Startplatzstrafe von ${places} Plätzen für das nächste Rennen (${why}).`, { cars: [car.id] });
+  race.emit('rc', places >= 99 ? `${car.id} startet im nächsten Rennen aus der Boxengasse (${why}).` : `${car.id}: Startplatzstrafe von ${places} Plätzen für das nächste Rennen (${why}).`, { cars: [car.id] });
 }
 
 function applyPenalty(race, car, penalty, c) {

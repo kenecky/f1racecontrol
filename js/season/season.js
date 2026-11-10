@@ -2,6 +2,7 @@
 // Strafpunkte (gelten 12 Monate), Verwarnungen, Startplatzstrafen, Sperren.
 import { SEASON_2026 } from '../data/season2026.js';
 import { TRACKS } from '../data/tracks/index.js';
+import { createRng } from '../util/rng.js';
 
 export const POINTS = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
 export const SPRINT_POINTS = [8, 7, 6, 5, 4, 3, 2, 1];
@@ -165,6 +166,22 @@ export function finishSession(season, race, rating) {
   return notes;
 }
 
+// Antriebseinheiten: 4 pro Saison. Jede weitere bringt Startplatzstrafen (erste 10, danach 5 Plätze).
+export const PU_LIMIT = 4;
+function powerUnits(season, race, next, notes) {
+  season.pu = season.pu || {};
+  const r = createRng((season.year * 1000 + season.round) * 7 + 3);
+  for (const c of race.cars) {
+    const failed = c.dnf && /Defekt|Motor/.test(c.dnf);
+    if (!failed && !r.chance(0.07)) continue;
+    const n = (season.pu[c.id] = (season.pu[c.id] || 1) + 1);
+    if (n <= PU_LIMIT) { notes.push(`${c.id}: neue Antriebseinheit (${n}/${PU_LIMIT}).`); continue; }
+    const places = n === PU_LIMIT + 1 ? 10 : 5;
+    next[c.id] = (next[c.id] || 0) + places;
+    notes.push(`${c.id}: ${n}. Antriebseinheit – über dem Kontingent, ${places} Startplätze Strafe im nächsten Rennen.`);
+  }
+}
+
 function applyRace(season, race, rating, notes) {
   const wk = season.weekend;
   const entry = currentRound(season);
@@ -180,6 +197,7 @@ function applyRace(season, race, rating, notes) {
   });
   const next = {};
   for (const g of race.carryOver || []) next[g.carId] = (next[g.carId] || 0) + g.places;
+  powerUnits(season, race, next, notes);
   countWarnings(season, race, next, notes);
   addPenaltyPoints(season, race, roundDate(season, entry), notes);
   for (const [id, places] of Object.entries(next)) notes.push(`${id}: Startplatzstrafe ${places} Plätze im nächsten Rennen.`);

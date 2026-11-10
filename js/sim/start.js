@@ -6,6 +6,7 @@ import { updateHazards, startSpin, endOffTrack, startFailure, createHazard, reti
 import { createJumpStartCase, createGridBoxCase } from './incidents.js';
 import { startBehindSC, trackNeutralUse } from './neutral.js';
 import { startLapMedical } from './services.js';
+import { rollStartRegs } from './regs.js';
 import { rainAt } from './weather.js';
 import { COMPOUNDS, bestCompound } from './tyres.js';
 
@@ -339,6 +340,7 @@ function goGreen(race) {
   race.phase = 'running';
   race.emit('start', 'Lichter aus – das Rennen ist gestartet!');
   startLapMedical(race);     // Medical Car folgt dem Feld in der ersten Runde
+  rollStartRegs(race);       // Reifendruck, Mechaniker in der Startaufstellung
   const issue = race.startIssue;
   race.startIssue = null;
   if (issue && issue.released && issue.type === 'stall') stalledAtStart(race, race.carById[issue.carId]);

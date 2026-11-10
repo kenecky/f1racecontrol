@@ -17,9 +17,11 @@ const fx = (x, n = 1) => x.toFixed(n).replace('.', ',');
 
 // Beim Rennende: verborgene Werte aller gewerteten Autos festlegen
 export function prepareScrutiny(race) {
-  if (race.scrutiny || race.isSession) return;
+  if (race.scrutiny || (race.isSession && race.kind === 'fp')) return;
   const r = race.rng;
-  const classified = race.standings().filter(c => c.finished && !c.dsq);
+  const classified = race.isSession
+    ? race.standings().filter(c => !c.dsq && race.rankTime(c) !== null)
+    : race.standings().filter(c => c.finished && !c.dsq);
   const hidden = {};
   for (const c of classified) {
     const driftUp = r.chance(0.01);
@@ -63,7 +65,7 @@ function techCase(race, car, check, { summary, evidence, violation }) {
       ? { offender: car.id, expected: ['dsq'], points: [0, 0] }
       : { offender: null, expected: ['none'], points: [0, 0] },
   });
-  c.when = 'Nach dem Rennen';
+  c.when = race.isSession ? 'Nach dem Qualifying' : 'Nach dem Rennen';
   return c.id;
 }
 
