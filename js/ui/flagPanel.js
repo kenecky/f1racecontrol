@@ -6,16 +6,22 @@ import { hazardProgress } from '../sim/hazards.js';
 const ORDER = ['clear', 'yellow', 'double', 'slippery'];
 
 export class FlagPanel {
-  constructor({ root, list, track, onSet }) {
+  constructor({ root, list, track, onSet, onFocus }) {
     this.root = root;
     this.list = list;
     this.track = track;
     this.onSet = onSet;
+    this.onFocus = onFocus;
     this.focus = null;
     this.sig = '';
     list.addEventListener('click', e => {
       const b = e.target.closest('.fbtn');
-      if (!b) return;
+      if (!b) {
+        // Tippen auf die Sektorzeile: Sektor auswählen (Karte zoomt hin)
+        const row = e.target.closest('.frow');
+        if (row && this.onFocus) { this.focus = Number(row.dataset.sector); this.sig = ''; this.onFocus(this.focus); }
+        return;
+      }
       const idx = Number(b.dataset.sector);
       this.focus = idx;
       this.onSet(idx, b.dataset.flag);

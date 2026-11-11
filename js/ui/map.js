@@ -137,6 +137,30 @@ export class TrackMap {
     this.setView(1, 0, 0);
   }
 
+  // Auf einen Marshal-Sektor heranzoomen (Flaggen-Konsole)
+  zoomToSector(idx) {
+    const tr = this.track, sec = tr.sectors[idx];
+    if (!sec || !this.w) return;
+    const len = ((sec.end - sec.start) % tr.L + tr.L) % tr.L || tr.L;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let k = 0; k <= 24; k++) {
+      let [x, y] = pointAt(tr, sec.start + len * k / 24, 0);
+      if (this.angle) [x, y] = [x * this.cosA + y * this.sinA, -x * this.sinA + y * this.cosA];
+      const px = this.ox + x * this.scale, py = this.oy + y * this.scale;
+      x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py);
+    }
+    const z = Math.max(1.5, Math.min(MAX_ZOOM, 0.7 * Math.min(this.w / Math.max(40, x1 - x0), this.h / Math.max(40, y1 - y0))));
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    this.sectorZoom = idx;
+    this.setView(z, this.w / 2 - cx * z, this.h / 2 - cy * z);
+  }
+
+  endSectorZoom() {
+    if (this.sectorZoom === undefined || this.sectorZoom === null) return;
+    this.sectorZoom = null;
+    if (!this.follow && !this.replay) this.resetView();
+  }
+
   zoomAt(factor, sx, sy) {
     const z0 = this.zoom;
     const z1 = Math.min(MAX_ZOOM, Math.max(1, z0 * factor));
@@ -513,6 +537,7 @@ export class TrackMap {
         }
         continue;
       }
+      if (car.parked) continue;   // nach der Auslaufrunde in der Box abgestellt
       const d = renderD.get(car) ?? car.d;
       const [x, y] = this.pos(d, this.carLateral(race, car));
       const sel = this.selected === car.id;

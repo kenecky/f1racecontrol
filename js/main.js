@@ -37,7 +37,7 @@ import {
   saveRaceState, loadRaceState, clearRaceState, loadSeason, saveSeason, saveReplay, loadReplay,
 } from './storage.js';
 import { serializeRace, restoreRace } from './sim/persist.js';
-import { abortStart, suspendStart, resumeStart, startFromGridBehindSC, releaseFormation, startLights, lightsOut, restartLights, restartLightsOut, ALL_ON } from './sim/start.js';
+import { sendInspection, abortStart, suspendStart, resumeStart, startFromGridBehindSC, releaseFormation, startLights, lightsOut, restartLights, restartLightsOut, ALL_ON } from './sim/start.js';
 import { distanceFor, LENGTHS } from './sim/length.js';
 import { runScrutiny, TECH_CHECKS, EXTRA_CHECKS } from './sim/scrutiny.js';
 import { prepareBriefing } from './sim/regs.js';
@@ -141,10 +141,20 @@ const flagPanel = new FlagPanel({
   onSet: (idx, flag) => {
     setSectorFlag(race, idx, flag);
     map.highlightSector = idx;
+    zoomSector(idx);
     flagPanel.render(race);
     refreshUi();
   },
+  onFocus: idx => { map.highlightSector = idx; zoomSector(idx); flagPanel.render(race); },
 });
+// Flaggen: Karte(n) auf den gewählten Sektor zoomen
+function zoomSector(idx) {
+  if (idx === null || idx === undefined) return;
+  if (map.follow) stopFollow();
+  map.zoomToSector(idx);
+  deskMap.zoomToSector(idx);
+}
+function endSectorZoom() { try { map.endSectorZoom(); deskMap.endSectorZoom(); } catch { /* beim Start noch nicht da */ } }
 
 const controlPanel = new ControlPanel({
   root: $('controlSheet'),
@@ -175,6 +185,7 @@ const controlPanel = new ControlPanel({
       'bo-go': i => showBlackOrange(race, race.cars[i]),
       'start-lights': () => doStartLights(),
       'start-sc': () => startFromGridBehindSC(race),
+      'seq-inspect': () => sendInspection(race),
       'seq-formation': () => releaseFormation(race),
       'start-suspend': () => suspendStart(race),
       'start-resume': () => resumeStart(race),
@@ -1233,6 +1244,7 @@ function closeDesk() {
   map.showSectors = false;
   map.highlightSector = null;
   deskKind = null;
+  endSectorZoom();
 }
 function markDesk() {
   for (const id of Object.values(KIND_BTN)) $(id).classList.remove('cur');
@@ -1256,6 +1268,7 @@ function openFlags(idx = null) {
   map.showSectors = true;
   map.highlightSector = idx;
   flagPanel.open(race, idx);
+  if (idx !== null) zoomSector(idx); else endSectorZoom();
   markDesk();
 }
 
@@ -1265,6 +1278,7 @@ function openControl(kind) {
   flagPanel.close();
   map.showSectors = false;
   map.highlightSector = null;
+  endSectorZoom();
   deskKind = lastDeskKind = kind;
   controlPanel.open(race, kind);
   markDesk();
@@ -1965,7 +1979,8 @@ function renderDriverCard() {
       ${race.isSession ? cell('Runden', car.sLaps ? car.sLaps.length : 0) : cell('Hintermann', behind ? `${behind.id} ${g(behind, car)}` : '–')}
       ${cell('Letzte', formatLap(car.lastLap))}
       ${cell('Beste', formatLap(car.bestLap))}
-      ${cell('Reifen', `${COMPOUNDS[car.compound].name} · ${car.tyreAge} Rd`)}
+      ${cell('Reifen', `<span class="tyre tyre-${car.compound} dc-tyre">${car.compound}</span>${COMPOUNDS[car.compound].name} · ${car.tyreAge} Rd`)}
+      ${cell('Tempo', car.retired ? '–' : `<span class="dc-speed">${Math.round(car.v * 3.6)}</span> km/h`)}
       ${cell(race.isSession ? 'Startplatz' : 'Stopps', race.isSession ? '–' : car.stops)}
       ${cell('Strafen', pens.join(' · ') || 'keine')}
       ${cell('Startplatz', race.isSession ? '–' : car.gridPos)}

@@ -115,6 +115,8 @@ export class ControlPanel {
       active.map(h => Math.round(hazardProgress(h) * 50)), canRestart(race),
       race.phase, race.lightsOn, kind === 'start' && Math.floor(((n && n.restart ? n.lightsTimer : race.lightsTimer) || 0) * 5), kind === 'start' && race.formation && race.cars.filter(c => c.fTarget !== undefined && c.fTarget - c.d <= 0.6).length, race.formation && race.formation.arrived, race.startIssue && race.startIssue.carId, race.startIssue && race.startIssue.released, race.laps,
       this.armed && this.armed.action, this.sel[kind],
+      n && n.type === 'vsc' && n.phase === 'ending' && Math.ceil(n.endAt - race.time),
+      race.inspection && [race.inspection.stage, race.inspection.report, race.sc && sectorIndexAt(race.track, race.sc.d)],
       race.svc && [!!race.svc.medical, race.svc.medical && race.svc.medical.phase, !!race.svc.sweeper, race.svc.cranes.map(c => c.sector), race.svc.pitClosed],
     ]);
     if (sig === this.sig) return;
@@ -136,9 +138,10 @@ export class ControlPanel {
       } else if (n.type === 'vsc' && n.phase === 'active') {
         html = `<div class="ctl-status">VSC aktiv seit ${since}</div>
           <button class="ctl-btn ctl-green" data-action="vsc-off">END VSC</button>${stratHtml(n)}
-          <p class="ctl-small">Nach „VSC endet“ folgt in 8–14 s Grün.</p>`;
+          <p class="ctl-small">Nach „END VSC“ läuft ein Countdown von 5 s, dann ist Grün.</p>`;
       } else if (n.type === 'vsc') {
-        html = '<div class="ctl-status">VSC endet – gleich Grün.</div>';
+        const left = Math.max(0, Math.ceil(n.endAt - race.time));
+        html = `<div class="vsc-count"><span>VSC ENDING</span><b>${left}</b><span>GREEN IN ${left} s</span></div>`;
       } else {
         html = `<p class="ctl-text">Nicht verfügbar, solange ${n.type === 'sc' ? 'das Safety Car' : 'die rote Flagge'} aktiv ist.</p>`;
       }
@@ -264,7 +267,7 @@ export class ControlPanel {
       sub = rs ? 'Neustart nach der roten Flagge' : '';
       const live = rs ? ['formation', 'grid', 'lights'].includes(ph) : race.preStart && ph !== 'pre';
       // Ablauf
-      const STEPS = [['ready', 'FREIGABE'], ['formation', 'FORMATION'], ['grid', 'GRID'], ['lights', 'AMPEL'], ['go', 'START']];
+      const STEPS = [['ready', 'INSPECTION'], ['formation', 'FORMATION'], ['grid', 'GRID'], ['lights', 'LIGHTS'], ['go', 'START']];
       const order = STEPS.map(x => x[0]);
       const curI = !live ? 4 : ph === 'delay' ? 1 : order.indexOf(ph === 'formation' && f && f.arrived ? 'grid' : ph);
       html = `<div class="seq">${STEPS.filter(x => !rs || x[0] !== 'ready').map(([k, l]) => {
@@ -292,7 +295,20 @@ export class ControlPanel {
       if (!live) {
         html += `<div class="ctl-status">${race.phase === 'pre' ? 'Der Start wurde noch nicht freigegeben.' : 'Das Rennen ist gestartet.'}</div>`;
       } else if (ph === 'ready') {
-        html += `<button class="ctl-btn ctl-green ctl-big" data-action="seq-formation">START FORMATION LAP</button>`;
+        // Zuerst die Inspektionsrunde des Safety Cars, dann die Formationsrunde
+        const I = race.inspection;
+        if (!I) {
+          html += `<button class="ctl-btn ctl-sc ctl-big" data-action="seq-inspect">SEND SC ON INSPECTION LAP</button>`;
+        } else if (!I.report) {
+          html += `<div class="ctl-status">Safety Car auf der Inspektionsrunde${race.sc ? ` · Sektor ${sectorIndexAt(race.track, race.sc.d) + 1}` : ''}</div>
+            <button class="ctl-btn ctl-ghost ctl-big" disabled>SC ON INSPECTION LAP …</button>`;
+        } else {
+          const h = I.issue && race.hazards.find(x => x.id === I.issue);
+          html += h && !h.ended
+            ? `<div class="ctl-status warn">⚠ SC meldet: ${h.desc}</div>`
+            : `<div class="ctl-status ok">✓ SC: Strecke in Ordnung${h ? ' (Problem behoben)' : ''}</div>`;
+          html += `<button class="ctl-btn ctl-green ctl-big" data-action="seq-formation">START FORMATION LAP</button>`;
+        }
       } else if (ph === 'delay') {
         const D = race.delay, ok = canResumeStart(race);
         html += `<div class="ctl-status warn">START VERSCHOBEN – ${D.stage === 'toPit' ? 'das Feld fährt in die Boxengasse' : 'das Feld steht in der Boxengasse'}</div>
@@ -312,7 +328,7 @@ export class ControlPanel {
           <button class="ctl-btn ctl-ghost ctl-big" data-action="start-lights">START LIGHTS · ${grid.length - inBox} CARS STILL MOVING</button>`;
       } else if (ph === 'grid' || ph === 'formation') {
         // „Startaufstellung komplett“ zeigt schon STARTBOX x/x – die drei Alternativen passen in eine Reihe
-        html += `${rs ? '' : '<button class="ctl-btn ctl-ghost ctl-third" data-action="start-abort">EXTRA FORMATION LAP</button><button class="ctl-btn ctl-ghost ctl-third" data-action="start-sc">START BEHIND SC</button><button class="ctl-btn ctl-ghost ctl-third" data-action="start-suspend">DELAY START</button>'}
+        html += `${rs ? '' : '<button class="ctl-btn ctl-ghost ctl-third" data-action="start-suspend">DELAY START</button><button class="ctl-btn ctl-ghost ctl-third" data-action="start-abort">EXTRA FORMATION LAP</button><button class="ctl-btn ctl-ghost ctl-third" data-action="start-sc">START BEHIND SC</button>'}
           <button class="ctl-btn ctl-amber ctl-big" data-action="start-lights">START LIGHTS</button>`;
       } else if (ph === 'lights' && !allOn) {
         html += `<button class="ctl-btn ctl-ghost ctl-big" disabled>${lit ? `LICHTER ${lit} / 5 …` : 'PRE-START …'}</button>`;

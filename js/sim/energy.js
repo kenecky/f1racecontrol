@@ -4,10 +4,14 @@
 // Ist der Akku fast leer, teilt der Fahrer ein – auf der Geraden fehlt dann Tempo.
 import { speedAt } from './trackModel.js';
 
-const LAP_HARVEST = 0.5;     // pro Runde zurückgewonnen (Anteil Akku, bei voller Effizienz)
-const LAP_DEPLOY = 0.55;     // pro Runde eingesetzt bei vollem Einsatz auf allen Geraden
+// Reale Größenordnung 2026: MGU-K 350 kW, nutzbarer Akku ~4 MJ → voller Einsatz leert ihn in ~11 s
+// (auf einer langen Geraden also leicht über 50 %). Zurückgewonnen werden bis ~8 MJ pro Runde (≈ 2 Akkus),
+// vor allem beim Bremsen und in Kurven.
+const DEPLOY_RATE = 0.088;   // Anteil Akku pro Sekunde bei vollem Einsatz (350 kW / 4 MJ)
+const HARVEST_RATE = 0.075;  // Anteil Akku pro Sekunde in Kurven/beim Bremsen (bei voller Effizienz)
+const LAP_HARVEST_MAX = 2.0; // höchstens ~8 MJ pro Runde
 const BOOST = 0.04;          // Tempo-Unterschied je Einsatz-Stufe (normaler Einsatz 0,6 = ±0)
-const ATTACK = 1.6;          // Einsatz beim Überholen
+const ATTACK = 1.3;          // Überholmodus: zusätzliche Energie zum Angreifen
 
 // Gerade = Abschnitt mit hohem Tempo; Zeitanteile je Runde einmal pro Strecke berechnen
 function prep(track) {
@@ -18,7 +22,7 @@ function prep(track) {
     const t = track.ds / Math.max(5, track.v[i]);
     if (track.v[i] > vTop * 0.78) ts += t; else tc += t;
   }
-  track.energy = { vTop, harvest: LAP_HARVEST / tc, deploy: LAP_DEPLOY / ts };
+  track.energy = { vTop, harvest: Math.min(HARVEST_RATE, LAP_HARVEST_MAX / tc), deploy: DEPLOY_RATE };
   return track.energy;
 }
 
@@ -36,10 +40,10 @@ function useLevel(car) {
   const e = car.energy;
   const attack = car.pass && !car.pass.slow && !car.pass.blue;
   if (attack && e > 0.12) return ATTACK;
-  if (e > 0.6) return 0.8;
-  if (e > 0.3) return 0.6;
-  if (e > 0.1) return 0.35;
-  return 0.1;
+  if (e > 0.6) return 1;
+  if (e > 0.3) return 0.7;
+  if (e > 0.1) return 0.45;
+  return 0.15;   // „Clipping“: Akku leer, die E-Leistung fehlt
 }
 
 // Ein Zeitschritt: Akku aktualisieren, Tempofaktor zurückgeben (1 = neutral)

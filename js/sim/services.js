@@ -16,7 +16,7 @@ export function svc(race) {
 
 const scOut = race => Boolean((race.neutral && (race.neutral.type === 'sc' || race.neutral.type === 'red')) || race.phase === 'delay');
 // Einsatzfahrzeuge: im Rennen und vor dem Start (Formationsrunde, Startaufstellung, Start verschoben)
-export const svcPhase = race => ['running', 'formation', 'grid', 'lights', 'delay'].includes(race.phase);
+export const svcPhase = race => ['ready', 'running', 'formation', 'grid', 'lights', 'delay'].includes(race.phase);
 const secMid = (race, i) => {
   const s = race.track.sectors[i];
   return wrapD(race.track, s.start + wrapD(race.track, s.end - s.start) / 2);

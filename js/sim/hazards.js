@@ -39,7 +39,7 @@ function flagLevel(h, flag) {
 export function responseLevel(race, h) {
   if (h.need === 'pit') return race.svc && race.svc.pitClosed ? 1 : 0;   // Boxengasse geschlossen?
   // Start verschoben, Feld in der Boxengasse: Strecke gesperrt – jede Gefahr gilt als ausreichend abgesichert
-  if (race.phase === 'delay') return Math.max(flagLevel(h, race.flags[h.sector]), NEED_LEVEL[h.need] || 0);
+  if (race.phase === 'delay' || race.phase === 'ready') return Math.max(flagLevel(h, race.flags[h.sector]), NEED_LEVEL[h.need] || 0);
   return Math.max(flagLevel(h, race.flags[h.sector]), neutralLevel(race));
 }
 
@@ -379,6 +379,7 @@ export function updateHazards(race, dt) {
       else if (h.type === 'slow') text = `${h.carId} ist in der Boxengasse. Strecke frei.`;
       else if (h.type === 'weather') text = 'Das Wasser ist weitgehend abgeflossen – die Strecke ist wieder befahrbar.';
       else if (h.type === 'crash') text = h.need === 'red' ? 'Unfallstelle geräumt, Barriere repariert. Strecke frei.' : 'Unfallstelle geräumt. Strecke frei.';
+      else if (h.type === 'inspect') text = 'Problem behoben. Strecke frei.';
       else text = 'Trümmerteile sind beseitigt. Strecke frei.';
       race.emit('marshal', `${hazardWhere(h)}: ${text}`, { sector: h.sector, cleared: h.id });
     }

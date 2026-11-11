@@ -1718,3 +1718,15 @@ body { background: #15181d; }
 .ctl-hz-line b { flex: none; }
 .ctl-hz-line em { margin-left: auto; padding-left: 6px; font: 700 11px var(--mono); font-style: normal; color: #facc15; flex: none; }
 .ctl-hz-line .hz-d { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* v58: Fahrerdetails – Reifen als Symbol, Live-Tempo; All-Green mit grünen Lampen */
+.dc-tyre { width: 16px; height: 16px; font-size: 8px; margin-right: 5px; vertical-align: -3px; border-width: 2.5px; }
+.dc-speed { display: inline-block; min-width: 3ch; text-align: right; font-variant-numeric: tabular-nums; }
+#allGreenBtn { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.g-dot { width: 12px; height: 12px; border-radius: 50%; background: #22c55e; border: 2px solid #0c0e12; box-shadow: 0 0 8px rgba(34,197,94,.8); flex: none; }
+.dc-grid .dc-tyre { font-size: 8px; letter-spacing: 0; display: inline-flex; }
+.dc-grid .tyre-S { color: #ff2d2d; } .dc-grid .tyre-M { color: var(--yellow); } .dc-grid .tyre-H { color: #f0f0f0; }
+.dc-grid .tyre-I { color: #43b02a; } .dc-grid .tyre-W { color: #2f86ff; }
+.dc-grid .dc-speed { font-size: inherit; color: inherit; letter-spacing: 0; text-transform: none; }
+.vsc-count { display: flex; flex-direction: column; align-items: center; gap: 2px; margin: 10px 0; padding: 10px; background: #06090d; border: 2px solid #14171c; border-radius: 6px; }
+.vsc-count span { font: 700 11px var(--mono); letter-spacing: .14em; color: #facc15; }
+.vsc-count b { font: 800 54px/1 var(--mono); color: #facc15; text-shadow: 0 0 18px rgba(250,204,21,.5); }

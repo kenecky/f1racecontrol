@@ -22,7 +22,7 @@ const MS_LEN = 100;              // Mini-Sektor-Länge (m) für Abstandsberechnu
 
 import { COMPOUNDS, wetLoss, bestCompound } from './tyres.js';
 import { createWeather, updateWeather } from './weather.js';
-import { stepFormation, stepGrid, stepLights, stepDelay, releasePitStarters, stepRestart, toPitLane, PRESTART } from './start.js';
+import { stepReady, stepFormation, stepGrid, stepLights, stepDelay, releasePitStarters, stepRestart, toPitLane, PRESTART } from './start.js';
 import { rollRegs, lateToGrid, checkTyreRule } from './regs.js';
 import { prepareScrutiny } from './scrutiny.js';
 import { ambientRadio, T } from './texts.js';
@@ -36,6 +36,12 @@ export { COMPOUNDS };
 // Vorsicht nach Strafen: weniger Risiko und Fehler, aber auch etwas langsamer (0 … 1)
 export const aggressionOf = car => car.driver.aggression * (1 - 0.35 * (car.caution || 0));
 export const errorsOf = car => car.driver.errors * (1 - 0.3 * (car.caution || 0));
+
+function coolDownSpeed(tr, car) {
+  if (car.parked) return 0;
+  if (car.inPit) return tr.pitLaneSpeed;
+  return Math.min(speedAt(tr, car.d) * 0.45, 55);   // Auslaufrunde: langsam, max. ~200 km/h
+}
 
 export class Race {
   constructor({
@@ -266,7 +272,9 @@ export class Race {
   }
 
   step() {
-    if (this.phase === 'pre' || this.phase === 'ready' || this.phase === 'finished') return;
+    if (this.phase === 'ready') { stepReady(this, DT); return; }
+    if (this.phase === 'finished') { this.stepCoolDown(); return; }
+    if (this.phase === 'pre') return;
     if (this.phase === 'formation') { stepFormation(this, DT); return; }
     if (this.phase === 'grid') { stepGrid(this, DT); return; }
     if (this.phase === 'lights') { stepLights(this, DT); return; }
@@ -304,7 +312,7 @@ export class Race {
       }
       let vt;
       if (car.finished) {
-        vt = speedAt(tr, car.d) * 0.55;
+        vt = coolDownSpeed(tr, car);   // Auslaufrunde, dann in die Box
       } else if (car.inPit) {
         vt = tr.pitLaneSpeed;
       } else {
@@ -359,7 +367,7 @@ export class Race {
       if (car.retired) continue;
       const prev = car.d;
       car.d += car.move;
-      if (car.finished) continue;
+      if (car.finished) { this.coolDown(car, prev); continue; }
       this.handleCrossings(car, prev);
       checkPendingIncident(this, car, prev);
       if (car.limp && !car.retired) updateLimp(this, car);
@@ -767,6 +775,28 @@ export class Race {
         rollChicaneCut(this, car);
         this.weatherTyreDecision(car);
       }
+    }
+  }
+
+  // Nach der Zielflagge: deutlich langsamer eine Auslaufrunde, dann in die Boxengasse und abstellen
+  coolDown(car, prev) {
+    const tr = this.track;
+    if (car.parked) return;
+    if (!car.inPit && car.d - car.finishDist > tr.L * 0.4 && crossed(tr, prev, car.d, tr.pit.entry)) { car.inPit = true; return; }
+    if (car.inPit && crossed(tr, prev, car.d, tr.pit.box)) { car.parked = true; car.v = 0; }
+  }
+
+  // Nach Rennende (alle im Ziel): nur noch die Autos auf der Auslaufrunde bewegen – Ergebnis und Uhr bleiben unverändert
+  stepCoolDown() {
+    const tr = this.track;
+    for (const car of this.cars) {
+      if (!car.finished || car.parked || car.retired) continue;
+      const vt = coolDownSpeed(tr, car);
+      car.v = vt > car.v ? Math.min(vt, car.v + accelAt(car.v) * DT) : Math.max(vt, car.v - 30 * DT);
+      car.move = car.v * DT;
+      const prev = car.d;
+      car.d += car.move;
+      this.coolDown(car, prev);
     }
   }
 

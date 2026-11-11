@@ -1,8 +1,8 @@
 // Startablauf: Formationsrunde, Startaufstellung, Startampel, Startabbruch,
 // Boxengassenstart und Fehlstart. Vor dem Start läuft race.time schon mit
 // (Bergungen, Flaggen); beim Erlöschen der Lichter wird die Uhr auf 0 gesetzt.
-import { speedAt, wrapD, crossed } from './trackModel.js';
-import { updateHazards, startSpin, endOffTrack, startFailure, createHazard, retireCar } from './hazards.js';
+import { speedAt, wrapD, crossed, sectorIndexAt } from './trackModel.js';
+import { updateHazards, startSpin, endOffTrack, startFailure, createHazard, retireCar, cornerLabel } from './hazards.js';
 import { createJumpStartCase, createGridBoxCase } from './incidents.js';
 import { startBehindSC, trackNeutralUse } from './neutral.js';
 import { startLapMedical, updateServices } from './services.js';
@@ -15,6 +15,78 @@ const F_VMAX = 70;      // m/s (250 km/h)
 const SLOT = 8;         // Abstand der Startplätze (m)
 const slotD = i => -(6 + i * SLOT);
 const slotOf = d => Math.round((-d - 6) / SLOT);
+
+// ---------- Inspektionsrunde des Safety Cars (vor der Formationsrunde) ----------
+// Das SC fährt eine Runde und meldet gegen Ende (etwa Sektor 10/11), ob die Strecke in Ordnung ist.
+// Fast immer ist alles in Ordnung; selten findet es ein Problem, das die Rennleitung lösen muss
+// (Kehrmaschine schicken, abwarten, Start verschieben …).
+const INSPECT_SPEED = 0.7;
+const INSPECT_ISSUE_CHANCE = 0.1;
+const ANIMALS = ['Ein Hund', 'Ein Hase', 'Ein Murmeltier', 'Eine Katze', 'Ein paar Vögel', 'Ein Fuchs'];
+const INSPECT_ISSUES = [
+  { key: 'barrier', work: [140, 220], text: (c) => `Barriere in ${c} beschädigt – muss repariert werden` },
+  { key: 'marshal', work: [20, 45], text: (c) => `Ein Marshal steht noch an der Fahrbahn in ${c}` },
+  { key: 'dirt', work: [60, 110], sweep: true, text: (c) => `Dreck auf der Fahrbahn in ${c}` },
+  { key: 'animal', work: [40, 100], text: (c, r) => `${r.pick(ANIMALS)} auf der Strecke in ${c}` },
+  { key: 'oil', work: [90, 150], sweep: true, text: (c) => `Ölspur in ${c} – Bindemittel nötig` },
+  { key: 'drain', work: [160, 260], text: (c) => `Lockerer Gullydeckel in ${c}` },
+  { key: 'gravel', work: [40, 80], sweep: true, text: (c) => `Kies auf der Ideallinie in ${c}` },
+  { key: 'object', work: [25, 50], text: (c) => `Werbeplane auf der Fahrbahn in ${c}` },
+  { key: 'kerb', work: [120, 200], text: (c) => `Randstein in ${c} hat sich gelöst` },
+  { key: 'cable', work: [30, 60], text: (c) => `TV-Kabel liegt auf der Fahrbahn in ${c}` },
+  { key: 'tyres', work: [50, 90], text: (c) => `Reifenstapel in ${c} verschoben` },
+];
+
+export function sendInspection(race) {
+  if (race.phase !== 'ready' || race.inspection) return false;
+  const tr = race.track;
+  race.inspection = { stage: 'lap', report: null, issue: null, dist: 0 };
+  race.sc = { d: wrapD(tr, tr.pit.exit), v: 0, move: 0, inPit: false, inspection: true };
+  race.emit('rc', 'Safety Car fährt die Inspektionsrunde.');
+  return true;
+}
+
+// Vor der Formationsrunde: Inspektionsrunde, Bergung und Einsatzfahrzeuge laufen, die Autos stehen
+export function stepReady(race, dt) {
+  const I = race.inspection;
+  const busy = (I && race.sc && race.sc.inspection) || race.hazards.some(h => !h.ended)
+    || (race.svc && (race.svc.medical || race.svc.sweeper || race.svc.cranes.length));
+  if (!busy) return;
+  race.time += dt;
+  const sc = race.sc;
+  if (I && sc && sc.inspection) {
+    const tr = race.track;
+    const prev = sc.d;
+    const vt = sc.inPit ? tr.pitLaneSpeed : speedAt(tr, sc.d) * INSPECT_SPEED;
+    sc.v = vt > sc.v ? Math.min(vt, sc.v + 8 * dt) : vt;
+    sc.move = sc.v * dt;
+    sc.d = wrapD(tr, sc.d + sc.move);
+    I.dist += sc.move;
+    // Meldung gegen Ende der Runde (vorletzter Marshal-Sektor)
+    if (I.stage === 'lap' && I.dist > tr.L * 0.3 && sectorIndexAt(tr, sc.d) >= tr.sectors.length - 2) inspectionReport(race, I.dist);
+    if (I.stage === 'return' && !sc.inPit && crossed(tr, prev, sc.d, tr.pit.entry)) sc.inPit = true;
+    else if (sc.inPit && crossed(tr, prev, sc.d, wrapD(tr, tr.pit.box))) { race.sc = null; I.stage = 'done'; }
+  }
+  updateHazards(race, dt);
+  updateServices(race, dt);
+}
+
+function inspectionReport(race, dist) {
+  const I = race.inspection, r = race.rng, tr = race.track;
+  I.stage = 'return';
+  if (!r.chance(INSPECT_ISSUE_CHANCE)) {
+    I.report = 'ok';
+    race.emit('rc', 'Safety Car: Inspektionsrunde beendet – die Strecke ist in Ordnung.');
+    return;
+  }
+  const kind = r.pick(INSPECT_ISSUES);
+  const d = wrapD(tr, tr.pit.exit + r.range(0.05, 0.95) * Math.min(dist, tr.L * 0.85));
+  const h = createHazard(race, { type: 'inspect', issue: kind.key, d, need: 'double', work: r.range(kind.work[0], kind.work[1]), needsSweeper: !!kind.sweep });
+  h.desc = kind.text(cornerLabel(h.corner), r);
+  I.report = 'issue';
+  I.issue = h.id;
+  race.emit('rc', `Safety Car meldet: ${h.desc}.${kind.sweep ? ' Die Kehrmaschine wird gebraucht.' : ''}`, { hazard: h.id, sector: h.sector });
+}
 
 // ---------- Formationsrunde ----------
 
@@ -211,6 +283,7 @@ const AUTO_OUT = 8;                 // spätestens dann gehen die Lichter automa
 // Rennleitung gibt die Formationsrunde frei
 export function releaseFormation(race) {
   if (race.phase !== 'ready') return false;
+  if (race.sc && race.sc.inspection) race.sc = null;   // SC der Inspektionsrunde ist in der Boxengasse
   race.emit('rc', 'Rennleitung: Formationsrunde freigegeben.');
   beginFormation(race);
   return true;

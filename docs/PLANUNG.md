@@ -726,3 +726,14 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 - Tempo-Regler: kurze Vibration bei jeder Stufe.
 - Starting Procedure ohne Scrollen: „Startaufstellung komplett“ entfällt (STARTBOX x/x zeigt es), EXTRA FORMATION LAP / START BEHIND SC / DELAY START in einer Reihe, Track Status dort einzeilig je Gefahr.
 - Keine gelben Einblendungen mehr bei Vorfällen, Startampel, Startproblemen, Wiederholung, geladenem Rennen oder neuer Version. Es bleiben nur Rückmeldungen auf eigene Eingaben (z. B. Pause gesperrt) und Fehlermeldungen.
+
+### Inspektionsrunde, Auslaufrunde, realistischere Energie (v58)
+- Starting Procedure beginnt mit „SEND SC ON INSPECTION LAP“: SC fährt eine Runde (70 % Tempo) und meldet im vorletzten Marshal-Sektor. ~10 % ein Problem: Barriere beschädigt, Marshal an der Fahrbahn, Dreck, Tiere, Ölspur, Gullydeckel, Kies, Werbeplane, loser Randstein, TV-Kabel, verschobener Reifenstapel. Dreck/Öl/Kies brauchen die Kehrmaschine; Einsatzfahrzeuge sind schon vor der Formationsrunde verfügbar. Formationsrunde erst nach der Meldung.
+- Ablauf-Schritte: INSPECTION · FORMATION · GRID · LIGHTS · START.
+- Startaufstellung: DELAY START | EXTRA FORMATION LAP | START BEHIND SC.
+- „SET ALL SECTORS BACK TO GREEN“ mit grünen Lampen.
+- Fahrerdetails: Live-Tempo (km/h), Reifen als farbiges Symbol; „Intermediate“ → „Inter“.
+- END VSC: 5-s-Countdown in der VSC-Konsole, dann Grün.
+- Flaggen: Sektor antippen → Karte zoomt auf den Sektor.
+- Energie nach realen 2026-Werten: 350 kW / ~4 MJ → voller Einsatz ~8,8 %/s (lange Gerade > 50 %), Laden bis ~2 Akkus (8 MJ) pro Runde; leerer Akku = Clipping.
+- Nach der Zielflagge: Auslaufrunde mit ~45 % Tempo, dann in die Box (Ergebnis und Uhr unverändert).

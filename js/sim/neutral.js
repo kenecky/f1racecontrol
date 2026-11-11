@@ -49,8 +49,8 @@ export function endVSC(race) {
   const n = race.neutral;
   if (!n || n.type !== 'vsc' || n.phase !== 'active') return false;
   n.phase = 'ending';
-  n.endAt = race.time + race.rng.range(8, 14);
-  race.emit('rc', 'VSC ENDET – Grün in wenigen Sekunden');
+  n.endAt = race.time + 5;   // 5 s Countdown, dann Grün
+  race.emit('rc', 'VSC ENDING – Grün in 5 Sekunden');
   return true;
 }
 
