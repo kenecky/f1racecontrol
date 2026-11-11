@@ -4,7 +4,7 @@ Privates Browser-Spiel: Du bist die Rennleitung eines Formel-1-Rennens.
 Flaggen, Safety Car, VSC, rote Flagge, Untersuchungen und Strafen –
 Fahrer und Teams fahren automatisch.
 
-- Optimiert fürs Handy (Hochformat)
+- Optimiert fürs Handy (Hochformat), dazu Tablet quer und Desktop
 - Reines HTML/CSS/JavaScript, läuft über GitHub Pages
 - Daten werden lokal auf dem Gerät gespeichert
 
@@ -12,8 +12,9 @@ Planung und Fahrplan: [docs/PLANUNG.md](docs/PLANUNG.md)
 
 ## Spielen
 
-Über GitHub Pages im Handy-Browser öffnen und über „Zum Startbildschirm hinzufügen“
-als App installieren.
+Adresse: https://kenecky.github.io/racecontrol/ (früher `/f1racecontrol/`, Repo umbenannt).
+Im Handy-Browser öffnen und über ⋮ → „Zum Startbildschirm hinzufügen“ → „Installieren“
+als App installieren. Auf Tablet (quer) und Desktop gibt es eine eigene Ansicht mit Spalten.
 
 Lokal testen (ES-Module brauchen einen Webserver):
 
