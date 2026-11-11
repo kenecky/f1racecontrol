@@ -369,7 +369,11 @@ function renderEventCard() {
   $('sessionBox').classList.toggle('hidden', isSeason && !steps);
   renderSegs();
   drawStartHero();
-  if (!savedRace) $('startBtn').textContent = `${KIND_NAME[race.kind]} starten`;
+  if (!savedRace) {
+    // Saison: zu Beginn „Saison starten“, danach „Saison fortsetzen“
+    const fresh = isSeason && season && season.round === 0 && (!season.weekend || season.weekend.idx === 0);
+    $('startBtn').textContent = isSeason ? (fresh ? 'Saison starten' : 'Saison fortsetzen') : `${KIND_NAME[race.kind]} starten`;
+  }
 }
 
 // Auswahl-Tasten auf der Startseite (Wetter, Dauer, Schwierigkeit)
@@ -1040,6 +1044,7 @@ function updateStatus() {
   else if (n && n.type === 'red') { flag.textContent = 'RED FLAG'; flag.className = 'flag-chip flag-red'; }
   else if (n && n.type === 'sc') { flag.textContent = n.go ? 'SC RESTART' : n.phase === 'in' ? 'SC IN' : 'SAFETY CAR'; flag.className = 'flag-chip flag-sc'; }
   else if (n && n.type === 'vsc') { flag.textContent = n.phase === 'ending' ? 'VSC ENDING' : 'VSC'; flag.className = 'flag-chip flag-vsc'; }
+  else if (race.phase === 'delay') { flag.textContent = 'START DELAYED'; flag.className = 'flag-chip flag-double'; }
   else if (race.startIssue) { flag.textContent = 'START HOLD'; flag.className = 'flag-chip flag-double'; }
   else if (race.phase === 'formation') { flag.textContent = 'FORMATION'; flag.className = 'flag-chip flag-start'; }
   else if (race.preStart) { flag.textContent = 'START'; flag.className = 'flag-chip flag-start'; }

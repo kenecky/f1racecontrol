@@ -407,7 +407,8 @@ export class Race {
     trackNeutralUse(this, DT);
 
     // Zeitlimit: höchstens 2 Stunden Rennzeit (bei kürzerer Distanz anteilig)
-    if (!this.timeLimit && this.phase === 'running' && !this.isSession && this.time > 7200 / this.wear) {
+    // (nicht während der roten Flagge – sonst bekäme der Führende auf dem Weg in die Boxengasse die Zielflagge)
+    if (!this.timeLimit && this.phase === 'running' && !this.isSession && !(this.neutral && this.neutral.type === 'red') && this.time > 7200 / this.wear) {
       this.timeLimit = true;
       const leader = this.standings()[0];
       this.laps = Math.min(this.laps, leader.lap + 1);
@@ -744,7 +745,7 @@ export class Race {
       }
 
       onLineCrossed(this, car);
-      if (this.phase === 'running' && car.lap >= this.laps) {
+      if (this.phase === 'running' && car.lap >= this.laps && !(this.neutral && this.neutral.type === 'red')) {
         this.phase = 'chequered';
         if (this.neutral) {
           this.neutral = null;

@@ -245,7 +245,7 @@ export function limpRetire(race, car) {
   race.emit('pit', `${car.id} fährt in die Box – das Auto wird in der Garage abgestellt. Aus.`, { cars: [car.id] });
 }
 
-function startCrash(race, car, corner) {
+export function startCrash(race, car, corner) {
   const r = race.rng;
   const barrier = r.chance(0.3);
   const side = r.chance(0.5) ? 1 : -1;

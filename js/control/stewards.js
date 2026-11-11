@@ -202,12 +202,20 @@ export function rollProtests(race) {
     const v = c.verdict || { carId: null };
     const t = c.truth;
     let team = null, review = false, founded = false;
-    if ((verdict === 'lenient' || verdict === 'wrong') && t.victim && r.chance(0.6)) { team = race.carById[t.victim].team; founded = true; }
+    // Protest: nur ein anderes (benachteiligtes) Team – nie das Team des Autos, um das es geht.
+    // Antrag auf Überprüfung: nur das Team eines bestraften Autos. Ohne Strafe und ohne Gegner: nichts.
+    const accused = race.carById[v.carId || t.offender || c.cars[0]];
+    const victim = t.victim && race.carById[t.victim];
+    const protester = victim && accused && victim.team !== accused.team ? victim : null;
+    if ((verdict === 'lenient' || verdict === 'wrong') && protester && r.chance(0.6)) { team = protester.team; founded = true; }
     else if ((verdict === 'harsh' || verdict === 'wrong') && v.carId && r.chance(0.6)) { team = race.carById[v.carId].team; review = true; founded = true; }
     else if (verdict === 'ok' && r.chance(0.08)) {
-      const other = c.cars.map(id => race.carById[id]).find(x => x && (!v.carId || x.id !== v.carId));
-      if (other) team = other.team;
-      review = Boolean(v.carId && race.carById[v.carId].team === team);
+      if (v.carId) { team = race.carById[v.carId].team; review = true; }
+      else {
+        // keine Strafe: höchstens ein anderes beteiligtes Team protestiert (es hätte eine Strafe gewollt)
+        const other = c.cars.map(id => race.carById[id]).find(x => x && accused && x.id !== accused.id && x.team !== accused.team);
+        if (other) team = other.team;
+      }
     }
     if (!team) continue;
     if (review && race.difficulty === 'medium') continue;

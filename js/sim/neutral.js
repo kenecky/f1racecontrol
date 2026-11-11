@@ -57,12 +57,32 @@ export function deploySC(race) {
   if (race.neutral && race.neutral.type !== 'vsc') return false;
   const leader = leaderOnTrack(race);
   if (!leader) return false;
-  race.sc = { d: wrapD(race.track, leader.d + 90), v: speedAt(race.track, leader.d) * SC_SPEED, move: 0, inPit: false };
+  // Das Safety Car fährt immer an der Boxenausfahrt auf die Strecke. Bis der Führende dort ist, wartet es
+  // in der Ausfahrt; alle fahren so lange mit Delta-Tempo.
+  const tr = race.track;
+  race.sc = { d: wrapD(tr, tr.pit.exit), v: 0, move: 0, inPit: true, waiting: true };
   race.neutral = { type: 'sc', phase: 'out', start: race.time, unlap: false, startLap: leader.lap };
   race.neutralStats.sc++;
   abortPasses(race);
-  race.emit('rc', 'SAFETY CAR – Safety Car auf der Strecke, Überholverbot');
+  race.emit('rc', 'SAFETY CAR – Überholverbot, Delta-Tempo. Das Safety Car wartet an der Boxenausfahrt auf den Führenden.');
+  launchSafetyCar(race);
   return true;
+}
+
+// Safety Car fährt aus der Boxenausfahrt, sobald der Führende kurz davor ist (Zeitpunkt so, dass es vor ihm einfädelt)
+function launchSafetyCar(race) {
+  const sc = race.sc;
+  if (!sc || !sc.waiting) return;
+  const tr = race.track;
+  const leader = leaderOnTrack(race);
+  if (!leader) return;
+  const toExit = wrapD(tr, tr.pit.exit - leader.d);
+  if (toExit > 260 || toExit < 40) return;
+  sc.waiting = false;
+  sc.inPit = false;
+  sc.d = wrapD(tr, tr.pit.exit);
+  sc.v = speedAt(tr, sc.d) * SC_SPEED;
+  race.emit('rc', `Safety Car verlässt die Boxengasse – ${leader.id} schließt auf.`);
 }
 
 // Rennstart hinter dem Safety Car (z. B. bei starkem Regen)
@@ -91,7 +111,7 @@ export function allowUnlap(race) {
 
 export function scInThisLap(race) {
   const n = race.neutral;
-  if (!n || n.type !== 'sc' || n.phase !== 'out' || !race.sc) return false;
+  if (!n || n.type !== 'sc' || n.phase !== 'out' || !race.sc || race.sc.waiting) return false;
   const tr = race.track;
   n.phase = 'in';
   // Nach dem letzten erlaubten Sektor (Standard: 6 von 12) erst in der nächsten Runde
@@ -215,6 +235,7 @@ export function neutralSpeedFactor(race, car) {
   if (n.type === 'red') return n.phase === 'grid' ? 0 : RED_SPEED;
   // Safety Car
   if (car.unlap) return 1.0;
+  if (race.sc && race.sc.waiting) return VSC_FACTOR;     // SC noch in der Boxenausfahrt: Delta-Tempo
   // Neustart: Verfolger reagieren mit kurzer Verzögerung auf das Gasgeben des Führenden
   if (n.go) return car.restartLag && race.time < car.restartLag ? RESTART_SPEED : null;
   // Einfahrtsrunde: der Führende bestimmt ein langsames Tempo und wartet, bis das Feld dicht auffährt
@@ -239,6 +260,7 @@ export function moveSafetyCar(race, dt) {
   const tr = race.track;
   const n = race.neutral;
   let v;
+  if (sc.waiting) { launchSafetyCar(race); if (sc.waiting) { sc.v = 0; sc.move = 0; return; } }
   if (sc.inPit) v = tr.pitLaneSpeed;
   else {
     v = speedAt(tr, sc.d) * (scPullingAway(race) ? 0.85 : SC_SPEED);

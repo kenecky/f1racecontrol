@@ -139,8 +139,13 @@ export class ControlPanel {
     if (kind === 'sc' && !race.isSession) {
       sub = 'Feld fährt hinter dem Safety Car, Überholverbot';
       if (!n || n.type === 'vsc') {
-        html = `<p class="ctl-text">Das Safety Car setzt sich vor den Führenden, das Feld schließt auf. Gut für längere Bergungen und Trümmerfelder.${n ? ' Das VSC wird dadurch ersetzt.' : ''}</p>
+        html = `<p class="ctl-text">Das Safety Car fährt an der Boxenausfahrt raus, sobald der Führende dort ankommt, und das Feld schließt auf. Gut für längere Bergungen und Trümmerfelder.${n ? ' Das VSC wird dadurch ersetzt.' : ''}</p>
           <button class="ctl-btn ctl-sc" data-action="sc-on" ${running ? '' : 'disabled'}>Safety Car einsetzen</button>`;
+      } else if (n.type === 'sc' && race.sc && race.sc.waiting) {
+        const lead = race.standings().find(c => !c.retired && !c.finished);
+        const dist = lead ? Math.round(((race.track.pit.exit - lead.d) % race.track.L + race.track.L) % race.track.L) : 0;
+        html = `<div class="ctl-status">Safety Car wartet an der Boxenausfahrt</div>
+          <p class="ctl-text">Es fährt raus, sobald ${lead ? lead.id : 'der Führende'} kurz vor der Ausfahrt ist (noch ${dist} m). Bis dahin gilt für alle Delta-Tempo, Überholen verboten.</p>`;
       } else if (n.type === 'sc') {
         const leader = race.standings().find(c => !c.retired);
         const laps = Math.max(0, leader.lap - (n.startLap ?? leader.lap));

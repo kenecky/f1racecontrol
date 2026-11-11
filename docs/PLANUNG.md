@@ -625,3 +625,15 @@ Einträge ohne gültige Punktzahl werden im Verlauf und in der Statistik ausgebl
 - **Restart nach Safety Car:** Der Führende bestimmt in der Einfahrtsrunde ein langsames Tempo und wartet auf das Feld,
   Verfolger schließen auf; beim Gasgeben reagieren sie mit 0,15–0,45 s (selten perfekt, selten verschlafen).
   Abstand P1–P2 nach dem Restart im Test jetzt Ø 0,3–0,5 s statt ~2 s.
+
+### Safety Car und Medical Car aus der Boxenausfahrt, Proteste, Zeitlimit (v46)
+- **Safety Car:** fährt immer an der Boxenausfahrt auf die Strecke. Ist der Führende weit weg, wartet es dort und fährt
+  raus, wenn er ~260 m vor der Ausfahrt ist; bis dahin Delta-Tempo (wie VSC) und Überholverbot.
+- **Medical Car in Runde 1:** wartet in der Boxenausfahrt, bis alle Autos (auch Boxengassen-Starter) vorbei sind, und
+  folgt dann dem Feld. Unfall mit Ausfall in Runde 1: fährt automatisch zur Unfallstelle, danach zurück in die Box.
+- **Proteste:** Protest nur von einem anderen (benachteiligten) Team, Antrag auf Überprüfung nur vom Team eines
+  bestraften Autos – kein Protest gegen ein Urteil ohne Strafe vom betroffenen Team selbst.
+- **Zeitlimit und rote Flagge:** Das Zeitlimit greift nicht mehr während einer roten Flagge (vorher bekam der Führende auf
+  dem Weg in die Boxengasse die Zielflagge, die wartenden Autos kamen nie ins Ziel und das Rennen endete nicht).
+- Statusleiste: Flaggenfeld schrumpft bei Bedarf, Tempo- und Pause-Knopf bleiben immer sichtbar.
+- Saison: Startknopf „Saison starten“ bzw. „Saison fortsetzen“.

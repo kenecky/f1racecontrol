@@ -1557,3 +1557,15 @@ body { background: #15181d; }
 .sec-pick.need.sel, .sec-pick.sel { color: #15181d; }
 .fs-screen.hz-frame { border-width: 5px !important; border-image: var(--hz) 5 !important; }
 .flag-sheet-sub:empty { display: none; }
+/* Statusleiste: Tempo- und Pause-Knopf bleiben immer sichtbar – das Flaggenfeld schrumpft bei Bedarf */
+.status { gap: 5px; padding-left: 8px; padding-right: 8px; }
+.status > * { flex: none; }
+.status .icon-btn { width: 30px; }
+.status-lap { min-width: 0; padding: 3px 6px !important; }
+.status-lap .label { font-size: 8px; }
+#lap { font-size: 13px; }
+.status .flag-chip { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 10px; letter-spacing: .06em; padding: 5px 6px; }
+.status-clock { margin-left: auto; padding: 3px 6px !important; font-size: 11px; }
+.status-clock .wx { font-size: 9px; }
+.status #speedBtn { min-width: 40px; padding: 0 6px; }
+.status .pause-btn { min-width: 40px; }

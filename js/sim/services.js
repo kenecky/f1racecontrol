@@ -88,7 +88,7 @@ export function setPitClosed(race, closed) {
 export function startLapMedical(race) {
   const s = svc(race);
   const tr = race.track;
-  s.startMed = { d: wrapD(tr, tr.pit.exit) - tr.L, phase: 'wait', v: 0 };
+  s.startMed = { d: wrapD(tr, tr.pit.exit), phase: 'wait', v: 0 };
 }
 
 // Hilfen für die Gefahren-Bergung
@@ -130,23 +130,34 @@ export function updateServices(race, dt) {
       if (!waiting && m.onsite > 15) m.phase = 'return';
     }
   }
-  // Medical Car der ersten Runde
+  // Medical Car der ersten Runde: wartet in der Boxenausfahrt, bis das ganze Feld (auch die Boxengassen-Starter)
+  // vorbei ist, folgt dann dem Feld. Gibt es in Runde 1 einen Unfall mit Ausfall, fährt es direkt dorthin.
   const sm = s.startMed;
   if (sm) {
+    const exitD = wrapD(tr, tr.pit.exit);
     const field = race.cars.filter(c => !c.retired && !c.pitStart);
     if (sm.phase === 'wait') {
-      const last = Math.min(...field.map(c => c.d));
-      if (race.phase === 'running' && last > wrapD(tr, tr.pit.exit) + 60) { sm.phase = 'go'; sm.d += tr.L; sm.d0 = sm.d; race.emit('info', 'Medical Car folgt dem Feld in der ersten Runde.'); }
+      const passed = race.phase === 'running' && race.cars.every(c => c.retired || (!c.inPit && !c.pitHold && c.d > exitD + 40) || (c.lap >= 1 && !c.pitStart));
+      if (passed) { sm.phase = 'go'; sm.d = exitD; race.emit('info', 'Medical Car verlässt die Boxengasse und folgt dem Feld in der ersten Runde.'); }
     } else {
-      const last = Math.min(...field.map(c => c.d));
-      const vt = Math.min(MED_SPEED + 8, speedAt(tr, sm.d) * 0.9, Math.max(10, (last - 60 - sm.d) * 2 + 20));
-      const prev = sm.d;
-      sm.d += vt * dt;
-      sm.v = vt;
-      // Ende der ersten Runde: an der Boxeneinfahrt (liegt meist vor der Ziellinie) hinein
-      if (crossed(tr, prev, sm.d, tr.pit.entry) && sm.d - (sm.d0 ?? sm.d - tr.L) > tr.L * 0.5) {
+      // Unfall mit Ausfall vor dem Medical Car? Dann direkt zur Unfallstelle
+      const crash = !s.medical && race.hazards.find(h => !h.ended && (h.medical || h.type === 'crash') && !h.medicalDone && !h.global && h.carId
+        && race.carById[h.carId] && race.carById[h.carId].retired && wrapD(tr, h.d - sm.d) < tr.L * 0.9);
+      if (crash) {
+        s.medical = { d: sm.d, target: sm.d + wrapD(tr, crash.d - sm.d), phase: 'out', sector: crash.sector, onsite: 0, v: sm.v || 0, auto: true };
         s.startMed = null;
-        race.emit('info', 'Medical Car fährt nach der ersten Runde in die Boxengasse.');
+        race.emit('rc', `MEDICAL CAR fährt direkt zur Unfallstelle in Sektor ${crash.sector + 1}.`, { sector: crash.sector });
+      } else {
+        const last = Math.min(...field.map(c => c.d));
+        const vt = Math.min(MED_SPEED + 8, speedAt(tr, sm.d) * 0.9, Math.max(10, (last - 60 - sm.d) * 2 + 20));
+        const prev = sm.d;
+        sm.d += vt * dt;
+        sm.v = vt;
+        // Ende der ersten Runde: an der Boxeneinfahrt (liegt meist vor der Ziellinie) hinein
+        if (crossed(tr, prev, sm.d, tr.pit.entry) && sm.d - exitD > tr.L * 0.5) {
+          s.startMed = null;
+          race.emit('info', 'Medical Car fährt nach der ersten Runde in die Boxengasse.');
+        }
       }
     }
   }
