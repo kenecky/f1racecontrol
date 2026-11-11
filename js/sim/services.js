@@ -5,7 +5,8 @@
 // kostet Punkte.
 import { wrapD, crossed, sectorIndexAt, speedAt } from './trackModel.js';
 
-const MED_SPEED = 42;      // m/s
+// Medical Car: 20 % schneller als das Safety Car (SC fährt 60 % des Renntempos)
+const MED_FACTOR = 0.72;
 const SWEEP_SPEED = 9;     // m/s
 
 export function svc(race) {
@@ -103,7 +104,7 @@ export function updateServices(race, dt) {
   const m = s.medical;
   if (m) {
     if (m.phase === 'out' || m.phase === 'return') {
-      const vt = Math.min(MED_SPEED, speedAt(tr, m.d) * 0.85);
+      const vt = speedAt(tr, m.d) * MED_FACTOR;
       m.v = vt;
       const prev = m.d;
       m.d += vt * dt;
@@ -149,7 +150,7 @@ export function updateServices(race, dt) {
         race.emit('rc', `MEDICAL CAR fährt direkt zur Unfallstelle in Sektor ${crash.sector + 1}.`, { sector: crash.sector });
       } else {
         const last = Math.min(...field.map(c => c.d));
-        const vt = Math.min(MED_SPEED + 8, speedAt(tr, sm.d) * 0.9, Math.max(10, (last - 60 - sm.d) * 2 + 20));
+        const vt = Math.min(speedAt(tr, sm.d) * 0.9, Math.max(10, (last - 60 - sm.d) * 2 + 20));
         const prev = sm.d;
         sm.d += vt * dt;
         sm.v = vt;

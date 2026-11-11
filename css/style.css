@@ -1638,3 +1638,15 @@ body { background: #15181d; }
 #speedMenu.popover { left: 8px; right: 8px; width: auto; }
 #speedMenu .speed-grid { grid-template-columns: repeat(6, 1fr); gap: 5px; }
 #speedMenu .speed-opt { height: 40px; font-size: 14px; padding: 0; }
+
+/* v52: Uhr und Wetter getrennt */
+.status .status-wx { padding: 3px 6px; }
+.status { gap: 4px; padding-left: 6px; padding-right: 6px; }
+.status .status-clock { padding: 3px 5px; }
+.status .wx { font-size: 9.5px; text-decoration: none; }
+.status #speedBtn, .status .rc-btn { padding: 0 8px; min-width: 0; }
+.status #menuBtn { width: 34px; }
+.status .flag-chip { padding: 5px 6px; flex: 0 1 auto; min-width: 0; }
+.status > * { flex: none; margin-left: 0; }
+.status > .flag-chip { flex: 1 1 auto; text-align: center; }
+@media (max-width: 430px) { .status .wx-t { display: none; } .status .wx { font-size: 14px; } }

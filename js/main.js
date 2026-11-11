@@ -106,7 +106,6 @@ function updateSound(now) {
   // Ereignisse
   for (let i = race.events.length - 1; i >= 0 && race.events[i].id > snd.evId; i--) {
     const e = race.events[i];
-    if (e.type === 'radio' && now - snd.lastRadio > 1500) { snd.lastRadio = now; sound.radio(); }
     if (e.type === 'chequered') sound.chequered();
   }
   if (race.events.length) snd.evId = race.events[race.events.length - 1].id;
@@ -918,7 +917,6 @@ function doLightsOut() {
   const ok = race.neutral && race.neutral.restart ? restartLightsOut(race) : lightsOut(race);
   if (!ok) return;
   if (speedBeforeLights) { setSpeed(speedBeforeLights); speedBeforeLights = null; }
-  setTimeout(() => { if (deskKind === 'start') closeDesk(); }, 1500);
 }
 
 function startCtlState() {
@@ -1009,11 +1007,9 @@ function refreshUi() {
       paused = true;
       acc = 0;
       updatePauseBtn();
-      toast(`Neue Entscheidung #${c.id}: ${c.typeName} – Spiel pausiert`);
     } else if (settings.slowOnIncident && settings.speed > 1) {
       setSpeed(1);
-      toast(`Neue Entscheidung #${c.id}: ${c.typeName} – Tempo auf 1×`);
-    } else if (!decOpen()) toast(`Neue Entscheidung #${c.id}: ${c.typeName}`);
+    }
   }
   if (map.follow) renderDriverCard();
   if (weatherPanel.isOpen && weatherPanel.offset === 0) weatherPanel.drawRadar();
@@ -1039,7 +1035,7 @@ function updateStatus() {
   const running = race.phase === 'running' || race.phase === 'chequered' || race.phase === 'finished';
   $('clock').textContent = formatClock(running ? race.time : 0);
   const wl = weatherLabel(race.weather);
-  $('wx').textContent = `${wl.icon} ${wl.track}`;
+  $('wx').innerHTML = `${wl.icon}<span class="wx-t"> ${wl.track}</span>`;
 
   const flag = $('flag');
   const status = trackStatus(race);
@@ -1209,7 +1205,7 @@ function markDesk() {
 }
 function renderDeskHead() {
   if (!race) return;
-  const lap = `${$('lapLabel').textContent.toUpperCase()} ${$('lap').textContent}`, clock = $('clock').textContent;
+  const lbl = $('lapLabel').textContent.toUpperCase(), lap = `${lbl === 'LAP' ? '' : lbl + ' '}${$('lap').textContent}`, clock = $('clock').textContent;
   for (const el of document.querySelectorAll('.lap-now')) el.textContent = lap;
   for (const el of document.querySelectorAll('.clock-now')) el.textContent = `${clock}${paused ? ' · PAUSE' : ''}`;
   const f = $('flag');

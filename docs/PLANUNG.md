@@ -673,3 +673,11 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 - TV-Ansicht: unterer RC-Log-Bereich (zum Hochwischen) entfernt, die Karte nutzt die ganze Höhe; Log über RC Desk erreichbar.
 - Kopfleiste: ganz rechts „RC“ (öffnet den RC Desk), links daneben das Tempo.
 - Tempo-Menü über die volle Breite, alle 6 Stufen in einer Reihe.
+
+### Kopfleiste, weniger Töne und Einblendungen, Medical Car schneller (v52)
+- Kopfleiste von links: ☰ · Runde · Flagge · Uhr · Wetter · Tempo · RC. Auf schmalen Handys zeigt das Wetter nur das Symbol (Tippen öffnet das Wetterfenster).
+- Nach Lights out bleibt die Ansicht, wie sie ist (kein Sprung mehr in die TV-Ansicht).
+- Keine gelben Einblendungen mehr bei neuen Entscheidungen; es bleiben Signalton und Zähler bei DOCS.
+- Kein Piepton mehr bei Funk-Einträgen im Log.
+- RC Desk oben: nur noch „x/y“ statt „LAP x/y“.
+- Medical Car fährt 20 % schneller als das Safety Car (72 % statt 60 % des Renntempos, ohne feste Höchstgeschwindigkeit).
