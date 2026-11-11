@@ -7,6 +7,7 @@ import { cornerNear, cornerLabel } from './hazards.js';
 import { createCase, ev, measure, tvImpression } from './incidents.js';
 import { sceneWeaving, sceneChicaneCut } from './scenes.js';
 import { aggressionOf } from './race.js';
+import { say } from './voices.js';
 
 const f1 = x => x.toFixed(1).replace('.', ',');
 const pct = x => `${Math.round(x)} %`;
@@ -26,7 +27,7 @@ export function rollBlueFlag(race, lapped, leader) {
     evidence: [
       ev('data', 'Blaue Flaggen', `${lapped.id} sieht über ${corners} Kurven blaue Flaggen (3 Marshal-Posten).`, true),
       ev('telemetry', `Zeitverlust ${leader.id}`, `${f1(lost)} s hinter ${lapped.id}.`),
-      ev('radio', `Funk ${leader.id}`, '„Blaue Flaggen! Der muss Platz machen!“'),
+      ev('radio', `Funk ${leader.id}`, say(race, 'blueAngry')),
       ev('radio', `Teamfunk ${lapped.team.name}`, guilty ? 'Kein Hinweis an den Fahrer aufgezeichnet.' : `„Blaue Flagge, lass ${leader.id} vorbei.“ (rechtzeitig)`),
       ev('data', 'Leitlinie', 'Wer überrundet wird, muss bei der ersten Gelegenheit Platz machen – spätestens nach drei Marshal-Posten mit blauen Flaggen.'),
     ],
@@ -50,7 +51,7 @@ export function rollDefending(race, attacker, defender, cornerId) {
       evidence: [
         ev('video', 'TV-Bilder', `${defender.id} zieht nach links, dann wieder nach rechts.${tvImpression(race, guilty ? 'Das wirkt wie zwei Bewegungen.' : 'Die zweite Bewegung wirkt wie die Rückkehr zur Ideallinie.', guilty ? 'Die zweite Bewegung wirkt wie die Rückkehr zur Ideallinie.' : 'Das wirkt wie zwei Bewegungen.')}`, true),
         ev('telemetry', `Lenkdaten ${defender.id}`, `${moves} deutliche Richtungswechsel, Seitenversatz ${f1(measure(race, guilty ? 3.2 : 2, 0.8, 0.5, 6))} m.`),
-        ev('radio', `Funk ${attacker.id}`, '„Er bewegt sich zweimal! Das ist nicht erlaubt!“'),
+        ev('radio', `Funk ${attacker.id}`, say(race, 'weaving', { o: defender.id })),
         ev('data', 'Leitlinie', 'Ein Richtungswechsel zur Verteidigung ist erlaubt. Wer danach zurück zur Ideallinie will, muss eine Autobreite Platz lassen. Mehrfaches Hin und Her ist verboten (üblich: Schwarz-Weiß-Flagge oder 5 s).'),
       ],
       truth: guilty ? { offender: defender.id, expected: ['bw', '5s'], points: [0, 1], victim: attacker.id } : { offender: null, expected: ['none'], points: [0, 0], victim: attacker.id },
@@ -67,8 +68,8 @@ export function rollDefending(race, attacker, defender, cornerId) {
       evidence: [
         ev('video', 'TV-Bilder', `${attacker.id} weicht im letzten Moment aus.`, true),
         ev('telemetry', `Telemetrie ${defender.id}`, `Verzögerung ${f1(decel)} g an einer Stelle, an der normalerweise kaum gebremst wird; ${guilty ? 'kein Gasverlust durch Technik erkennbar' : 'kurzer Leistungsabfall der Hybridunterstützung registriert'}.`),
-        ev('radio', `Funk ${attacker.id}`, '„Er hat mich gerade gebremstestet!“'),
-        ev('radio', `Funk ${defender.id}`, guilty ? '„Ich habe nur meine Reifen geschont.“' : '„Ich hatte gerade einen Leistungsverlust!“'),
+        ev('radio', `Funk ${attacker.id}`, say(race, 'brakeTested', { o: defender.id })),
+        ev('radio', `Funk ${defender.id}`, say(race, guilty ? 'brakeExcuseGuilty' : 'brakeExcuseOk')),
         ev('data', 'Leitlinie', 'Absichtliches, unnötiges Bremsen vor einem Gegner ist gefährlich (üblich: 10 s oder Durchfahrt, bei schweren Fällen mehr).'),
       ],
       truth: guilty ? { offender: defender.id, expected: ['10s', 'dt'], points: [2, 3], victim: attacker.id } : { offender: null, expected: ['none'], points: [0, 0], victim: attacker.id },
@@ -112,7 +113,7 @@ export function rollNeutralCases(race, dt) {
       evidence: [
         ev('data', 'Zeitnahme', `${A.id} vor ${B.id} am Mini-Sektor ${r.int(10, 40)}.`, true),
         ev('telemetry', `Telemetrie ${B.id}`, legal ? `${B.id} fährt mit deutlich reduziertem Tempo (Problem gemeldet).` : `${B.id} fährt normales Delta-Tempo.`),
-        ev('radio', `Funk ${A.id}`, legal ? '„Er war viel zu langsam, ich musste vorbei.“' : '„Er hat mich vorbeigelassen, oder?“'),
+        ev('radio', `Funk ${A.id}`, legal ? say(race, 'slowAngry') : '„Er hat mich vorbeigelassen, oder?“'),
         ev('data', 'Leitlinie', 'Unter SC und VSC darf nicht überholt werden – außer an einem Auto, das offensichtlich ein Problem hat oder in die Box fährt. Üblich: Platz zurückgeben oder Zeitstrafe.'),
       ],
       truth: legal ? { offender: null, expected: ['none'], points: [0, 0], victim: B.id } : { offender: A.id, expected: ['giveback', '5s'], points: [0, 1], victim: B.id },

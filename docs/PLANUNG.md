@@ -737,3 +737,11 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 - Flaggen: Sektor antippen → Karte zoomt auf den Sektor.
 - Energie nach realen 2026-Werten: 350 kW / ~4 MJ → voller Einsatz ~8,8 %/s (lange Gerade > 50 %), Laden bis ~2 Akkus (8 MJ) pro Runde; leerer Akku = Clipping.
 - Nach der Zielflagge: Auslaufrunde mit ~45 % Tempo, dann in die Box (Ergebnis und Uhr unverändert).
+
+### Kartendrehung, Texte, Fixes (v59)
+- Karte dreht sich je Strecke und Kartenformat automatisch in den besten Winkel (5°-Schritte, größte Darstellung; TV hochkant, Desk quer).
+- Erklärtexte in PIT, RED, SC und VSC entfernt.
+- Viele neue Varianten für Fahrer- und Teamaussagen in Entscheidungen (js/sim/voices.js): Anhörung (Zugeben, Verteidigen, Rennunfall, Beschuldigen …) und Funk (Richtungswechsel, Bremstest, blaue Flagge, Überholen neben der Strecke, Unsafe Release …).
+- Flaggen: Sektor-Zoom stärker.
+- Fix: Sektor in FLAGS antippen hat die ganze Seite verschoben – danach fehlte in der TV-Ansicht die obere Leiste.
+- Fix: Tempo-Menü schließt bei Rennende.

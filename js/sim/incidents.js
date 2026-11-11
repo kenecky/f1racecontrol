@@ -8,6 +8,7 @@ import { aggressionOf, errorsOf } from './race.js';
 import { markWingDamage } from './events.js';
 import { rollDefending } from './cases2.js';
 import { sceneCollision, sceneForcedOff, sceneOffTrackPass, sceneUnsafeRelease, sceneUnsafeRejoin, scenePileup, sceneJumpStart } from './scenes.js';
+import { say } from './voices.js';
 
 export const CASE_TYPES = {
   collision:     { name: 'Kollision',                     options: ['warning', '5s', '10s', 'dt', 'sg', 'grid3', 'grid5', 'grid10', 'dsq'] },
@@ -296,7 +297,7 @@ function offTrackPass(race, A, B, cornerId) {
         ? `Kamerawinkel ungünstig – mindestens 2 Räder von ${A.id} jenseits der weißen Linie, mehr nicht erkennbar.`
         : `${wheels} Räder von ${A.id} jenseits der weißen Linie.`),
       ev('telemetry', 'Mini-Sektor', `${A.id} ist im Abschnitt ${f1(gain)} s schneller als in den Vorrunden.`),
-      ev('radio', `Funk ${B.id}`, '„Er hat mich neben der Strecke überholt! Er muss den Platz zurückgeben!“'),
+      ev('radio', `Funk ${B.id}`, say(race, 'offTrackComplain', { o: A.id })),
       ev('data', 'Leitlinie', RULE_TRACK),
     ],
     truth: legal
@@ -462,8 +463,8 @@ export function rollUnsafeRejoin(race, car, h) {
         unsafe ? `${car.id} bleibt am Rand, bis ${B.id} vorbei ist.` : `${car.id} zieht quer über die Ideallinie.`)}`, true),
       ev('telemetry', `Telemetrie ${B.id}`, `${B.id} verliert ${Math.round(lift)} km/h, Lenkkorrektur ${f1(measure(race, unsafe ? 4 : 1.5, 1.4, 0, 10))}°.`),
       ev('position', 'Winkel beim Auffahren', `${car.id} fährt in einem Winkel von etwa ${Math.round(angle)}° auf die Strecke.`),
-      ev('radio', `Funk ${B.id}`, unsafe ? `„${car.id} ist mir direkt vors Auto gefahren!“` : '„Der kam da plötzlich raus.“'),
-      ev('radio', `Funk ${car.id}`, '„Ich habe in den Spiegel geschaut, da war genug Platz.“'),
+      ev('radio', `Funk ${B.id}`, unsafe ? say(race, 'unsafeComplain', { o: car.id }) : '„Der kam da plötzlich raus.“'),
+      ev('radio', `Funk ${car.id}`, say(race, 'unsafeExcuse')),
       ev('data', 'Leitlinie', 'Wer neben die Strecke gerät, muss sicher und ohne Vorteil zurückfahren. Wird ein anderer Fahrer behindert oder gefährdet, ist das eine unsichere Rückkehr (üblich: 5 oder 10 s, bei Unfall auch mehr).'),
     ],
     truth: unsafe
@@ -493,8 +494,8 @@ export function createYellowPassCase(race, A, B, flag) {
       ev('video', 'TV-Bilder', `${A.id} geht in ${cornerLabel(corner)} an ${B.id} vorbei.`, true),
       ev('telemetry', `Telemetrie ${B.id}`, `${B.id} ist im Abschnitt ${Math.round(slowB)} km/h langsamer als üblich.`),
       ev('telemetry', `Telemetrie ${A.id}`, `${A.id} lupft im Sektor ${f1(lift)} s lang.`),
-      ev('radio', `Funk ${A.id}`, legal && r.chance(0.7) ? '„Er war viel zu langsam, ich musste vorbei!“' : r.chance(0.5) ? '„Ich habe die Flagge zu spät gesehen.“' : '„Er war viel zu langsam, ich musste vorbei!“'),
-      ...(legal && r.chance(0.5) ? [ev('radio', `Funk ${B.id}`, '„Ich habe Leistungsverlust!“')] : []),
+      ev('radio', `Funk ${A.id}`, legal && r.chance(0.7) ? say(race, 'slowAngry') : r.chance(0.5) ? say(race, 'flagLate') : say(race, 'slowAngry')),
+      ...(legal && r.chance(0.5) ? [ev('radio', `Funk ${B.id}`, say(race, 'powerLoss'))] : []),
       ev('data', 'Leitlinie', RULE_YELLOW),
     ],
     truth: legal
@@ -627,18 +628,16 @@ export function hearingEvidence(race, c) {
   const r = race.rng;
   const t = c.truth;
   const out = [];
-  const admit = ['„Ich habe mich verbremst, das war mein Fehler.“', '„Ich hätte etwas früher reagieren müssen.“', '„Im Nachhinein war das zu optimistisch.“'];
-  const defend = ['„Ich habe nichts falsch gemacht.“', '„Ich hatte die Linie, der andere hätte Platz lassen müssen.“', '„Das war ganz normales Racing.“'];
-  const accept = ['„Ehrlich gesagt: ein Rennunfall.“', '„So etwas passiert im Zweikampf.“'];
   const single = c.cars.length === 1;
   for (const id of c.cars) {
     const other = c.cars.find(x => x !== id);
     let text;
-    if (t.offender === id) text = r.chance(0.35) ? r.pick(admit) : single ? r.pick(['„Das war keine Absicht.“', '„Ich habe davon im Auto nichts gemerkt.“']) : r.pick(defend);
-    else if (single) text = r.chance(0.6) ? '„Da war nichts Unerlaubtes.“' : r.pick(defend);
-    else if (t.victim === id) text = t.offender || r.chance(0.5) ? `„Das war klar der Fehler von ${t.offender || other}.“` : r.pick(accept);
-    else if (c.type === 'pileup') text = '„Ich konnte nicht mehr ausweichen.“';
-    else text = r.chance(0.5) ? r.pick(defend) : `„${other} hat mir keine Chance gelassen.“`;
+    const o = { o: other || 'der andere' };
+    if (t.offender === id) text = r.chance(0.35) ? say(race, 'admit', o) : single ? say(race, 'noIntent') : say(race, 'defend', o);
+    else if (single) text = r.chance(0.6) ? say(race, 'notWrong') : say(race, 'defend', o);
+    else if (t.victim === id) text = t.offender || r.chance(0.5) ? say(race, 'blame', { o: t.offender || other }) : say(race, 'accept', o);
+    else if (c.type === 'pileup') text = say(race, 'pileup');
+    else text = r.chance(0.5) ? say(race, 'defend', o) : say(race, 'noChance', o);
     out.push(ev('hearing', `Schilderung ${id}`, text));
   }
   const [A, B] = c.cars;

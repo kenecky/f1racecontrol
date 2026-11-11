@@ -75,10 +75,22 @@ export class TrackMap {
     // Hohe, schmale Karte (eingeklappter Bereich): Strecke um 90° drehen, wenn sie dadurch größer wird.
     // Zwischen ausgeklappter und eingeklappter Höhe folgt der Winkel stufenlos der Kartenhöhe –
     // beim Wischen dreht sich die Karte also langsam mit.
+    // Beste Drehung je Strecke und Kartenformat: alle Winkel in 5°-Schritten prüfen und den nehmen,
+    // bei dem die Strecke am größten erscheint (TV hochkant, Desk quer – automatisch je Strecke).
+    // Kaum besser (< 4 %) als ungedreht → ungedreht lassen.
     const angleFor = h => {
-      const r = bounds(Math.PI / 2, h).s / bounds(0, h).s;
-      const k = Math.min(1, Math.max(0, (r - 1.05) / 0.35));
-      return k * k * (3 - 2 * k) * Math.PI / 2;
+      const key = `${Math.round(this.w)}x${Math.round(h)}:${padL}:${padTop}`;
+      this.angleCache = this.angleCache && this.angleCache.track === tr ? this.angleCache : { track: tr };
+      if (this.angleCache[key] !== undefined) return this.angleCache[key];
+      const s0 = bounds(0, h).s;
+      let best = 0, bestS = s0 * 1.04;
+      for (let deg = 5; deg < 180; deg += 5) {
+        const a = deg * Math.PI / 180;
+        const sc = bounds(a, h).s * (1 - Math.min(Math.abs(deg - 90), deg, 180 - deg) * 0.0002);   // leichte Vorliebe für glatte Winkel
+        if (sc > bestS) { bestS = sc; best = a; }
+      }
+      this.angleCache[key] = best;
+      return best;
     };
     const [h0, h1] = this.heightRange ? this.heightRange() : [this.h, this.h];
     if (h1 > h0 + 40 && this.h > h0 && this.h < h1) {
@@ -149,7 +161,7 @@ export class TrackMap {
       const px = this.ox + x * this.scale, py = this.oy + y * this.scale;
       x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py);
     }
-    const z = Math.max(1.5, Math.min(MAX_ZOOM, 0.7 * Math.min(this.w / Math.max(40, x1 - x0), this.h / Math.max(40, y1 - y0))));
+    const z = Math.max(2, Math.min(MAX_ZOOM, 1.05 * Math.min(this.w / Math.max(40, x1 - x0), this.h / Math.max(40, y1 - y0))));
     const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
     this.sectorZoom = idx;
     this.setView(z, this.w / 2 - cx * z, this.h / 2 - cy * z);

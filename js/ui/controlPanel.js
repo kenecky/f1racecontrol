@@ -133,8 +133,7 @@ export class ControlPanel {
     } else if (kind === 'vsc') {
       sub = '';
       if (!n) {
-        html = `<p class="ctl-text">Alle Autos fahren rund 40 % langsamer. Gut für Bergungen, die nur kurz dauern.</p>
-          <button class="ctl-btn ctl-vsc" data-action="vsc-on" ${running ? '' : 'disabled'}>ACTIVATE VSC</button>`;
+        html = `          <button class="ctl-btn ctl-vsc" data-action="vsc-on" ${running ? '' : 'disabled'}>ACTIVATE VSC</button>`;
       } else if (n.type === 'vsc' && n.phase === 'active') {
         html = `<div class="ctl-status">VSC aktiv seit ${since}</div>
           <button class="ctl-btn ctl-green" data-action="vsc-off">END VSC</button>${stratHtml(n)}
@@ -150,7 +149,7 @@ export class ControlPanel {
     if (kind === 'sc' && !race.isSession) {
       sub = '';
       if (!n || n.type === 'vsc') {
-        html = `<p class="ctl-text">Das Safety Car fährt an der Boxenausfahrt raus, sobald der Führende dort ankommt, und das Feld schließt auf. Gut für längere Bergungen und Trümmerfelder.${n ? ' Das VSC wird dadurch ersetzt.' : ''}</p>
+        html = `
           <button class="ctl-btn ctl-sc" data-action="sc-on" ${running ? '' : 'disabled'}>ACTIVATE SC</button>`;
       } else if (n.type === 'sc' && race.sc && race.sc.waiting) {
         const lead = race.standings().find(c => !c.retired && !c.finished);
@@ -255,7 +254,6 @@ export class ControlPanel {
       html = closed
         ? `<div class="ctl-status">Boxengasse ist GESCHLOSSEN</div><button class="ctl-btn ctl-green" data-action="pit-open">OPEN PIT LANE</button>`
         : `<div class="ctl-status">Boxengasse ist offen</div><button class="ctl-btn ctl-red" data-action="pit-close" ${race.phase !== 'pre' && race.phase !== 'finished' ? '' : 'disabled'}>CLOSE PIT LANE</button>`;
-      html += '<p class="ctl-small">Liegt im Ermessen der Rennleitung. Ohne Grund geschlossen kostet es Punkte beim Rennfluss.</p>';
     }
 
     if (kind === 'start') {
@@ -340,7 +338,7 @@ export class ControlPanel {
     if (kind === 'red') {
       sub = '';
       if (!n || n.type !== 'red') {
-        html = `<p class="ctl-text">${race.isSession ? 'Die Session wird unterbrochen, alle Autos fahren in die Box, die Uhr hält an.' : 'Alle Autos fahren langsam in die Boxengasse und stellen sich an. Freier Reifenwechsel. Nur bei großer Gefahr, z. B. beschädigter Barriere.'}</p>
+        html = `
           <button class="ctl-btn ctl-red" data-action="red-on" ${running ? '' : 'disabled'}>ACTIVATE RED FLAG</button>`;
       } else if (n.phase === 'stopping') {
         const racing = race.cars.filter(c => !c.retired && !c.finished).length;

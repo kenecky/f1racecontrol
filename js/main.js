@@ -1245,6 +1245,8 @@ function closeDesk() {
   map.highlightSector = null;
   deskKind = null;
   endSectorZoom();
+  // Sicherheitsnetz: die Seite darf nie verschoben bleiben (sonst fehlt oben die Leiste)
+  appEl.scrollTop = 0; document.scrollingElement.scrollTop = 0;
 }
 function markDesk() {
   for (const id of Object.values(KIND_BTN)) $(id).classList.remove('cur');
@@ -1328,6 +1330,7 @@ function toggleSpeedMenu(show, anchor = $('speedBtn')) {
 // Ergebnis anzeigen – darf nie hängen bleiben: Schlägt der Aufbau fehl, erscheint trotzdem ein einfaches Ergebnis
 // mit der Fehlermeldung (zum Melden), statt dass man ohne Ergebnis in der Streckenansicht landet.
 function showResults() {
+  toggleSpeedMenu(false);
   try {
     buildResults();
   } catch (e) {
@@ -1557,6 +1560,7 @@ function postPending() {
   return openCases(race).length > 0 || Boolean(race.scrutiny && !race.scrutiny.done);
 }
 function finishFlow() {
+  toggleSpeedMenu(false);   // offenes Tempo-Menü nach Rennende schließen
   try { finishFlowInner(); } catch (e) {
     console.error(e);
     reportError('Rennende', e);

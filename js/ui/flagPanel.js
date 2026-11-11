@@ -84,7 +84,12 @@ export class FlagPanel {
 
     if (scroll && this.focus !== null) {
       const row = this.list.querySelector(`.frow[data-sector="${this.focus}"]`);
-      if (row) row.scrollIntoView({ block: 'center' });
+      // nur die Liste selbst scrollen – scrollIntoView verschiebt sonst auch die ganze Seite
+      // (danach fehlte in der TV-Ansicht die obere Leiste)
+      if (row) {
+        const sc = this.list, r = row.getBoundingClientRect(), b = sc.getBoundingClientRect();
+        sc.scrollTop += (r.top - b.top) - (sc.clientHeight - r.height) / 2;
+      }
     }
   }
 }
