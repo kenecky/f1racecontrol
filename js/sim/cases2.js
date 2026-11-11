@@ -5,6 +5,7 @@ import { msgFactor } from './messages.js';
 import { wrapD } from './trackModel.js';
 import { cornerNear, cornerLabel } from './hazards.js';
 import { createCase, ev, measure, tvImpression } from './incidents.js';
+import { sceneWeaving, sceneChicaneCut } from './scenes.js';
 import { aggressionOf } from './race.js';
 
 const f1 = x => x.toFixed(1).replace('.', ',');
@@ -42,7 +43,7 @@ export function rollDefending(race, attacker, defender, cornerId) {
   if (r.chance(0.6)) {
     const guilty = r.chance(0.55);
     const moves = guilty ? r.int(2, 3) : 1;
-    createCase(race, {
+    const wc = createCase(race, {
       type: 'weaving', cars: [defender.id, attacker.id], corner: corner.id,
       title: `${defender.id} verteidigt mit mehreren Richtungswechseln? – vor ${corner.id}`,
       summary: `${defender.id} wechselt auf der Geraden vor ${cornerLabel(corner)} mehrmals die Linie, ${attacker.id} folgt im Windschatten.`,
@@ -54,6 +55,7 @@ export function rollDefending(race, attacker, defender, cornerId) {
       ],
       truth: guilty ? { offender: defender.id, expected: ['bw', '5s'], points: [0, 1], victim: attacker.id } : { offender: null, expected: ['none'], points: [0, 0], victim: attacker.id },
     });
+    wc.scene = sceneWeaving(race, { A: defender, B: attacker, corner, moves });
   } else {
     const guilty = r.chance(0.5);
     const decel = measure(race, guilty ? 2.6 : 1.4, 0.6, 0.4, 5);
@@ -163,7 +165,7 @@ export function rollChicaneCut(race, car) {
   const gain = measure(race, r.chance(0.6) ? 0.45 : 0.1, 0.15, 0, 1.2);
   const guilty = gain > 0.25;
   const backed = guilty && r.chance(0.3);
-  createCase(race, {
+  const cc = createCase(race, {
     type: 'chicaneCut', cars: [car.id], corner: corner.id,
     title: `${car.id} kürzt ${corner.id} ab`,
     summary: `${car.id} fährt in ${cornerLabel(corner)} über den Auslauf und kommt hinter der Kurve wieder auf die Strecke.`,
@@ -174,6 +176,7 @@ export function rollChicaneCut(race, car) {
     ],
     truth: guilty && !backed ? { offender: car.id, expected: ['giveback', '5s'], points: [0, 1] } : { offender: null, expected: ['none'], points: [0, 0] },
   });
+  cc.scene = sceneChicaneCut(race, { A: car, corner, gain });
 }
 
 // ---------- Auto unsicher abgestellt ----------

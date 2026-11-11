@@ -191,6 +191,7 @@ export class ScenePlayer {
     } else {
       this.drawOverlay(ctx, k, P, dpr);
     }
+    if (this.scene.lights) this.drawLights(ctx, W, dpr);
   }
 
   renderScene(ctx, w, h, k, P) {
@@ -261,6 +262,16 @@ export class ScenePlayer {
       ctx.lineWidth = 1.0 * k; ctx.strokeStyle = '#fff'; ctx.stroke();
       dashes(kb.side * (HALF_W + 0.5), Math.max(a, s0), Math.min(z, s1), 1, 1, 1.0 * k, '#d0201a');
     }
+    // Startbox (Fehlstart): weiße Linien der eigenen Box, fest an der Strecke
+    if (scene.grid) {
+      const g = scene.grid, sd = g.side, front = CAR_LEN / 2 + 0.4;
+      ctx.strokeStyle = '#f2f2f2'; ctx.lineWidth = Math.max(1.5, 0.3 * k);
+      ctx.beginPath();
+      const a = P(front, sd * 0.9), b = P(front, sd * 5.7);
+      ctx.moveTo(...a); ctx.lineTo(...b);
+      for (const l of [sd * 0.9, sd * 5.7]) { const c1 = P(front, l), c2 = P(front - 1.6, l); ctx.moveTo(...c1); ctx.lineTo(...c2); }
+      ctx.stroke();
+    }
     // Autos
     const t = this.t;
     for (const car of scene.cars) {
@@ -288,6 +299,24 @@ export class ScenePlayer {
       const [x, y] = P((a.s + bb.s) / 2, (a.lat + bb.lat) / 2);
       ctx.fillStyle = `rgba(255,220,60,${0.85 - (t - scene.contact) * 2})`;
       ctx.beginPath(); ctx.arc(x, y, 2.2 * k, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  // Startampel (Fehlstart-Szene): fünf Lichter, gehen nacheinander an und bei „out“ aus
+  drawLights(ctx, W, dpr) {
+    const L = this.scene.lights, t = this.t;
+    const on = t >= L.out ? 0 : Math.max(0, Math.min(5, Math.floor(t - 0.5) + 1));
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const r = 7 * dpr, gap = 5 * dpr, w = 5 * (2 * r) + 4 * gap + 12 * dpr;
+    const x0 = W - w - 8 * dpr, y0 = 8 * dpr;
+    ctx.fillStyle = 'rgba(0,0,0,.8)'; ctx.fillRect(x0, y0, w, 2 * r + 12 * dpr);
+    for (let i = 0; i < 5; i++) {
+      ctx.beginPath(); ctx.arc(x0 + 6 * dpr + r + i * (2 * r + gap), y0 + 6 * dpr + r, r, 0, Math.PI * 2);
+      ctx.fillStyle = i < on ? '#ff2a1a' : '#3a0d0d'; ctx.fill();
+    }
+    if (t >= L.out && t < L.out + 1.5) {
+      ctx.font = `800 ${11 * dpr}px system-ui, sans-serif`; ctx.fillStyle = '#4ade80'; ctx.textAlign = 'right';
+      ctx.fillText('LIGHTS OUT', x0 + w - 4 * dpr, y0 + 2 * r + 26 * dpr); ctx.textAlign = 'left';
     }
   }
 
@@ -335,6 +364,36 @@ export class ScenePlayer {
       const w = ctx.measureText(txt).width + 12 * dpr;
       ctx.fillRect(6 * dpr, 26 * dpr, w, 20 * dpr);
       ctx.fillStyle = '#ffd12e';
+      ctx.fillText(txt, 12 * dpr, 40 * dpr);
+    } else if (ov.kind === 'trail') {
+      // Spur des Autos bis jetzt (Richtungswechsel bzw. Abkürzung sichtbar machen)
+      const car = scene.cars[ov.a];
+      ctx.strokeStyle = ov.cut ? 'rgba(248,113,113,.95)' : 'rgba(255,209,46,.9)'; ctx.lineWidth = 2.5 * dpr; ctx.setLineDash([5 * dpr, 4 * dpr]);
+      ctx.beginPath();
+      for (let tt = 0; tt <= this.t + 1e-6; tt += scene.dt) { const [s1, l1] = sceneCarAt(scene, car, tt); const [x, y] = P(s1, l1); tt === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
+      ctx.stroke(); ctx.setLineDash([]);
+      let txt;
+      if (ov.cut) txt = `${car.id}: Abkürzung über den Auslauf · Zeitgewinn ${ov.gain.toFixed(1).replace('.', ',')} s`;
+      else { const k2 = ov.moves.filter(m => m + 0.3 <= this.t).length; txt = `${car.id}: ${k2} Richtungswechsel${k2 >= 2 ? ' – mehr als einer!' : ''}`; }
+      ctx.fillStyle = 'rgba(0,0,0,.65)';
+      const w = ctx.measureText(txt).width + 12 * dpr;
+      ctx.fillRect(6 * dpr, 26 * dpr, w, 20 * dpr);
+      ctx.fillStyle = ov.cut ? '#fca5a5' : '#ffd12e';
+      ctx.fillText(txt, 12 * dpr, 40 * dpr);
+    } else if (ov.kind === 'jump') {
+      // Vorderkante der Startbox und zurückgelegter Weg bis zum Erlöschen der Lichter
+      const car = scene.cars[ov.a];
+      const g = scene.grid, front = CAR_LEN / 2 + 0.4;
+      const [x1, y1] = P(front, g.side * 0.9), [x2, y2] = P(front, g.side * 5.7);
+      ctx.strokeStyle = '#ffd12e'; ctx.lineWidth = 2 * dpr;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      const sNow = sceneCarAt(scene, car, Math.min(this.t, ov.out))[0];
+      const cm = Math.round(sNow * 100);
+      const txt = this.t < ov.out ? `${car.id}: Bewegung vor Lichter aus ${cm} cm` : `${car.id}: ${cm} cm vor Lichter aus bewegt`;
+      ctx.fillStyle = 'rgba(0,0,0,.65)';
+      const w = ctx.measureText(txt).width + 12 * dpr;
+      ctx.fillRect(6 * dpr, 26 * dpr, w, 20 * dpr);
+      ctx.fillStyle = cm >= 10 ? '#ffd12e' : '#e6e9ef';
       ctx.fillText(txt, 12 * dpr, 40 * dpr);
     } else if (ov.kind === 'edge') {
       const car = scene.cars[ov.a];

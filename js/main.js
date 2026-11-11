@@ -1670,7 +1670,8 @@ function renderDec(force = false) {
       <span class="dec-no">DOC<b>${c.id}</b></span><span><span class="dec-tt">${c.title}</span><span class="dec-mt">${meta.join(' · ')}</span></span>
       <span class="dec-st" style="color:${col};border-color:${col}">${lab}</span></button>`;
   }).join('') : `<div class="empty"><div class="empty-icon">⚖️</div>${race.cases.length ? 'Keine Fälle in dieser Ansicht.' : 'Noch keine Entscheidungen.<br>Vorfälle zwischen Fahrern und Regelverstöße erscheinen hier.'}</div>`;
-  const next = decCases().find(c => c.status === 'new') || race.cases.filter(c => c.status === 'new').sort((a, b) => a.id - b.id)[0];
+  // ältester neuer Fall zuerst
+  const next = race.cases.filter(c => c.status === 'new').sort((a, b) => a.id - b.id)[0];
   const btn = $('decNext');
   if (race.phase === 'finished' && !next) { btn.textContent = 'ERGEBNIS ANZEIGEN ›'; btn.dataset.mode = 'results'; btn.disabled = false; }
   else { btn.textContent = next ? 'NÄCHSTEN NEUEN FALL ÖFFNEN ›' : 'KEINE NEUEN FÄLLE'; btn.dataset.mode = next ? String(next.id) : ''; btn.disabled = !next; }

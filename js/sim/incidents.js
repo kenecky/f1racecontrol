@@ -7,7 +7,7 @@ import { sectorIndexAt, wrapD } from './trackModel.js';
 import { aggressionOf, errorsOf } from './race.js';
 import { markWingDamage } from './events.js';
 import { rollDefending } from './cases2.js';
-import { sceneCollision, sceneForcedOff, sceneOffTrackPass, sceneUnsafeRelease, sceneUnsafeRejoin, scenePileup } from './scenes.js';
+import { sceneCollision, sceneForcedOff, sceneOffTrackPass, sceneUnsafeRelease, sceneUnsafeRejoin, scenePileup, sceneJumpStart } from './scenes.js';
 
 export const CASE_TYPES = {
   collision:     { name: 'Kollision',                     options: ['warning', '5s', '10s', 'dt', 'sg', 'grid3', 'grid5', 'grid10', 'dsq'] },
@@ -738,7 +738,7 @@ export function createJumpStartCase(race, car, jump) {
   const early = measure(race, real ? 0.24 : 0.12, 0.08, 0.02, 0.7);
   const cm = Math.round(measure(race, jump.dist, 0.22, 0.03, 2.6) * 100);
   const still = real ? r.chance(0.2) : r.chance(0.8);
-  createCase(race, {
+  const jc = createCase(race, {
     type: 'jumpStart', cars: [car.id],
     title: `Fehlstart ${car.id}?`,
     summary: `${car.id} bewegt sich in der Startaufstellung, bevor die Lichter ausgehen.`,
@@ -758,6 +758,10 @@ export function createJumpStartCase(race, car, jump) {
       ? { offender: car.id, expected: jump.dist > 1.2 ? ['10s', 'dt'] : ['5s', '10s'], points: [0, 1] }
       : { offender: null, expected: ['none'], points: [0, 0] },
   });
+  // Szene: nur dieses Auto in seiner Startbox
+  const d0 = car.d - (jump.moved || 0);
+  const slot = Math.round((-d0 - 6) / 8);
+  jc.scene = sceneJumpStart(race, { A: car, d: d0, side: slot % 2 === 0 ? -1 : 1, early: Math.max(0.05, race.lightsTimer - jump.at), dist: jump.dist, real });
 }
 
 // Auto steht nicht korrekt in seiner Startbox

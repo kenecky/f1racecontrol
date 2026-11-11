@@ -644,3 +644,9 @@ mit geladenen Spielständen (Regen, mehrere SC, rote Flagge, Zeitlimit, offene F
 Saison) nicht nachstellen. Wahrscheinliche Ursache: ein Fehler beim Aufbau des Ergebnisses, nachdem das Fenster „Nach dem
 Rennen“ schon geschlossen war. Absicherung: Ergebnis, „Nach dem Rennen“ und Rennende fangen Fehler ab – es erscheint immer
 ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; unerwartete Fehler werden als Hinweis angezeigt.
+
+### Neue Rennszenen, Reihenfolge „nächster neuer Fall“ (v49)
+- Szenen für **Mehrfacher Richtungswechsel** (Spur des Verteidigers, Zähler der Wechsel), **Schikane abgekürzt**
+  (rote Spur über den Auslauf, Zeitgewinn) und **Fehlstart** (nur das Auto in seiner Startbox mit Linien, Startampel,
+  zurückgelegter Weg bis „Lichter aus“ in cm).
+- „Nächsten neuen Fall öffnen“ wählt den ältesten neuen Fall zuerst.

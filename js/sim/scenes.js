@@ -351,3 +351,92 @@ export function sceneCarAt(scene, car, t) {
   const a = f[i], b = f[k];
   return [lerp(a[0], b[0], w), lerp(a[1], b[1], w), lerp(a[2], b[2], w)];
 }
+
+// ---------- Mehrfacher Richtungswechsel (Verteidigung auf der Geraden) ----------
+// Verteidiger A vorne, Angreifer B im Windschatten. moves = Anzahl der Richtungswechsel von A.
+export function sceneWeaving(race, { A, B, corner, moves }) {
+  const turn = corner.turn || 1;
+  const n = 46, v = 74;                     // ~266 km/h auf der Geraden
+  const fA = [], fB = [];
+  // Zeitpunkte der Bewegungen von A und die Seite, auf die er zieht
+  const tMoves = moves >= 2 ? [0.9, 2.2, 3.3].slice(0, moves) : [1.2];
+  const sides = [turn, -turn, turn];
+  const latAt = t => {
+    let lat = 0;
+    tMoves.forEach((tm, i) => { lat = lerp(lat, sides[i] * 3.6, smooth((t - tm) / 0.55)); });
+    // ein einzelner Richtungswechsel: danach bleibt A innen (erlaubt)
+    return lat;
+  };
+  for (let i = 0; i < n; i++) {
+    const t = i * DT;
+    const sA = -380 + v * t;
+    const lA = latAt(t);
+    fA.push([sA, lA, 0]);
+    // B im Windschatten, versucht auf die freie Seite auszuweichen
+    const gap = lerp(16, 7, smooth(t / 2.5));
+    const want = -Math.sign(lA || -turn) * 3.4;
+    const lB = lerp(0, want, smooth((t - 0.4) / 0.9));
+    fB.push([sA - gap, i ? lerp(fB[i - 1][1], lB, 0.35) : 0, 0]);
+  }
+  separate(fA, fB);
+  return {
+    type: 'weaving', d0: corner.d, turn, corner: corner.id, dt: DT, dur: (n - 1) * DT,
+    cars: [{ ...teamLook(A), f: fA }, { ...teamLook(B), f: fB }],
+    contact: null,
+    overlay: { kind: 'trail', a: 0, moves: tMoves, label: 'Richtungswechsel' },
+  };
+}
+
+// ---------- Schikane abgekürzt ----------
+// Auto verbremst sich und fährt geradeaus über den Auslauf, kommt hinter der Kurve wieder auf die Strecke.
+export function sceneChicaneCut(race, { A, corner, gain }) {
+  const turn = corner.turn || 1;
+  const vc = clamp((corner.vmax || 100) / 3.6, 16, 40);
+  const n = 56, fA = [];
+  const v = speedProfile(vc, 18);           // bremst zu spät
+  const sPath = runPath(-150, v, (n - 1) * DT);
+  sPath.forEach(s => {
+    // Ideallinie, aber in der Kurve geradeaus über den Auslauf (Innenseite der Schikane)
+    let lat = racingLine(turn, s);
+    if (s > -30 && s < 60) lat = lerp(lat, turn * (HALF_W + 7), smooth((s + 30) / 25) * (1 - smooth((s - 30) / 30)));
+    fA.push([s, lat, 0]);
+  });
+  return {
+    type: 'chicaneCut', d0: corner.d, turn, corner: corner.id, dt: DT, dur: (n - 1) * DT,
+    cars: [{ ...teamLook(A), f: fA }],
+    contact: null,
+    overlay: { kind: 'trail', a: 0, cut: true, gain, label: 'Abkürzung' },
+  };
+}
+
+// ---------- Fehlstart ----------
+// Nur das eine Auto in seiner Startbox. Die fünf Lichter gehen an, das Auto bewegt sich (zu früh?),
+// dann gehen die Lichter aus und es fährt los.
+export function sceneJumpStart(race, { A, d, side, early, dist, real }) {
+  const n = 76;
+  const allOn = 4.5;
+  const hold = clamp(race.lightsTimer - 9, 0.4, 2.5);    // Pause nach dem 5. Licht (PRESTART 5 + 4)
+  const tOut = allOn + hold;
+  const tMove = Math.max(allOn + 0.1, tOut - clamp(early, 0.05, 1.2));
+  const lat = side * 3.3;
+  const fA = [];
+  for (let i = 0; i < n; i++) {
+    const t = i * DT;
+    let s = 0;
+    if (t > tMove) {
+      // echter Fehlstart: rollt bis zum Signal weiter · Zucken: kurz vor, dann Stillstand
+      const k = real ? smooth((t - tMove) / Math.max(0.3, tOut - tMove)) : smooth((t - tMove) / 0.35);
+      s = dist * clamp(k, 0, 1);
+    }
+    if (t > tOut) { const tt = t - tOut - 0.2; if (tt > 0) s += 0.5 * 9 * tt * tt; }
+    fA.push([s, lat, 0]);
+  }
+  return {
+    type: 'jumpStart', d0: d, turn: 1, corner: 'GRID', dt: DT, dur: (n - 1) * DT,
+    cars: [{ ...teamLook(A), f: fA }],
+    contact: null,
+    grid: { side, lat },
+    lights: { allOn, out: tOut },
+    overlay: { kind: 'jump', a: 0, out: tOut, label: 'Bewegung vor Lichter aus' },
+  };
+}
