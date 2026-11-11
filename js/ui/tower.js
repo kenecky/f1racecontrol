@@ -1,6 +1,7 @@
 // Ranking-Tower links in der Karte (wie in der TV-Übertragung)
 import { formatLap } from '../sim/race.js';
-export function renderTower(el, race, selected) {
+import { unservedSecs } from '../control/stewards.js';
+export function renderTower(el, race, selected, gapMode = 'leader') {
   let st = race.standings();
   if (race.isSession && race.phase !== 'finished') st = st.filter(c => c.elimSeg === null || c.elimSeg === undefined);
   const leader = st[0];
@@ -25,18 +26,26 @@ export function renderTower(el, race, selected) {
     else if (i === 0) gap = car.finished ? '🏁' : 'Leader';
     else if (car.inPit || car.stopTimer > 0) gap = 'BOX';
     else {
-      const g = race.gap(car, leader);
+      const ref = gapMode === 'interval' ? st[i - 1] : leader;
+      const g = race.gap(car, ref);
       gap = !g ? '' : g.laps ? `+${g.laps} Rd` : `+${g.time.toFixed(3).replace('.', ',')}`;
+    }
+    // offene Strafen: Zeitstrafe, Durchfahrt/Stop-and-Go, Platz zurückgeben
+    let pen = '';
+    if (!race.isSession && !car.retired) {
+      const secs = unservedSecs(car);
+      const serve = [...(car.serve || []), ...(car.serving ? [car.serving] : [])].map(p => p.type === 'dt' ? 'DT' : 'SG');
+      pen = [secs ? `+${secs}` : '', ...serve, car.giveBack ? '↩' : ''].filter(Boolean).join(' ');
     }
     const cls = ['tw-row', i === 0 ? 'p1' : '', race.isSession && race.segState === 'run' && race.segment.keep && car.elimSeg === null && i >= race.segment.keep ? 'danger' : '', car.retired ? 'out' : '', selected === car.id ? 'sel' : ''].join(' ');
     return `
       <div class="${cls}" data-id="${car.id}">
         <span class="tw-pos">${car.retired ? '–' : i + 1}</span>
         <span class="tw-team" style="background:${car.team.color}">${car.team.short}</span>
-        <span class="tw-code">${car.id}</span>
+        <span class="tw-code">${car.id}${pen ? `<i class="tw-pen">${pen}</i>` : ''}</span>
         <span class="tw-gap">${gap}</span>
         <span class="tw-tyre ${car.compound}">${car.retired ? '' : car.compound}</span>
       </div>`;
   }).join('');
-  el.innerHTML = `<div class="tw-head">${race.isSession || !started ? '' : 'RUNDE '}${lap}</div>${rows}`;
+  el.innerHTML = `<div class="tw-head">${race.isSession || !started ? '' : 'RUNDE '}${lap}${!race.isSession && started ? `<small class="tw-mode">${gapMode === 'interval' ? 'INTERVALL' : 'ABSTAND'} ⇄</small>` : ''}</div>${rows}`;
 }

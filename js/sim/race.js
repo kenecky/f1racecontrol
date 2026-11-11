@@ -625,7 +625,7 @@ export class Race {
       const neutralNow = this.neutral && this.neutral.type !== 'red';
       if (decision === 'closed') decision = null;
       else if (decision !== 'red' && car.serve.length && !neutralNow) decision = 'serve';
-      else if (decision !== 'red' && car.damage && !car.damageStayOut) decision = 'damage';
+      else if (decision !== 'red' && ((car.damage && !car.damageStayOut) || (car.boShown && !car.boServed))) decision = 'damage';   // auch Schwarz-Orange ohne Schaden
       else if (decision !== 'red' && car.weatherStop && car.lap < this.laps - 1) decision = 'weather';
       if (decision === 'serve') {
         car.inPit = true;
@@ -803,7 +803,8 @@ export class Race {
     if (car.damageStop) {
       // Reparatur: geplanten Stopp vorziehen, wenn er ohnehin bald käme
       car.damageStop = false;
-      const repaired = car.damage === 'wing' ? 'neue Nase' : 'neue Reifen';
+      const repaired = car.damage === 'wing' ? 'neue Nase' : car.damage === 'puncture' ? 'neue Reifen' : 'Kontrolle ohne Befund, neue Reifen';
+      if (car.boShown) { car.boServed = true; car.boShown = false; }
       car.damage = null;
       const nx = car.plan[car.planIdx];
       if (!nx || (nx.lap - car.lap) * this.wear > 8) {

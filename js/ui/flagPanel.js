@@ -74,7 +74,7 @@ export class FlagPanel {
           ${notes}
         </div>`;
     }).join('') + `
-      <div class="flag-legend">G = Grün · Y = Gelb (langsamer, Überholverbot) · YY = Doppelt Gelb (stark verlangsamen, bereit zum Anhalten) · YR = Gelb-Rot gestreift (rutschig, z. B. Öl/Trümmer)</div>`;
+      <div class="flag-legend">G = Grün · Y = Gelb · YY = Doppelt Gelb · YR = Gelb-Rot</div>`;
 
     if (scroll && this.focus !== null) {
       const row = this.list.querySelector(`.frow[data-sector="${this.focus}"]`);

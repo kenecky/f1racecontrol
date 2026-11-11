@@ -226,7 +226,7 @@ let acc = 0;
 let lastFrame = performance.now();
 let lastUi = 0;
 let touching = false;
-let activeTab = 'timing';
+let activeTab = 'feed';
 let unread = 0;
 let resultShown = false;
 let wakeLock = null;
@@ -290,6 +290,8 @@ function newRace(seed = randomSeed()) {
   if (kind === 'race' || kind === 'sprint') ({ laps, full: fullLaps } = distanceFor(track, kind, settings.length));
   map.setTrack(track);
   deskMap.setTrack(track);
+  decMap.setTrack(track);
+  decMap.setTrack(track);
   const opts = {
     track, teams: TEAMS, drivers, seed, weather: settings.mode === 'season' ? 'random' : settings.weatherMode, gridPenalties, gridOrder, laps, fullLaps, kind, caution,
     length: settings.length, difficulty: settings.mode === 'season' ? 'hard' : (settings.difficulty || 'medium'),
@@ -317,6 +319,7 @@ function newRace(seed = randomSeed()) {
   updateBadge();
   closeDesk();
   closeDecisions();
+  closeLog();
   map.selected = null;
   $('seedInfo').textContent = `Rennen #${seed} · ${(DIFFICULTY[race.difficulty] || DIFFICULTY.hard).name}`;
   renderHistory();
@@ -847,6 +850,7 @@ function frame(now) {
       deskMap.highlightSector = map.highlightSector;
       deskMap.draw(race, renderD);
     }
+    if (decOpen() && settings.deskMap !== false && !$('decListView').classList.contains('hidden')) { decMap.paused = paused; decMap.draw(race, renderD); }
     updateStartCtl();
     updateSound(now);
 
@@ -990,7 +994,8 @@ function refreshUi() {
   flagPanel.render(race);
   controlPanel.render(race);
   if (decOpen()) renderDec();
-  if (deskOpen()) renderDeskHead();
+  if (deskOpen() || decOpen() || logOpen()) renderDeskHead();
+  if (logOpen()) { unread = 0; updateBadge(); }
   updateCasesBadge();
   if (race.cases.length > seenCases) {
     const c = race.cases[race.cases.length - 1];
@@ -1011,7 +1016,7 @@ function refreshUi() {
   if (weatherPanel.isOpen && weatherPanel.offset === 0) weatherPanel.drawRadar();
   if (!touching) {
     renderTiming($('timing'), race, timingOpts());
-    if (settings.showTower) renderTower($('tower'), race, map.selected);
+    if (settings.showTower) renderTower($('tower'), race, map.selected, settings.gapMode);
   }
 }
 
@@ -1129,6 +1134,8 @@ function updateAlert() {
 
 function updatePauseBtn() {
   $('pauseBtn').textContent = paused ? '▶' : '❚❚';
+  $('menuPauseBtn').textContent = paused ? '▶ WEITER' : '❚❚ PAUSE';
+  $('menuPauseBtn').classList.toggle('blocked', Boolean(pauseBlocked()));
   $('pauseBtn').setAttribute('aria-label', paused ? 'Weiter' : 'Pause');
   $('app').classList.toggle('is-paused', Boolean(paused && race && race.phase !== 'pre'));
 }
@@ -1152,13 +1159,13 @@ function updateBadge() {
 function select(id) {
   map.selected = id === null || map.selected === id ? null : id;
   renderTiming($('timing'), race, timingOpts());
-  if (settings.showTower) renderTower($('tower'), race, map.selected);
+  if (settings.showTower) renderTower($('tower'), race, map.selected, settings.gapMode);
 }
 
 function setSpeed(v) {
   settings.speed = v;
   $('speedBtn').textContent = `${v}×`;
-  $('deskSpeedBtn').textContent = `${v}×`;
+  for (const b of document.querySelectorAll('.speed-btn')) b.textContent = `${v}×`;
   saveSettings(settings);
   renderSpeedMenu();
 }
@@ -1168,12 +1175,17 @@ function setSpeed(v) {
 // Kontrollpult im Vollbild: Live-Karte, Konsolenwahl, Details, Aktionsknöpfe unten
 const deskMap = new TrackMap($('deskMap'), track);
 deskMap.padTop = 34;
+const decMap = new TrackMap($('decMap'), track);
+decMap.padTop = 34;
+decMap.onSelectSector = idx => { closeDecisions(); openFlags(idx); };
+decMap.onSelectCar = () => {};
 deskMap.onSelectSector = idx => openFlags(idx);
 deskMap.onSelectCar = () => {};
 const KIND_BTN = { flags: 'flagBtn', vsc: 'vscBtn', sc: 'scBtn', red: 'redBtn', start: 'startDeskBtn', medical: 'medBtn', sweeper: 'sweepBtn', crane: 'craneBtn', pit: 'pitBtn', bo: 'boBtn', msg: 'msgBtn' };
 let deskKind = null, lastDeskKind = 'flags';
 function deskOpen() { return !$('desk').classList.contains('hidden'); }
 function showDesk() {
+  closeLog();
   if (deskOpen()) return;
   $('desk').classList.remove('hidden');
   $('deckBtn').setAttribute('aria-expanded', 'true');
@@ -1194,10 +1206,11 @@ function markDesk() {
 }
 function renderDeskHead() {
   if (!race) return;
-  $('deskSub').textContent = `${$('lapLabel').textContent.toUpperCase()} ${$('lap').textContent} · ${$('clock').textContent}`;
+  const lap = `${$('lapLabel').textContent.toUpperCase()} ${$('lap').textContent}`, clock = $('clock').textContent;
+  for (const el of document.querySelectorAll('.lap-now')) el.textContent = lap;
+  for (const el of document.querySelectorAll('.clock-now')) el.textContent = `${clock}${paused ? ' · PAUSE' : ''}`;
   const f = $('flag');
-  $('deskTag').textContent = f.textContent;
-  $('deskTag').className = `desk-tag ${f.className}`;
+  for (const id of ['deskTag', 'decTag']) { $(id).textContent = f.textContent; $(id).className = `desk-tag ${f.className}`; }
   $('deskSpeed').textContent = paused ? 'PAUSE' : `LIVE · ${settings.speed}×`;
 }
 
@@ -1498,6 +1511,7 @@ function finishFlow() {
   }
 }
 function finishFlowInner() {
+  closeLog();
   closeDecisions();
   closeDesk();
   resultShown = true;
@@ -1609,6 +1623,7 @@ function decCases() {
 }
 function openDecisions(id = null) {
   if (!race) return;
+  closeLog();
   $('decScreen').classList.remove('hidden');
   if (id) showDecDoc(id); else showDecList();
 }
@@ -1740,6 +1755,8 @@ $('pauseBtn').addEventListener('click', () => {
   if (paused) autosave();
 });
 
+$('menuPauseBtn').addEventListener('click', () => { $('pauseBtn').click(); toggleSpeedMenu(false); renderDeskHead(); });
+for (const b of document.querySelectorAll('.speed-btn')) b.addEventListener('click', e => { e.stopPropagation(); toggleSpeedMenu(undefined, b); });
 $('speedBtn').addEventListener('click', e => {
   e.stopPropagation();
   toggleSpeedMenu();
@@ -1769,7 +1786,7 @@ $('slowToggle').addEventListener('change', e => {
   saveSettings(settings);
 });
 document.addEventListener('pointerdown', e => {
-  if (!e.target.closest('#speedMenu') && !e.target.closest('#speedBtn') && !e.target.closest('#deskSpeedBtn')) toggleSpeedMenu(false);
+  if (!e.target.closest('#speedMenu') && !e.target.closest('#speedBtn') && !e.target.closest('.speed-btn')) toggleSpeedMenu(false);
 });
 
 $('labelsBtn').addEventListener('click', () => {
@@ -1786,7 +1803,7 @@ function applyTower() {
   $('tower').classList.toggle('hidden', !settings.showTower);
   $('towerBtn').classList.toggle('active', settings.showTower);
   map.setPadLeft(settings.showTower ? TOWER_PAD : 0);
-  if (settings.showTower && race) renderTower($('tower'), race, map.selected);
+  if (settings.showTower && race) renderTower($('tower'), race, map.selected, settings.gapMode);
 }
 $('towerBtn').addEventListener('click', () => {
   settings.showTower = !settings.showTower;
@@ -1795,6 +1812,13 @@ $('towerBtn').addEventListener('click', () => {
 });
 $('tower').addEventListener('pointerdown', () => { touching = true; });
 $('tower').addEventListener('click', e => {
+  // Kopf antippen: Abstand zum Führenden ↔ Intervall zum Vordermann
+  if (e.target.closest('.tw-head') && race && !race.isSession) {
+    settings.gapMode = settings.gapMode === 'interval' ? 'leader' : 'interval';
+    saveSettings(settings);
+    renderTower($('tower'), race, map.selected, settings.gapMode);
+    return;
+  }
   const row = e.target.closest('.tw-row');
   // ausgeschiedene Fahrer lassen sich nicht verfolgen
   if (row && race && race.carById[row.dataset.id] && !race.carById[row.dataset.id].retired) toggleFollow(row.dataset.id);
@@ -1811,7 +1835,7 @@ function toggleFollow(id) {
   $('driverCard').classList.remove('hidden');
   if (!settings.panelCollapsed) animatePanel(true, mapWrap.getBoundingClientRect().height);
   renderTiming($('timing'), race, timingOpts());
-  if (settings.showTower) renderTower($('tower'), race, map.selected);
+  if (settings.showTower) renderTower($('tower'), race, map.selected, settings.gapMode);
 }
 
 function stopFollow() {
@@ -1823,7 +1847,7 @@ function stopFollow() {
   followRestore = null;
   if (race) {
     renderTiming($('timing'), race, timingOpts());
-    if (settings.showTower) renderTower($('tower'), race, map.selected);
+    if (settings.showTower) renderTower($('tower'), race, map.selected, settings.gapMode);
   }
 }
 
@@ -2000,13 +2024,16 @@ $('boBtn').addEventListener('click', () => openControl('bo'));
 $('deckBtn').addEventListener('click', () => {
   if (!race) return;
   if (deskOpen()) { closeDesk(); return; }
+  openDeskDefault();
+});
+function openDeskDefault() {
   const el = $('alertBanner');
   if (!el.classList.contains('hidden') && el.dataset.kind) {
     if (el.dataset.kind === 'flags') openFlags(Number(el.dataset.sector));
     else openControl(el.dataset.kind);
   } else if (lastDeskKind === 'flags') openFlags();
   else openControl(lastDeskKind);
-});
+}
 
 document.querySelectorAll('.act[data-soon]').forEach(b => b.addEventListener('click', () => {
   toast(`${b.dataset.label}: kommt in Meilenstein ${b.dataset.soon}`);
@@ -2104,17 +2131,38 @@ document.addEventListener('touchmove', e => {
 // ---------- Start ----------
 
 $('speedBtn').textContent = `${settings.speed}×`;
-$('deskSpeedBtn').textContent = `${settings.speed}×`;
-// Desk: Tempo, Karte ein/aus, direkt zu den Entscheidungen
-$('deskSpeedBtn').addEventListener('click', e => { e.stopPropagation(); toggleSpeedMenu(undefined, $('deskSpeedBtn')); });
+for (const b of document.querySelectorAll('.speed-btn')) b.textContent = `${settings.speed}×`;
+// Desk und Docs: Karte ein/aus (gemeinsame Einstellung), Wechsel zwischen Desk, Docs, Log und TV
 function applyDeskMap() {
   const off = settings.deskMap === false;
   $('desk').classList.toggle('no-map', off);
-  $('deskMapBtn').classList.toggle('active', !off);
+  $('decScreen').classList.toggle('no-map', off);
+  for (const b of document.querySelectorAll('.map-toggle')) b.classList.toggle('active', !off);
 }
-$('deskMapBtn').addEventListener('click', () => { settings.deskMap = settings.deskMap === false; saveSettings(settings); applyDeskMap(); });
+for (const b of document.querySelectorAll('.map-toggle')) b.addEventListener('click', () => { settings.deskMap = settings.deskMap === false; saveSettings(settings); applyDeskMap(); });
 applyDeskMap();
 $('deskDecBtn').addEventListener('click', () => { closeDesk(); openDecisions(); });
+$('decDeskBtn').addEventListener('click', () => { closeDecisions(); openDeskDefault(); });
+$('footDocsBtn').addEventListener('click', () => openDecisions());
+// Race Log im Vollbild: Filter und Liste werden aus dem unteren Bereich hierher verschoben (und zurück)
+function logOpen() { return !$('logScreen').classList.contains('hidden'); }
+function openLog() {
+  if (!race) return;
+  closeDesk(); closeDecisions();
+  $('logBody').append($('feedFilter'), $('feed'));
+  $('logScreen').classList.remove('hidden');
+  unread = 0; updateBadge(); renderDeskHead();
+}
+function closeLog() {
+  if (!logOpen()) return;
+  $('panel-feed').append($('feedFilter'), $('feed'));
+  $('logScreen').classList.add('hidden');
+}
+$('deskLogBtn').addEventListener('click', openLog);
+$('decLogBtn').addEventListener('click', openLog);
+$('logDeskBtn').addEventListener('click', () => { closeLog(); openDeskDefault(); });
+$('logDecBtn').addEventListener('click', () => { closeLog(); openDecisions(); });
+$('logClose').addEventListener('click', closeLog);
 if (!LENGTHS[settings.length]) settings.length = 'medium';
 if (!['easy', 'medium', 'hard'].includes(settings.difficulty)) settings.difficulty = 'medium';
 appEl.classList.toggle('collapsed', settings.panelCollapsed);

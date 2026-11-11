@@ -49,13 +49,11 @@
 
     <div id="dragHandle" class="drag-handle" aria-label="Bereich verkleinern oder vergrößern"><span></span></div>
     <nav class="tabs">
-      <button class="tab active" data-tab="timing">TIMING</button>
-      <button class="tab" data-tab="feed">RC LOG <span id="feedBadge" class="badge-count hidden">0</span></button>
-      <button class="tab" data-tab="cases">DECISIONS <span id="casesBadge" class="badge-count hidden">0</span></button>
+      <button class="tab active" data-tab="feed">RC LOG <span id="feedBadge" class="badge-count hidden">0</span></button>
     </nav>
 
     <main class="panels">
-      <div id="panel-timing" class="panel active">
+      <div id="panel-timing" class="panel">
         <div class="timing-head">
           <span class="pos">P</span>
           <span class="teambar"></span>
@@ -68,7 +66,7 @@
         </div>
         <div id="timing"></div>
       </div>
-      <div id="panel-feed" class="panel">
+      <div id="panel-feed" class="panel active">
         <div id="feedFilter" class="fk-chips"></div>
         <ul id="feed" class="feed" data-filter="all"></ul>
       </div>
@@ -78,6 +76,7 @@
     </main>
 
     <footer class="actions">
+      <button id="footDocsBtn" class="deck-btn docs-btn" aria-label="Entscheidungen">DOCS <span id="casesBadge" class="badge-count hidden">0</span></button>
       <button id="deckBtn" class="deck-btn" aria-expanded="false">
         <span class="deck-lamps">
           <span id="lampFlag" class="lamp-s"><i></i>FLAG</span>
@@ -93,6 +92,7 @@
   </div>
 
   <div id="speedMenu" class="popover hidden" role="menu">
+    <button id="menuPauseBtn" class="menu-pause">▶ WEITER</button>
     <div class="popover-title">Tempo</div>
     <div class="speed-grid"></div>
     <label class="switch-row">
@@ -111,11 +111,12 @@
 
   <!-- Kontrollpult im Vollbild -->
   <div id="desk" class="fs-screen desk hidden hz-frame">
-    <div class="fs-top"><div class="fs-t">RC DESK<small id="deskSub"></small></div>
+    <div class="fs-top"><div class="fs-t fs-lap"><span class="lap-now"></span><small class="clock-now"></small></div>
+      <button id="deskLogBtn" class="pill-btn desk-top-btn" aria-label="Race Log">LOG</button>
       <button id="deskDecBtn" class="pill-btn desk-top-btn" aria-label="Entscheidungen öffnen">DOCS <span id="deskDecBadge" class="badge-count hidden">0</span></button>
-      <button id="deskMapBtn" class="pill-btn desk-top-btn" aria-label="Karte ein- oder ausblenden">MAP</button>
-      <button id="deskSpeedBtn" class="pill-btn desk-top-btn" aria-label="Tempo">4×</button>
-      <button id="deskClose" class="x-btn" aria-label="Schließen">✕</button></div>
+      <button id="deskMapBtn" class="pill-btn desk-top-btn map-toggle" aria-label="Karte ein- oder ausblenden">MAP</button>
+      <button id="deskSpeedBtn" class="pill-btn desk-top-btn speed-btn" aria-label="Tempo">4×</button>
+      <button id="deskClose" class="pill-btn desk-top-btn tv-btn" aria-label="Zur TV-Ansicht">TV</button></div>
     <div class="desk-live"><canvas id="deskMap"></canvas><span id="deskTag" class="desk-tag"></span><span id="deskSpeed" class="desk-speed"></span></div>
       <div id="deck" class="deck-grid">
         <button id="startDeskBtn" class="act act-start act-live"><i class="act-led"></i>START</button>
@@ -159,10 +160,27 @@
     </div>
   </div>
 
+  <!-- Race Log im Vollbild (aus Desk und Docs) -->
+  <div id="logScreen" class="fs-screen dec hidden hz-frame">
+    <div class="fs-top"><div class="fs-t fs-lap"><span class="lap-now"></span><small class="clock-now"></small></div>
+      <button id="logDeskBtn" class="pill-btn desk-top-btn" aria-label="Race Control Desk">RC DESK</button>
+      <button id="logDecBtn" class="pill-btn desk-top-btn" aria-label="Entscheidungen">DOCS</button>
+      <button id="logSpeedBtn" class="pill-btn desk-top-btn speed-btn" aria-label="Tempo">4×</button>
+      <button id="logClose" class="pill-btn desk-top-btn tv-btn" aria-label="Zur TV-Ansicht">TV</button></div>
+    <div id="logBody" class="log-body"></div>
+  </div>
+
   <!-- Entscheidungen im Vollbild -->
   <div id="decScreen" class="fs-screen dec hidden hz-frame">
     <div id="decListView" class="dec-view">
-      <div class="fs-top"><div class="fs-t">STEWARDS · DECISIONS<small id="decSub"></small></div><button id="decClose" class="x-btn" aria-label="Schließen">✕</button></div>
+      <div class="fs-top"><div class="fs-t fs-lap"><span class="lap-now"></span><small class="clock-now"></small></div>
+        <button id="decLogBtn" class="pill-btn desk-top-btn" aria-label="Race Log">LOG</button>
+        <button id="decDeskBtn" class="pill-btn desk-top-btn" aria-label="Race Control Desk">RC DESK</button>
+        <button id="decMapBtn" class="pill-btn desk-top-btn map-toggle" aria-label="Karte ein- oder ausblenden">MAP</button>
+        <button id="decSpeedBtn" class="pill-btn desk-top-btn speed-btn" aria-label="Tempo">4×</button>
+        <button id="decClose" class="pill-btn desk-top-btn tv-btn" aria-label="Zur TV-Ansicht">TV</button></div>
+      <div class="desk-live dec-map"><canvas id="decMap"></canvas><span id="decTag" class="desk-tag"></span></div>
+      <div id="decSub" class="dec-sub"></div>
       <div id="decLive" class="dec-live"></div>
       <div id="decCount" class="dec-count"></div>
       <div id="decTabs" class="dec-tabs"><button data-f="open">OFFEN</button><button data-f="done">ENTSCHIEDEN</button><button data-f="all">ALLE</button></div>
@@ -226,7 +244,7 @@
       </div>
       <button id="seasonBtn" class="secondary-btn season-btn hidden">🏆 Saison-Übersicht</button>
       <div id="history" class="history st-card"></div>
-      <div class="app-version">Version 49</div>
+      <div class="app-version">Version 50</div>
       <details class="options st-card">
         <summary>Optionen</summary>
         <label>Rennen-Nr. (gleiche Nr. = gleiches Rennen)

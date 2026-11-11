@@ -130,9 +130,11 @@ export function markWingDamage(race, car) {
 export function showBlackOrange(race, car) {
   if (!car || car.boShown || car.retired) return false;
   car.boShown = true;
+  car.boServed = false;
   car.damageStayOut = false;
   race.boLog = race.boLog || [];
-  race.boLog.push({ carId: car.id, needed: Boolean(car.wingLoose), t: race.time });
+  // nötig: loser Flügel (fällt sonst ab) oder ein Schaden, mit dem das Team draußen bleiben will
+  race.boLog.push({ carId: car.id, needed: Boolean(car.wingLoose || (car.damage && car.damageStayOut)), t: race.time });
   race.emit('rc', `SCHWARZ-ORANGE FLAGGE für ${car.id} – sofort an die Box (Reparatur)`, { cars: [car.id] });
   return true;
 }

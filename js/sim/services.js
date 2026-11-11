@@ -161,6 +161,8 @@ export function updateServices(race, dt) {
       }
     }
   }
+  // Boxengasse ohne Grund geschlossen (kein Vorfall in der Boxengasse, keine rote Flagge) → zählt für die Bewertung
+  if (s.pitClosed && !(race.neutral && race.neutral.type === 'red') && !race.hazards.some(h => !h.ended && h.need === 'pit')) s.pitIdle = (s.pitIdle || 0) + dt;
   // Kehrmaschine: fährt den Sektor ab und räumt
   const sw = s.sweeper;
   if (sw) {

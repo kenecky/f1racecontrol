@@ -121,7 +121,7 @@ export class ControlPanel {
       sub = 'Nicht verfügbar';
       html = '<p class="ctl-text">Im Training und Qualifying gibt es kein VSC und kein Safety Car. Bei größerer Gefahr wird die Session mit der roten Flagge unterbrochen – die Uhr hält dann an.</p>';
     } else if (kind === 'vsc') {
-      sub = 'Delta-Tempo für alle, Überholverbot – Marshals können sicherer arbeiten';
+      sub = '';
       if (!n) {
         html = `<p class="ctl-text">Alle Autos fahren rund 40 % langsamer. Gut für Bergungen, die nur kurz dauern.</p>
           <button class="ctl-btn ctl-vsc" data-action="vsc-on" ${running ? '' : 'disabled'}>VSC aktivieren</button>`;
@@ -137,7 +137,7 @@ export class ControlPanel {
     }
 
     if (kind === 'sc' && !race.isSession) {
-      sub = 'Feld fährt hinter dem Safety Car, Überholverbot';
+      sub = '';
       if (!n || n.type === 'vsc') {
         html = `<p class="ctl-text">Das Safety Car fährt an der Boxenausfahrt raus, sobald der Führende dort ankommt, und das Feld schließt auf. Gut für längere Bergungen und Trümmerfelder.${n ? ' Das VSC wird dadurch ersetzt.' : ''}</p>
           <button class="ctl-btn ctl-sc" data-action="sc-on" ${running ? '' : 'disabled'}>Safety Car einsetzen</button>`;
@@ -180,11 +180,9 @@ export class ControlPanel {
       const sel = this.sel[kind];
       const busy = new Set(kind === 'crane' ? sv.cranes.map(c => c.sector) : []);
       const grid = race.track.sectors.map((sec, i) => `<button class="sec-pick${needSecs.has(i) ? ' need' : ''}${busy.has(i) ? ' busy' : ''}${i === sel ? ' sel' : ''}" data-sec="${i}">${i + 1}</button>`).join('');
-      const scNote = race.phase === 'delay'
-        ? '<p class="ctl-small">Start verschoben – das Feld ist in der Boxengasse, die Strecke ist gesperrt. Kein Safety Car nötig.</p>'
-        : '<p class="ctl-small">Regel: Vorher muss das Safety Car (oder Rot) draußen sein. Sonst gibt es Abzug bei der Sicherheit. Vor dem Start: erst „Start verschieben“ (Feld in die Boxengasse).</p>';
-      sub = { medical: 'Zur Unfallstelle – Fahrer untersuchen', sweeper: 'Kies und Schmutz von der Fahrbahn räumen', crane: 'Steht im jeweiligen Streckenabschnitt bereit' }[kind];
-      html = `<div class="ctl-small">Sektor wählen (gelb = dort wird ${kind === 'medical' ? 'das Medical Car' : kind === 'sweeper' ? 'eine Kehrmaschine' : 'ein Kran'} gebraucht):</div><div class="sec-grid">${grid}</div>`;
+      const scNote = '';
+      sub = '';
+      html = `<div class="sec-grid">${grid}</div>`;
       if (kind === 'medical') {
         const m = sv.medical;
         html += m ? `<div class="ctl-status">Medical Car im Einsatz – ${m.phase === 'out' ? `unterwegs zu Sektor ${m.sector + 1}` : m.phase === 'onsite' ? `an der Unfallstelle in Sektor ${m.sector + 1}` : 'zurück zur Box'}</div>`
@@ -196,52 +194,57 @@ export class ControlPanel {
         html += busy.has(sel)
           ? `<div class="ctl-status">Kran in Sektor ${sel + 1} im Einsatz</div><button class="ctl-btn ctl-ghost" data-action="crane-off:${sel}">KRAN ABZIEHEN</button>`
           : `<button class="ctl-btn ctl-vsc" data-action="crane-go:${sel}" ${svcPhase(race) ? '' : 'disabled'}>KRAN IN SEKTOR ${sel + 1} EINSETZEN</button>`;
-        html += '<p class="ctl-small">Ein Kran neben der Strecke braucht mindestens Doppelt Gelb in diesem Sektor (bei Nässe Safety Car). Ein Kran im falschen Sektor kostet Punkte.</p>';
       }
     }
 
     if (kind === 'bo') {
-      sub = 'Beschädigtes Auto muss sofort an die Box';
-      const dmg = race.cars.map((c, i) => ({ c, i })).filter(({ c }) => c.damage === 'wing' && !c.retired && !c.finished && !c.inPit);
-      // Eindruck aus der Onboard-Kamera: bei losen Teilen meist starke Vibration – aber nicht immer eindeutig
-      const vib = c => { const x = Math.sin((c.id.charCodeAt(0) + c.id.charCodeAt(2)) * 7.3) * 0.5 + 0.5; return Math.round((c.wingLoose ? 55 + x * 40 : 15 + x * 45)); };
-      html = dmg.length ? dmg.map(({ c, i }) => `
-        <div class="ctl-hazard"><div><b>${c.id}</b> – Frontflügel beschädigt${c.boShown ? ' · <b>Schwarz-Orange gezeigt</b>' : ''}</div>
-          <div class="ctl-small">Onboard: Vibration am Flügel ${vib(c)} % · ${c.damageStayOut ? 'Team lässt ihn draußen' : 'kommt zur Reparatur'}</div>
-          ${c.boShown ? '' : `<button class="ctl-btn ctl-sc" data-action="bo-go:${i}">SCHWARZ-ORANGE FÜR ${c.id}</button>`}</div>`).join('')
-        : '<div class="ctl-ok">Kein Auto mit losem oder beschädigtem Teil auf der Strecke.</div>';
-      html += '<p class="ctl-small">Nur zeigen, wenn Teile abzufallen drohen (starke Vibration). Fällt ein Teil ab, bevor die Flagge gezeigt wurde, gibt es Abzug – eine unnötige Flagge ist unfair gegenüber dem Team.</p>';
+      sub = '';
+      // Jedes Auto kann an die Box beordert werden; beschädigte sind gelb markiert. Grundlos = Abzug.
+      const cars = race.cars.map((c, i) => ({ c, i })).filter(({ c }) => !c.retired && !c.finished);
+      const vib = c => { const x = Math.sin((c.id.charCodeAt(0) + c.id.charCodeAt(2)) * 7.3) * 0.5 + 0.5; return Math.round((c.wingLoose ? 55 + x * 40 : c.damage ? 15 + x * 45 : 2 + x * 8)); };
+      if (this.sel.bo === undefined || !cars.some(x => x.i === this.sel.bo)) {
+        const dmg = cars.find(({ c }) => c.damage && !c.boShown);
+        this.sel.bo = dmg ? dmg.i : cars.length ? cars[0].i : 0;
+      }
+      const sel = race.cars[this.sel.bo];
+      html = `<div class="sec-grid car-grid">${cars.map(({ c, i }) => `<button class="sec-pick${c.damage ? ' need' : ''}${c.boShown ? ' busy' : ''}${i === this.sel.bo ? ' sel' : ''}" data-sec="${i}">${c.id}</button>`).join('')}</div>`;
+      if (sel) {
+        html += `<div class="ctl-hazard"><div><b>${sel.id}</b> – ${sel.damage === 'wing' ? 'Frontflügel beschädigt' : sel.damage === 'puncture' ? 'Reifenschaden' : 'keine Schäden gemeldet'}${sel.boShown ? ' · <b>Schwarz-Orange gezeigt</b>' : ''}</div>
+          <div class="ctl-small">Onboard: Vibration ${vib(sel)} %${sel.damage ? ` · ${sel.damageStayOut ? 'Team lässt ihn draußen' : 'kommt zur Reparatur'}` : ''}${sel.inPit ? ' · in der Boxengasse' : ''}</div></div>`;
+        if (!sel.boShown) html += `<button class="ctl-btn ctl-sc" data-action="bo-go:${this.sel.bo}" ${running && !sel.inPit ? '' : 'disabled'}>SCHWARZ-ORANGE FÜR ${sel.id}</button>`;
+      }
     }
 
     if (kind === 'msg') {
-      sub = 'Mitteilung an alle Teams';
+      sub = '';
       const live = race.phase === 'running' || (race.preStart && race.phase !== 'pre');
       const st = race.rcMsgs || { until: {}, sent: [] };
-      html = '<p class="ctl-small">Eine Warnung an alle wirkt etwa 10 Minuten: Die Fahrer halten sich besser an die Regeln. Wiederholte Warnungen verlieren an Wirkung.</p>';
+      html = '<div class="msg-grid">';
       for (const key of ['yellow', 'blue', 'driving', 'pit']) {
         const m = MESSAGES[key];
         const act = msgActive(race, key);
         const left = act ? mmss(st.until[key] - race.time) : '';
-        html += `<button class="ctl-btn ${act ? 'ctl-ghost' : 'ctl-vsc'}" data-action="msg-${key}" ${live && canSend(race, key) ? '' : 'disabled'}>${m.name}${act ? ` · aktiv ${left}` : ''}</button>`;
+        html += `<button class="ctl-btn ${act ? 'ctl-ghost' : 'ctl-vsc'}" data-action="msg-${key}" ${live && canSend(race, key) ? '' : 'disabled'}>${m.name}${act ? ` · ${left}` : ''}</button>`;
       }
+      html += '</div>';
       const b = race.briefing;
       if (b && b.done && b.tlCorners) {
         const free = race.track.corners.map((c, i) => ({ c, i })).filter(({ c }) => !b.tlCorners.includes(c.id));
         if (this.sel.msg === undefined || !free.some(x => x.i === this.sel.msg)) this.sel.msg = free.length ? free[0].i : 0;
-        html += `<div class="ctl-section">TRACK LIMITS</div><div class="ctl-small">Überwacht: ${b.tlCorners.join(', ') || '–'}. Weitere Kurve wählen:</div>`;
-        html += free.length ? `<div class="sec-grid">${free.map(({ c, i }) => `<button class="sec-pick${i === this.sel.msg ? ' sel' : ''}" data-sec="${i}">${c.id}</button>`).join('')}</div>
+        html += `<div class="ctl-section">TRACK LIMITS · ÜBERWACHT: ${b.tlCorners.join(', ') || '–'}</div>`;
+        html += free.length ? `<div class="sec-grid car-grid">${free.map(({ c, i }) => `<button class="sec-pick${i === this.sel.msg ? ' sel' : ''}" data-sec="${i}">${c.id}</button>`).join('')}</div>
           <button class="ctl-btn ctl-vsc" data-action="msg-tl:${this.sel.msg}" ${live ? '' : 'disabled'}>${race.track.corners[this.sel.msg].id} ÜBERWACHEN</button>` : '<div class="ctl-ok">Alle Kurven werden überwacht.</div>';
       }
-      if (st.sent.length) html += `<div class="ctl-section">GESENDET</div>${st.sent.slice(-5).reverse().map(x => `<div class="ctl-small">Rd ${x.lap} · ${x.key === 'tl' ? `TRACK LIMITS ${x.arg}` : MESSAGES[x.key].name}</div>`).join('')}`;
+      if (st.sent.length) html += `<div class="ctl-section">GESENDET</div>${st.sent.slice(-2).reverse().map(x => `<div class="ctl-small">Rd ${x.lap} · ${x.key === 'tl' ? `TRACK LIMITS ${x.arg}` : MESSAGES[x.key].name}</div>`).join('')}`;
     }
 
     if (kind === 'pit') {
       const closed = race.svc && race.svc.pitClosed;
-      sub = 'Einfahrt in die Boxengasse sperren oder freigeben';
+      sub = '';
       html = closed
         ? `<div class="ctl-status">Boxengasse ist GESCHLOSSEN</div><button class="ctl-btn ctl-green" data-action="pit-open">BOXENGASSE ÖFFNEN</button>`
-        : `<div class="ctl-status">Boxengasse ist offen</div><button class="ctl-btn ctl-red" data-action="pit-close" ${running ? '' : 'disabled'}>BOXENGASSE SCHLIESSEN</button>`;
-      html += '<p class="ctl-small">Bei einem Unfall in der Boxengasse, an der Ein- oder Ausfahrt sofort schließen. Wer trotzdem hineinfährt, bekommt eine Entscheidung.</p>';
+        : `<div class="ctl-status">Boxengasse ist offen</div><button class="ctl-btn ctl-red" data-action="pit-close" ${race.phase !== 'pre' && race.phase !== 'finished' ? '' : 'disabled'}>BOXENGASSE SCHLIESSEN</button>`;
+      html += '<p class="ctl-small">Liegt im Ermessen der Rennleitung. Ohne Grund geschlossen kostet es Punkte beim Rennfluss.</p>';
     }
 
     if (kind === 'start') {
@@ -268,9 +271,9 @@ export class ControlPanel {
         const ds = (race.delay.order || []).map(id => race.carById[id]).filter(c => c && !c.retired && !c.pitStart);
         const inLane = ds.filter(c => c.pTarget !== undefined && c.pTarget - c.d < 0.6).length;
         const open = race.hazards.filter(h => !h.ended && h.type !== 'spin').length;
-        html += `<div class="ctl-kv"><div><span>IN DER BOXENGASSE</span><b class="${inLane < ds.length ? 'warn' : 'ok'}">${inLane}/${ds.length}</b></div><div><span>OFFENE GEFAHREN</span><b class="${open ? 'warn' : 'ok'}">${open}</b></div><div><span>RENNDISTANZ</span><b>${race.laps} RD</b></div></div>`;
+        html += `<div class="ctl-kv"><div><span>BOXENGASSE</span><b class="${inLane < ds.length ? 'warn' : 'ok'}">${inLane}/${ds.length}</b></div><div><span>GEFAHREN</span><b class="${open ? 'warn' : 'ok'}">${open}</b></div><div><span>RENNDISTANZ</span><b>${race.laps} RD</b></div></div>`;
       } else if (live && ph !== 'ready') {
-        html += `<div class="ctl-kv"><div><span>IN DER STARTBOX</span><b class="${inBox < grid.length ? 'warn' : 'ok'}">${inBox}/${grid.length}</b></div><div><span>${rs ? 'NEUSTART' : 'FORMATION'}</span><b>${rs ? 'STEHEND' : f && f.n > 1 ? `${f.n}. RUNDE` : '1. RUNDE'}</b></div><div><span>BOXENGASSE</span><b>${pitStart}</b></div></div>`;
+        html += `<div class="ctl-kv"><div><span>STARTBOX</span><b class="${inBox < grid.length ? 'warn' : 'ok'}">${inBox}/${grid.length}</b></div><div><span>${rs ? 'NEUSTART' : 'FORMATION'}</span><b>${rs ? 'STEHEND' : f && f.n > 1 ? `${f.n}. RUNDE` : '1. RUNDE'}</b></div><div><span>BOXENGASSE</span><b>${pitStart}</b></div></div>`;
       }
       // Startampel
       const lit = race.lightsOn;
@@ -297,9 +300,7 @@ export class ControlPanel {
           <button class="ctl-btn ctl-ghost" data-action="start-suspend">START VERSCHIEBEN · FELD IN DIE BOX</button>
           <button class="ctl-btn ctl-ghost" data-action="start-lights">STARTAMPEL TROTZDEM EINSCHALTEN</button>`;
       } else if (ph === 'formation' && !(f && f.arrived)) {
-        html += `<p class="ctl-text">${f && f.n > 1 ? 'Extra-' : ''}Formationsrunde: Die Autos wärmen Reifen und Bremsen auf. Defekte oder Dreher sind möglich – sichere Gefahren wie im Rennen mit Flaggen ab.</p>
-          <p class="ctl-small">Ampel erst einschalten, wenn alle Autos stehen – sonst großer Abzug bei der Sicherheit. Muss vor dem Start etwas geborgen werden: Start verschieben – das Feld fährt nach dieser Runde in die Boxengasse.</p>
-          <button class="ctl-btn ctl-ghost" data-action="start-suspend">START VERSCHIEBEN · FELD IN DIE BOX</button>
+        html += `<button class="ctl-btn ctl-ghost" data-action="start-suspend">START VERSCHIEBEN · FELD IN DIE BOX</button>
           <button class="ctl-btn ctl-ghost ctl-big" data-action="start-lights">AMPEL EINSCHALTEN · NOCH ${grid.length - inBox} UNTERWEGS</button>`;
       } else if (ph === 'grid' || ph === 'formation') {
         html += `<div class="ctl-status ok">Startaufstellung komplett</div>
@@ -313,7 +314,7 @@ export class ControlPanel {
     }
 
     if (kind === 'red') {
-      sub = 'Rennunterbrechung';
+      sub = '';
       if (!n || n.type !== 'red') {
         html = `<p class="ctl-text">${race.isSession ? 'Die Session wird unterbrochen, alle Autos fahren in die Box, die Uhr hält an.' : 'Alle Autos fahren langsam in die Boxengasse und stellen sich an. Freier Reifenwechsel. Nur bei großer Gefahr, z. B. beschädigter Barriere.'}</p>
           <button class="ctl-btn ctl-red" data-action="red-on" ${running ? '' : 'disabled'}>Rote Flagge zeigen</button>`;

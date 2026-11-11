@@ -650,3 +650,16 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
   (rote Spur über den Auslauf, Zeitgewinn) und **Fehlstart** (nur das Auto in seiner Startbox mit Linien, Startampel,
   zurückgelegter Weg bis „Lichter aus“ in cm).
 - „Nächsten neuen Fall öffnen“ wählt den ältesten neuen Fall zuerst.
+
+### Desk kompakt, neue Navigation Desk/Docs/Log/TV (v50)
+- Desk-Konsolen ohne Scrollen (START, MEDICAL, SWEEPER, CRANE, RC MSG u. a.), Erklärtexte entfernt, FLAGS-Legende einzeilig.
+- PIT: Boxengasse jederzeit schließbar; ohne Vorfall in der Boxengasse (und ohne Rot) zählt die Zeit als grundlos
+  geschlossen → Abzug beim Rennfluss (bis −20) und Stimme der Teamchefs.
+- BLK/ORG: jedes Auto wählbar (beschädigte gelb markiert); das Auto muss an die Box. Grundlos (kein loser Flügel, kein
+  Schaden, mit dem das Team draußen bleiben wollte) → Abzug bei der Fairness.
+- Kopfzeile in Desk, Docs und Log: links Runde und Zeit, rechts LOG · DOCS/RC DESK · MAP · Tempo · TV.
+  Docs mit eigener Live-Karte (MAP), Race Log im Vollbild.
+- Pause/Weiter im Tempo-Menü (überall), Pause-Knopf und Start-Knopf auf der Karte entfernt.
+- TV-Ansicht: unteres Menü nur noch RC LOG; DOCS-Knopf mit Zähler unten neben CONTROL. TIMING entfällt – der Tower zeigt
+  jetzt offene Strafen (+5, DT, SG, ↩) und schaltet per Tipp auf den Kopf zwischen Abstand und Intervall um; Reifenalter,
+  Stopps usw. pro Fahrer in der Fahrerkarte.

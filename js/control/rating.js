@@ -95,7 +95,8 @@ export function rateRace(race) {
     .reduce((sum, s) => sum + (s.auto ? 25 : Math.min(25, Math.max(0, s.hold - 3) * 8)), 0);
   const abandon = (race.abandonLeft > 180 ? 10 : 0)   // Session ohne Not abgebrochen
     + Math.min(15, 2 * (race.tlUnmonitored || 0));       // Problemkurve nicht überwacht
-  const flow = 100 - abandon - 8 * svcWrong - fr.idleFlagTime / 10 - fr.neutral.idle / 6 - 8 * over - 10 * needless - lateLights;
+  const pitIdle = race.svc ? race.svc.pitIdle || 0 : 0;     // Boxengasse grundlos geschlossen (Sekunden)
+  const flow = 100 - abandon - Math.min(20, pitIdle / 6) - 8 * svcWrong - fr.idleFlagTime / 10 - fr.neutral.idle / 6 - 8 * over - 10 * needless - lateLights;
 
   const scores = {
     safety: Math.round(clamp(safety, 0, 100)),
@@ -139,6 +140,7 @@ function buildVoices(race, fr, sr, scores, total, over) {
   if (follow.length) say('Fahrervereinigung (GPDA)', `„${follow.map(f => f.carId).join(', ')} verunglückte${follow.length > 1 ? 'n' : ''} an einer Stelle, die nicht ausreichend abgesichert war. So etwas darf nicht passieren.“`, 'neg');
   const punct = (race.followLog || []).filter(f => f.type === 'puncture' && f.unsecured);
   if (punct.length) say(`Teamchef ${race.carById[punct[0].carId].team.name}`, '„Reifenschaden durch Trümmer, die viel zu lange auf der Strecke lagen.“', 'neg');
+  if (race.svc && (race.svc.pitIdle || 0) > 20) say('Teamchefs', `„Die Boxengasse war ${Math.round(race.svc.pitIdle)} s ohne Grund geschlossen – das hat unsere Strategie kaputtgemacht.“`, 'neg');
   if (race.revisions) say('Presse', `„Die Rennleitung hat ${race.revisions === 1 ? 'ein Urteil' : `${race.revisions} Urteile`} nachträglich revidiert – das wirkt unsicher.“`, 'neg');
   if ((race.tlUnmonitored || 0) >= 3 && race.briefing) say('Fahrer', `„In ${race.briefing.hotspot} hat jeder abgekürzt – das hätte man in der Fahrerbesprechung festlegen müssen.“`, 'neg');
   if ((race.startLog || []).some(s => s.action === 'releasedRain')) say('Fahrervereinigung (GPDA)', '„Start auf Trockenreifen im Starkregen – das war unverantwortlich.“', 'neg');
