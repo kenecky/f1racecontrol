@@ -145,6 +145,11 @@ export class Sound {
     const f = kind === 'red' ? 520 : kind === 'sc' ? 700 : 820;
     for (let i = 0; i < 3; i++) { this.tone(f, i * 0.32, 0.14, { type: 'square', vol: 0.08 }); this.tone(f * 0.75, i * 0.32 + 0.15, 0.14, { type: 'square', vol: 0.08 }); }
   }
+  // Einsatz ausgelöst (Medical Car, Kehrmaschine, Kran, Boxengasse zu, Schwarz-Orange, Start verschoben)
+  deploy(kind) {
+    const f = { start: 600, med: 940, sweep: 760, crane: 680, pit: 560, bo: 880 }[kind] || 760;
+    for (let i = 0; i < 2; i++) { this.tone(f, i * 0.28, 0.12, { type: 'sawtooth', vol: 0.07 }); this.tone(f * 1.25, i * 0.28 + 0.13, 0.12, { type: 'sawtooth', vol: 0.07 }); }
+  }
   // Zielflagge
   chequered() { [523, 659, 784, 1047].forEach((f, i) => this.tone(f, i * 0.13, 0.22, { type: 'triangle', vol: 0.14 })); }
 }

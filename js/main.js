@@ -187,7 +187,10 @@ const controlPanel = new ControlPanel({
       'msg-tl': i => sendMessage(race, 'tl', race.track.corners[i] && race.track.corners[i].id),
     };
     const [name, arg] = action.split(':');
-    if (actions[name]) actions[name](arg !== undefined ? Number(arg) : undefined);
+    const res = actions[name] ? actions[name](arg !== undefined ? Number(arg) : undefined) : false;
+    // Warnton bei jedem Einsatz (VSC/SC/Rot haben ihren eigenen Ton über die Neutralisierung)
+    const DEPLOY = { 'start-suspend': 'start', 'med-go': 'med', 'sweep-go': 'sweep', 'crane-go': 'crane', 'pit-close': 'pit', 'bo-go': 'bo' };
+    if (DEPLOY[name] && res !== false && settings.sound !== false) { sound.unlock(); sound.deploy(DEPLOY[name]); }
     if (name === 'restart-standing' && race.neutral && race.neutral.restart) openControl('start');
     controlPanel.sig = '';
     refreshUi();
@@ -1265,9 +1268,8 @@ function toggleSpeedMenu(show, anchor = $('speedBtn')) {
   renderSpeedMenu();
   const r = anchor.getBoundingClientRect();
   menu.classList.remove('hidden');
-  const w = menu.offsetWidth;
   menu.style.top = `${r.bottom + 6}px`;
-  menu.style.left = `${Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w))}px`;
+  menu.style.left = '8px';   // volle Breite (siehe CSS)
 }
 
 // ---------- Ergebnis ----------
@@ -1964,6 +1966,7 @@ window.addEventListener('pointermove', e => {
 });
 // Karte weich auf die Zielhöhe animieren (die Drehung folgt dabei der Höhe)
 function animatePanel(collapse, fromH) {
+  if (!collapse) return;   // unterer Bereich (RC-Log) gibt es in der TV-Ansicht nicht mehr – Karte bleibt groß
   const expandedH = Math.max(200, window.innerHeight * 0.34);
   const toH = collapse ? maxMapHeight() : expandedH;
   const start = performance.now();
@@ -2021,6 +2024,7 @@ $('startDeskBtn').addEventListener('click', () => openControl('start'));
 $('boBtn').addEventListener('click', () => openControl('bo'));
 
 // Kontrollpult öffnen: passende Konsole zur aktuellen Meldung, sonst die zuletzt benutzte
+$('rcBtn').addEventListener('click', () => { if (race && !deskOpen()) openDeskDefault(); });
 $('deckBtn').addEventListener('click', () => {
   if (!race) return;
   if (deskOpen()) { closeDesk(); return; }
@@ -2165,7 +2169,8 @@ $('logDecBtn').addEventListener('click', () => { closeLog(); openDecisions(); })
 $('logClose').addEventListener('click', closeLog);
 if (!LENGTHS[settings.length]) settings.length = 'medium';
 if (!['easy', 'medium', 'hard'].includes(settings.difficulty)) settings.difficulty = 'medium';
-appEl.classList.toggle('collapsed', settings.panelCollapsed);
+settings.panelCollapsed = true;
+appEl.classList.add('collapsed');
 applyTower();
 $('labelsBtn').classList.toggle('active', settings.showLabels);
 newRace();

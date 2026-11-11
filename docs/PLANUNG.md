@@ -663,3 +663,13 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 - TV-Ansicht: unteres Menü nur noch RC LOG; DOCS-Knopf mit Zähler unten neben CONTROL. TIMING entfällt – der Tower zeigt
   jetzt offene Strafen (+5, DT, SG, ↩) und schaltet per Tipp auf den Kopf zwischen Abstand und Intervall um; Reifenalter,
   Stopps usw. pro Fahrer in der Fahrerkarte.
+
+### Einsatz-Knöpfe, Warntöne, TV-Kopfleiste (v51)
+- Einsatz-Knöpfe auf Englisch: ACTIVATE VSC / SC / RED FLAG, SWEEPER → SEKTOR x, CRANE → SEKTOR x, CLOSE PIT LANE, BLACK-ORANGE FLAG FOR (Fahrer); MEDICAL CAR → SEKTOR x bleibt.
+- Nach dem ersten Druck steht auf jedem Knopf ein eigener Text („ARMED – DEPLOY VSC NOW“, „ARMED – RED FLAG NOW“, „ARMED – BLK/ORG FOR (Fahrer) NOW“ …).
+- „Start verschieben“ braucht jetzt ebenfalls zwei Drücke („BESTÄTIGEN – START JETZT VERSCHIEBEN“).
+- Warnton für jeden Einsatz (Medical Car, Kehrmaschine, Kran, Boxengasse zu, Schwarz-Orange, Start verschoben); VSC, SC und Rot haben ihren eigenen Ton.
+- „Alle Sektoren grün schalten“.
+- TV-Ansicht: unterer RC-Log-Bereich (zum Hochwischen) entfernt, die Karte nutzt die ganze Höhe; Log über RC Desk erreichbar.
+- Kopfleiste: ganz rechts „RC“ (öffnet den RC Desk), links daneben das Tempo.
+- Tempo-Menü über die volle Breite, alle 6 Stufen in einer Reihe.

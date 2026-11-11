@@ -1631,3 +1631,10 @@ body { background: #15181d; }
 .tw-pen { font-style: normal; margin-left: 3px; font-size: 8.5px; color: #facc15; font-weight: 800; }
 .tw-head { cursor: pointer; }
 .tw-mode { display: block; font-size: 8px; color: #8fd3a2; letter-spacing: .06em; }
+
+/* v51: TV-Ansicht ohne unteren Log-Bereich, RC-Knopf oben rechts, Tempo-Menü über die volle Breite */
+#app #dragHandle, #app .tabs, #app .panels { display: none; }
+.status .rc-btn { font-weight: 800; letter-spacing: .06em; background: #facc15; color: #15181d; border-color: #0c0e12; }
+#speedMenu.popover { left: 8px; right: 8px; width: auto; }
+#speedMenu .speed-grid { grid-template-columns: repeat(6, 1fr); gap: 5px; }
+#speedMenu .speed-opt { height: 40px; font-size: 14px; padding: 0; }

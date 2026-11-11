@@ -12,7 +12,13 @@ const TITLES = {
   medical: 'MEDICAL CAR', sweeper: 'SWEEPER', crane: 'RECOVERY CRANE', pit: 'PIT LANE', bo: 'BLACK/ORANGE FLAG', msg: 'RACE CONTROL MESSAGE',
 };
 // Auslösende Aktionen brauchen zwei Drücke: ARM (scharf schalten) → DEPLOY
-const ARMED = new Set(['vsc-on', 'sc-on', 'red-on', 'med-go', 'sweep-go', 'crane-go', 'pit-close', 'bo-go']);
+const ARMED = new Set(['vsc-on', 'sc-on', 'red-on', 'med-go', 'sweep-go', 'crane-go', 'pit-close', 'bo-go', 'start-suspend']);
+// Beschriftung nach dem ersten Druck (scharf geschaltet)
+const ARMED_LABEL = {
+  'vsc-on': 'ARMED – DEPLOY VSC NOW', 'sc-on': 'ARMED – DEPLOY SC NOW', 'red-on': 'ARMED – RED FLAG NOW',
+  'med-go': 'ARMED – DEPLOY MEDICAL CAR NOW', 'sweep-go': 'ARMED – DEPLOY SWEEPER NOW', 'crane-go': 'ARMED – DEPLOY CRANE NOW',
+  'pit-close': 'ARMED – CLOSE PIT LANE NOW', 'start-suspend': 'BESTÄTIGEN – START JETZT VERSCHIEBEN',
+};
 const armKey = a => a.split(':')[0];
 
 function mmss(t) {
@@ -124,7 +130,7 @@ export class ControlPanel {
       sub = '';
       if (!n) {
         html = `<p class="ctl-text">Alle Autos fahren rund 40 % langsamer. Gut für Bergungen, die nur kurz dauern.</p>
-          <button class="ctl-btn ctl-vsc" data-action="vsc-on" ${running ? '' : 'disabled'}>VSC aktivieren</button>`;
+          <button class="ctl-btn ctl-vsc" data-action="vsc-on" ${running ? '' : 'disabled'}>ACTIVATE VSC</button>`;
       } else if (n.type === 'vsc' && n.phase === 'active') {
         html = `<div class="ctl-status">VSC aktiv seit ${since}</div>
           <button class="ctl-btn ctl-green" data-action="vsc-off">VSC beenden</button>${stratHtml(n)}
@@ -140,7 +146,7 @@ export class ControlPanel {
       sub = '';
       if (!n || n.type === 'vsc') {
         html = `<p class="ctl-text">Das Safety Car fährt an der Boxenausfahrt raus, sobald der Führende dort ankommt, und das Feld schließt auf. Gut für längere Bergungen und Trümmerfelder.${n ? ' Das VSC wird dadurch ersetzt.' : ''}</p>
-          <button class="ctl-btn ctl-sc" data-action="sc-on" ${running ? '' : 'disabled'}>Safety Car einsetzen</button>`;
+          <button class="ctl-btn ctl-sc" data-action="sc-on" ${running ? '' : 'disabled'}>ACTIVATE SC</button>`;
       } else if (n.type === 'sc' && race.sc && race.sc.waiting) {
         const lead = race.standings().find(c => !c.retired && !c.finished);
         const dist = lead ? Math.round(((race.track.pit.exit - lead.d) % race.track.L + race.track.L) % race.track.L) : 0;
@@ -189,11 +195,11 @@ export class ControlPanel {
           : `<button class="ctl-btn ctl-vsc" data-action="med-go:${sel}" ${svcPhase(race) ? '' : 'disabled'}>MEDICAL CAR → SEKTOR ${sel + 1}</button>${scNote}`;
       } else if (kind === 'sweeper') {
         html += sv.sweeper ? `<div class="ctl-status">Kehrmaschine räumt Sektor ${sv.sweeper.sector + 1}</div>`
-          : `<button class="ctl-btn ctl-vsc" data-action="sweep-go:${sel}" ${svcPhase(race) ? '' : 'disabled'}>KEHRMASCHINE → SEKTOR ${sel + 1}</button>${scNote}`;
+          : `<button class="ctl-btn ctl-vsc" data-action="sweep-go:${sel}" ${svcPhase(race) ? '' : 'disabled'}>SWEEPER → SEKTOR ${sel + 1}</button>${scNote}`;
       } else {
         html += busy.has(sel)
           ? `<div class="ctl-status">Kran in Sektor ${sel + 1} im Einsatz</div><button class="ctl-btn ctl-ghost" data-action="crane-off:${sel}">KRAN ABZIEHEN</button>`
-          : `<button class="ctl-btn ctl-vsc" data-action="crane-go:${sel}" ${svcPhase(race) ? '' : 'disabled'}>KRAN IN SEKTOR ${sel + 1} EINSETZEN</button>`;
+          : `<button class="ctl-btn ctl-vsc" data-action="crane-go:${sel}" ${svcPhase(race) ? '' : 'disabled'}>CRANE → SEKTOR ${sel + 1}</button>`;
       }
     }
 
@@ -211,7 +217,7 @@ export class ControlPanel {
       if (sel) {
         html += `<div class="ctl-hazard"><div><b>${sel.id}</b> – ${sel.damage === 'wing' ? 'Frontflügel beschädigt' : sel.damage === 'puncture' ? 'Reifenschaden' : 'keine Schäden gemeldet'}${sel.boShown ? ' · <b>Schwarz-Orange gezeigt</b>' : ''}</div>
           <div class="ctl-small">Onboard: Vibration ${vib(sel)} %${sel.damage ? ` · ${sel.damageStayOut ? 'Team lässt ihn draußen' : 'kommt zur Reparatur'}` : ''}${sel.inPit ? ' · in der Boxengasse' : ''}</div></div>`;
-        if (!sel.boShown) html += `<button class="ctl-btn ctl-sc" data-action="bo-go:${this.sel.bo}" ${running && !sel.inPit ? '' : 'disabled'}>SCHWARZ-ORANGE FÜR ${sel.id}</button>`;
+        if (!sel.boShown) html += `<button class="ctl-btn ctl-sc" data-action="bo-go:${this.sel.bo}" ${running && !sel.inPit ? '' : 'disabled'}>BLACK-ORANGE FLAG FOR ${sel.id}</button>`;
       }
     }
 
@@ -243,7 +249,7 @@ export class ControlPanel {
       sub = '';
       html = closed
         ? `<div class="ctl-status">Boxengasse ist GESCHLOSSEN</div><button class="ctl-btn ctl-green" data-action="pit-open">BOXENGASSE ÖFFNEN</button>`
-        : `<div class="ctl-status">Boxengasse ist offen</div><button class="ctl-btn ctl-red" data-action="pit-close" ${race.phase !== 'pre' && race.phase !== 'finished' ? '' : 'disabled'}>BOXENGASSE SCHLIESSEN</button>`;
+        : `<div class="ctl-status">Boxengasse ist offen</div><button class="ctl-btn ctl-red" data-action="pit-close" ${race.phase !== 'pre' && race.phase !== 'finished' ? '' : 'disabled'}>CLOSE PIT LANE</button>`;
       html += '<p class="ctl-small">Liegt im Ermessen der Rennleitung. Ohne Grund geschlossen kostet es Punkte beim Rennfluss.</p>';
     }
 
@@ -317,7 +323,7 @@ export class ControlPanel {
       sub = '';
       if (!n || n.type !== 'red') {
         html = `<p class="ctl-text">${race.isSession ? 'Die Session wird unterbrochen, alle Autos fahren in die Box, die Uhr hält an.' : 'Alle Autos fahren langsam in die Boxengasse und stellen sich an. Freier Reifenwechsel. Nur bei großer Gefahr, z. B. beschädigter Barriere.'}</p>
-          <button class="ctl-btn ctl-red" data-action="red-on" ${running ? '' : 'disabled'}>Rote Flagge zeigen</button>`;
+          <button class="ctl-btn ctl-red" data-action="red-on" ${running ? '' : 'disabled'}>ACTIVATE RED FLAG</button>`;
       } else if (n.phase === 'stopping') {
         const racing = race.cars.filter(c => !c.retired && !c.finished).length;
         const q = race.cars.filter(c => c.redQueued).length;
@@ -346,7 +352,10 @@ export class ControlPanel {
     this.subEl.textContent = sub;
     // Scharf geschaltete Taste hervorheben
     if (this.armed) {
-      html = html.replace(new RegExp(`(<button class="ctl-btn[^"]*)("[^>]*data-action="${this.armed.action}"[^>]*>)([^<]*)`), '$1 armed$2ARMED – ZUM AUSLÖSEN ERNEUT DRÜCKEN');
+      const key = armKey(this.armed.action);
+      const boCar = key === 'bo-go' ? race.cars[Number(this.armed.action.split(':')[1])] : null;
+      const label = boCar ? `ARMED – BLK/ORG FOR ${boCar.id} NOW` : ARMED_LABEL[key] || 'ARMED – NOW';
+      html = html.replace(new RegExp(`(<button class="ctl-btn[^"]*)("[^>]*data-action="${this.armed.action}"[^>]*>)([^<]*)`), `$1 armed$2${label}`);
     }
     this.body.innerHTML = html + `<div class="ctl-section">TRACK STATUS</div>${this.hazardsHtml(race)}`;
     // Vollbild-Pult: Aktionsknöpfe nach unten an den Daumen
