@@ -1569,3 +1569,4 @@ body { background: #15181d; }
 .status-clock .wx { font-size: 9px; }
 .status #speedBtn { min-width: 40px; padding: 0 6px; }
 .status .pause-btn { min-width: 40px; }
+.error-note { color: #fca5a5 !important; }

@@ -1259,7 +1259,31 @@ function toggleSpeedMenu(show, anchor = $('speedBtn')) {
 
 // ---------- Ergebnis ----------
 
+// Ergebnis anzeigen – darf nie hängen bleiben: Schlägt der Aufbau fehl, erscheint trotzdem ein einfaches Ergebnis
+// mit der Fehlermeldung (zum Melden), statt dass man ohne Ergebnis in der Streckenansicht landet.
 function showResults() {
+  try {
+    buildResults();
+  } catch (e) {
+    console.error(e);
+    reportError('Ergebnis', e);
+    const st = race.standings();
+    $('resultTitle').textContent = '🏁 Ergebnis';
+    $('resultBody').innerHTML = `<p class="ctl-small error-note">Beim Aufbau des Ergebnisses ist ein Fehler aufgetreten: ${String(e && e.message || e)}</p>
+      <table class="results"><tbody>${st.map((c, i) => `<tr><td class="r-pos">${c.retired ? '–' : i + 1}</td><td>${c.driver.first[0]}. ${c.driver.last}</td><td class="r-gap">${c.dsq ? 'DSQ' : c.retired ? 'DNF' : ''}</td></tr>`).join('')}</tbody></table>`;
+    $('postScreen').classList.add('hidden');
+    $('resultScreen').classList.remove('hidden');
+  }
+}
+
+// Fehler sichtbar machen (Meldung + kurzer Ort im Code), damit sie gemeldet werden können
+function reportError(where, e) {
+  const at = String(e && e.stack || '').split('\n').slice(1, 2).join('').replace(/^\s*at\s*/, '').replace(/https?:\/\/[^/]+\//, '');
+  toast(`Fehler (${where}): ${e && e.message || e}${at ? ` – ${at}` : ''}`, 9000);
+}
+window.addEventListener('error', ev => { if (ev.error) reportError('App', ev.error); });
+
+function buildResults() {
   resultShown = true;
   const st = race.standings();
   const winner = st[0];
@@ -1467,6 +1491,13 @@ function postPending() {
   return openCases(race).length > 0 || Boolean(race.scrutiny && !race.scrutiny.done);
 }
 function finishFlow() {
+  try { finishFlowInner(); } catch (e) {
+    console.error(e);
+    reportError('Rennende', e);
+    showResults();
+  }
+}
+function finishFlowInner() {
   closeDecisions();
   closeDesk();
   resultShown = true;
@@ -1477,6 +1508,14 @@ function finishFlow() {
   else showResults();
 }
 function renderPost(keepScroll = false) {
+  try { renderPostInner(keepScroll); } catch (e) {
+    console.error(e);
+    reportError('Nach dem Rennen', e);
+    $('postScreen').classList.add('hidden');
+    showResults();
+  }
+}
+function renderPostInner(keepScroll = false) {
   const open = openCases(race).sort((a, b) => a.id - b.id);
   const cur = open[0];
   const body = $('postBody');
@@ -1654,12 +1693,12 @@ $('decPrev').addEventListener('click', () => decStep(-1));
 $('decNextDoc').addEventListener('click', () => decStep(1));
 
 let toastTimer = null;
-function toast(text) {
+function toast(text, ms = 2400) {
   const t = $('toast');
   t.textContent = text;
   t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+  toastTimer = setTimeout(() => t.classList.remove('show'), ms);
 }
 
 async function requestWakeLock() {

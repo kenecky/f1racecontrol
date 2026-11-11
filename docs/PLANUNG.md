@@ -637,3 +637,10 @@ Einträge ohne gültige Punktzahl werden im Verlauf und in der Statistik ausgebl
   dem Weg in die Boxengasse die Zielflagge, die wartenden Autos kamen nie ins Ziel und das Rennen endete nicht).
 - Statusleiste: Flaggenfeld schrumpft bei Bedarf, Tempo- und Pause-Knopf bleiben immer sichtbar.
 - Saison: Startknopf „Saison starten“ bzw. „Saison fortsetzen“.
+
+### Ergebnis nach dem Rennen immer erreichbar (v47)
+Der gemeldete Fall (nach der technischen Abnahme kein Ergebnis, zurück in der Streckenansicht) ließ sich in 70+ Durchläufen
+mit geladenen Spielständen (Regen, mehrere SC, rote Flagge, Zeitlimit, offene Fälle, Proteste, Abnahme, Einzelrennen und
+Saison) nicht nachstellen. Wahrscheinliche Ursache: ein Fehler beim Aufbau des Ergebnisses, nachdem das Fenster „Nach dem
+Rennen“ schon geschlossen war. Absicherung: Ergebnis, „Nach dem Rennen“ und Rennende fangen Fehler ab – es erscheint immer
+ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; unerwartete Fehler werden als Hinweis angezeigt.
