@@ -22,7 +22,7 @@ Einfluss. Unsere Aufgabe: Situationen erkennen, bewerten und richtig reagieren.
 | Thema | Entscheidung |
 |---|---|
 | Plattform | Browser-Spiel, **reines HTML/CSS/JavaScript**, kein Build-Schritt |
-| Hosting | GitHub Pages (Repo `kenecky/f1racecontrol`) |
+| Hosting | GitHub Pages (Repo `kenecky/racecontrol`, https://kenecky.github.io/racecontrol/) |
 | Gerät | **Handy, Hochformat** (Desktop später, keine Priorität) |
 | Installierbar | PWA (Homescreen-Icon, offline spielbar) |
 | Speicherung | Lokal auf dem Handy (localStorage / IndexedDB) |
@@ -691,3 +691,9 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 - Ohne Mini-Karten, TV-, MAP- und Tempo-Knöpfe in den Spalten und ohne Fußleiste (alles ist ohnehin sichtbar).
 - Tastenkürzel: Leertaste = Pause/Weiter, 1–6 = Tempo 1× … 32×.
 - Getestet mit 1920×1200 und 1536×960 (Laptop 3840×2400 bei 200 % bzw. 250 % Skalierung) und 1180×820 (Tablet quer).
+
+### Neue Adresse, App wieder installierbar (v54)
+- Repo umbenannt in `racecontrol`, die App liegt jetzt unter https://kenecky.github.io/racecontrol/.
+- Grund: Chrome auf dem S25 hatte nach dem Löschen der ersten Installation einen verwaisten Eintrag für `/f1racecontrol/` behalten („Diese App wurde bereits installiert“, Öffnen schlug fehl). Unter `chrome://webapks` und in den Android-Einstellungen war nichts mehr zu sehen; Installationen von Web-Apps funktionierten sonst (Update des Reise-Trackers „succeeded“).
+- Spielstände bleiben erhalten (gleiche Herkunft kenecky.github.io).
+- Manifest: neue App-ID `/racecontrol/race-control`, Ausrichtung `any` (Tablet quer). Tablet-/Desktop-Ansicht nur ab 600 px Höhe, damit ein Handy im Querformat die Handy-Ansicht behält.

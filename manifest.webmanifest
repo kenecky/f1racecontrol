@@ -1,5 +1,5 @@
 {
-  "id": "/f1racecontrol/race-control",
+  "id": "/racecontrol/race-control",
   "name": "F1 Race Control",
   "short_name": "Race Control",
   "description": "Du bist die Rennleitung eines Formel-1-Rennens.",
@@ -7,7 +7,7 @@
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "background_color": "#0b0f17",
   "theme_color": "#0b0f17",
   "icons": [

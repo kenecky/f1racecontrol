@@ -873,8 +873,8 @@ function frame(now) {
 // ---------- Tablet/Desktop: Desk, Docs und Log als feste Spalten neben der Karte ----------
 // Tablet quer: rechte Spalte (Desk, Docs oder Log – umschaltbar); Desktop: links Docs + Log, rechts Desk.
 // Hochkant und am Handy bleibt alles wie bisher (Vollbild-Fenster). Die Abfragen passen zu den Media Queries in style.css.
-const WIDE_Q = matchMedia('(min-width: 900px) and (orientation: landscape)');
-const FULL_Q = matchMedia('(min-width: 1300px) and (orientation: landscape)');
+const WIDE_Q = matchMedia('(min-width: 900px) and (min-height: 600px) and (orientation: landscape)');
+const FULL_Q = matchMedia('(min-width: 1300px) and (min-height: 600px) and (orientation: landscape)');
 function isWide() { return WIDE_Q.matches; }
 function isFull() { return FULL_Q.matches; }
 function ensureWide() {
