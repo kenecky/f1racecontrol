@@ -1650,3 +1650,39 @@ body { background: #15181d; }
 .status > * { flex: none; margin-left: 0; }
 .status > .flag-chip { flex: 1 1 auto; text-align: center; }
 @media (max-width: 430px) { .status .wx-t { display: none; } .status .wx { font-size: 14px; } }
+
+/* ---------- v53: Tablet quer und Desktop ----------
+   Die Vollbild-Fenster (Desk, Docs, Log) werden zu festen Spalten neben der Karte.
+   Tablet quer: rechte Spalte (umschaltbar). Desktop: links Docs (oben) + Log (unten), rechts Desk.
+   Gleiche Grenzen wie WIDE_Q / FULL_Q in main.js. */
+@media (min-width: 900px) and (orientation: landscape) {
+  :root { --side-r: clamp(400px, 38vw, 460px); --side-l: 0px; }
+  #app { max-width: none; margin: 0; position: fixed; top: 0; bottom: 0; left: var(--side-l); right: var(--side-r); }
+  #app .actions, #app .rc-btn { display: none; }
+  .fs-screen { max-width: none; margin: 0; }
+  #desk, #decScreen, #logScreen { left: auto; right: 0; width: var(--side-r); }
+  #desk .desk-live, #decScreen .dec-map, .map-toggle, .tv-btn, .fs-screen .speed-btn { display: none !important; }
+  /* schmale Trennlinien statt Warnstreifen */
+  .fs-screen.hz-frame { border: 0 !important; border-image: none !important; }
+  #desk, #decScreen, #logScreen { box-shadow: -2px 0 0 #0c0e12, -3px 0 0 #566072; }
+  .fs-screen .fs-top { border-bottom: 2px solid #0c0e12 !important; border-image: none !important; box-shadow: 0 1px 0 #566072; min-height: 50px; }
+  /* Spaltenköpfe statt Runde/Uhr (die stehen in der Kopfleiste über der Karte) */
+  .fs-lap span, .fs-lap small { display: none; }
+  .fs-lap::before { font: 800 12px var(--mono); letter-spacing: .14em; }
+  #desk .fs-lap::before { content: 'RACE CONTROL DESK'; }
+  #decScreen .fs-lap::before { content: 'DOCS · ENTSCHEIDUNGEN'; }
+  #logScreen .fs-lap::before { content: 'RACE LOG'; }
+  #desk .deck-grid .act { height: 52px; font-size: 10.5px; }
+  #speedMenu.popover { right: auto; width: 440px; }
+  /* Rennszene groß (Knopf ⛶ im Fall) */
+  .scene-sheet { max-width: min(1280px, 94vw); }
+  .scene-big .scene-view canvas { height: min(74vh, 820px); }
+}
+@media (min-width: 1300px) and (orientation: landscape) {
+  :root { --side-l: clamp(380px, 24vw, 520px); --side-r: clamp(420px, 27vw, 560px); }
+  #decScreen { left: 0; right: auto; width: var(--side-l); bottom: 46%; }
+  #logScreen { left: 0; right: auto; width: var(--side-l); top: 54%; }
+  #decScreen, #logScreen { box-shadow: 2px 0 0 #0c0e12, 3px 0 0 #566072; }
+  #logScreen .fs-top { border-top: 2px solid #0c0e12; box-shadow: 0 -1px 0 #566072, 0 1px 0 #566072; }
+  #deskLogBtn, #deskDecBtn, #decLogBtn, #decDeskBtn, #logDeskBtn, #logDecBtn { display: none !important; }
+}

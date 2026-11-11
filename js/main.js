@@ -846,13 +846,13 @@ function frame(now) {
     }
     map.paused = paused;
     map.draw(race, renderD);
-    if (deskOpen()) {
+    if (deskOpen() && !isWide()) {
       deskMap.paused = paused;
       deskMap.showSectors = map.showSectors;
       deskMap.highlightSector = map.highlightSector;
       deskMap.draw(race, renderD);
     }
-    if (decOpen() && settings.deskMap !== false && !$('decListView').classList.contains('hidden')) { decMap.paused = paused; decMap.draw(race, renderD); }
+    if (decOpen() && !isWide() && settings.deskMap !== false && !$('decListView').classList.contains('hidden')) { decMap.paused = paused; decMap.draw(race, renderD); }
     updateStartCtl();
     updateSound(now);
 
@@ -869,6 +869,45 @@ function frame(now) {
   }
   requestAnimationFrame(frame);
 }
+
+// ---------- Tablet/Desktop: Desk, Docs und Log als feste Spalten neben der Karte ----------
+// Tablet quer: rechte Spalte (Desk, Docs oder Log – umschaltbar); Desktop: links Docs + Log, rechts Desk.
+// Hochkant und am Handy bleibt alles wie bisher (Vollbild-Fenster). Die Abfragen passen zu den Media Queries in style.css.
+const WIDE_Q = matchMedia('(min-width: 900px) and (orientation: landscape)');
+const FULL_Q = matchMedia('(min-width: 1300px) and (orientation: landscape)');
+function isWide() { return WIDE_Q.matches; }
+function isFull() { return FULL_Q.matches; }
+function ensureWide() {
+  if (!race || !isWide()) return;
+  if (isFull()) {
+    if (!deskOpen()) openDeskDefault();
+    if (!decOpen()) openDecisions();
+    if (!logOpen()) openLog();
+  } else if (!deskOpen() && !decOpen() && !logOpen()) openDeskDefault();
+}
+function onLayoutChange() {
+  if (!isWide()) { closeLog(); closeDecisions(); closeDesk(); }
+  else if (!isFull()) { closeLog(); closeDecisions(); }
+  ensureWide();
+}
+WIDE_Q.addEventListener('change', onLayoutChange);
+FULL_Q.addEventListener('change', onLayoutChange);
+
+// Tastenkürzel (Tastatur am Laptop/Tablet): Leertaste = Pause, 1–6 = Tempo
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return;
+  if (!race || !$('startScreen').classList.contains('hidden')) return;
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (!e.repeat) { $('pauseBtn').click(); renderDeskHead(); }
+    return;
+  }
+  const i = '123456'.indexOf(e.key);
+  if (e.key.length === 1 && i >= 0) { e.preventDefault(); setSpeed(SPEEDS[i]); toggleSpeedMenu(false); }
+});
+// Leertaste soll keinen Knopf auslösen, der gerade den Fokus hat
+document.addEventListener('keyup', e => { if (e.code === 'Space' && race && e.target.closest && e.target.closest('button')) e.preventDefault(); });
 
 // ---------- Rennszenen: Vollbild und Wiederholung auf der Karte ----------
 
@@ -989,6 +1028,7 @@ function timingOpts() {
 }
 
 function refreshUi() {
+  ensureWide();
   updateStatus();
   $('pauseBtn').classList.toggle('blocked', Boolean(pauseBlocked()));
   updateAlert();
@@ -1184,7 +1224,7 @@ const KIND_BTN = { flags: 'flagBtn', vsc: 'vscBtn', sc: 'scBtn', red: 'redBtn', 
 let deskKind = null, lastDeskKind = 'flags';
 function deskOpen() { return !$('desk').classList.contains('hidden'); }
 function showDesk() {
-  closeLog();
+  if (!isFull()) closeLog();
   if (deskOpen()) return;
   $('desk').classList.remove('hidden');
   $('deckBtn').setAttribute('aria-expanded', 'true');
@@ -1264,8 +1304,9 @@ function toggleSpeedMenu(show, anchor = $('speedBtn')) {
   renderSpeedMenu();
   const r = anchor.getBoundingClientRect();
   menu.classList.remove('hidden');
+  const w = menu.offsetWidth;   // Handy: volle Breite (CSS), Tablet/Desktop: feste Breite am Knopf
   menu.style.top = `${r.bottom + 6}px`;
-  menu.style.left = '8px';   // volle Breite (siehe CSS)
+  menu.style.left = `${Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w))}px`;
 }
 
 // ---------- Ergebnis ----------
@@ -1621,7 +1662,7 @@ function decCases() {
 }
 function openDecisions(id = null) {
   if (!race) return;
-  closeLog();
+  if (!isFull()) closeLog();
   $('decScreen').classList.remove('hidden');
   if (id) showDecDoc(id); else showDecList();
 }
@@ -2148,7 +2189,7 @@ $('footDocsBtn').addEventListener('click', () => openDecisions());
 function logOpen() { return !$('logScreen').classList.contains('hidden'); }
 function openLog() {
   if (!race) return;
-  closeDesk(); closeDecisions();
+  if (!isFull()) { closeDesk(); closeDecisions(); }
   $('logBody').append($('feedFilter'), $('feed'));
   $('logScreen').classList.remove('hidden');
   unread = 0; updateBadge(); renderDeskHead();

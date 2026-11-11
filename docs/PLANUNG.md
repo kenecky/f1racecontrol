@@ -681,3 +681,13 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 - Kein Piepton mehr bei Funk-Einträgen im Log.
 - RC Desk oben: nur noch „x/y“ statt „LAP x/y“.
 - Medical Car fährt 20 % schneller als das Safety Car (72 % statt 60 % des Renntempos, ohne feste Höchstgeschwindigkeit).
+
+### Tablet quer und Desktop (v53)
+- Ab 900 px Breite im Querformat werden Desk, Docs und Log zu festen Spalten neben der Karte (hochkant bleibt die Handy-Ansicht).
+- Tablet quer (900–1300 px): links die Karte, rechts eine Spalte mit RC Desk; LOG / DOCS / RC DESK schalten die rechte Spalte um.
+- Desktop (ab 1300 px): links Docs (oben) und Race Log (unten), Mitte Kopfleiste und Karte, rechts RC Desk – alles gleichzeitig sichtbar.
+- Fälle öffnen sich in der Docs-Spalte; ⛶ in der Rennszene zeigt sie groß über dem Bildschirm.
+- Schmale Trennlinien statt gelb-schwarzer Streifen; Spaltenköpfe RACE CONTROL DESK / DOCS · ENTSCHEIDUNGEN / RACE LOG.
+- Ohne Mini-Karten, TV-, MAP- und Tempo-Knöpfe in den Spalten und ohne Fußleiste (alles ist ohnehin sichtbar).
+- Tastenkürzel: Leertaste = Pause/Weiter, 1–6 = Tempo 1× … 32×.
+- Getestet mit 1920×1200 und 1536×960 (Laptop 3840×2400 bei 200 % bzw. 250 % Skalierung) und 1180×820 (Tablet quer).
