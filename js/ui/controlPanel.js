@@ -17,7 +17,7 @@ const ARMED = new Set(['vsc-on', 'sc-on', 'red-on', 'med-go', 'sweep-go', 'crane
 const ARMED_LABEL = {
   'vsc-on': 'ARMED – DEPLOY VSC NOW', 'sc-on': 'ARMED – DEPLOY SC NOW', 'red-on': 'ARMED – RED FLAG NOW',
   'med-go': 'ARMED – DEPLOY MEDICAL CAR NOW', 'sweep-go': 'ARMED – DEPLOY SWEEPER NOW', 'crane-go': 'ARMED – DEPLOY CRANE NOW',
-  'pit-close': 'ARMED – CLOSE PIT LANE NOW', 'start-suspend': 'BESTÄTIGEN – START JETZT VERSCHIEBEN',
+  'pit-close': 'ARMED – CLOSE PIT LANE NOW', 'start-suspend': 'ARMED – DELAY START NOW',
 };
 const armKey = a => a.split(':')[0];
 
@@ -89,8 +89,8 @@ export class ControlPanel {
       const sv = race.svc || { cranes: [] };
       const svc = [];
       if (!h.global && sv.medical && sv.medical.sector === h.sector) svc.push(`<span class="svc-med">MEDICAL ${sv.medical.phase === 'onsite' ? 'vor Ort' : sv.medical.phase === 'out' ? 'unterwegs' : 'fährt zurück'}</span>`);
-      if (!h.global && sv.cranes.some(c => c.sector === h.sector)) svc.push('<span class="svc-crane">KRAN im Einsatz</span>');
-      if (!h.global && sv.sweeper && sv.sweeper.sector === h.sector) svc.push('<span class="svc-crane">KEHRMASCHINE im Einsatz</span>');
+      if (!h.global && sv.cranes.some(c => c.sector === h.sector)) svc.push('<span class="svc-crane">CRANE im Einsatz</span>');
+      if (!h.global && sv.sweeper && sv.sweeper.sector === h.sector) svc.push('<span class="svc-crane">SWEEPER im Einsatz</span>');
       return `
         <div class="ctl-hazard">
           <div>${WARN_ICON} <b>${hazardWhere(h)}:</b> ${h.desc}</div>
@@ -133,7 +133,7 @@ export class ControlPanel {
           <button class="ctl-btn ctl-vsc" data-action="vsc-on" ${running ? '' : 'disabled'}>ACTIVATE VSC</button>`;
       } else if (n.type === 'vsc' && n.phase === 'active') {
         html = `<div class="ctl-status">VSC aktiv seit ${since}</div>
-          <button class="ctl-btn ctl-green" data-action="vsc-off">VSC beenden</button>${stratHtml(n)}
+          <button class="ctl-btn ctl-green" data-action="vsc-off">END VSC</button>${stratHtml(n)}
           <p class="ctl-small">Nach „VSC endet“ folgt in 8–14 s Grün.</p>`;
       } else if (n.type === 'vsc') {
         html = '<div class="ctl-status">VSC endet – gleich Grün.</div>';
@@ -163,12 +163,12 @@ export class ControlPanel {
           if (n.release && n.release.length) html += `<p class="ctl-small">Boxenausfahrt: ${n.release.length} Autos warten noch.</p>`;
           html += n.unlap
             ? `<div class="ctl-small">${unlapping.length ? `Zurückrunden läuft: ${unlapping.join(', ')}` : 'Überrundete haben sich zurückgerundet.'}</div>`
-            : `<button class="ctl-btn ctl-ghost" data-action="sc-unlap">Überrundete zurückrunden lassen</button>
+            : `<button class="ctl-btn ctl-ghost" data-action="sc-unlap">ALLOW LAPPED CARS TO UNLAP</button>
                <p class="ctl-small">Überrundete Autos überholen das Feld und das Safety Car und schließen hinten wieder an. Dauert etwa eine Runde.</p>`;
           const now = scInPossibleThisLap(race);
           const sec = race.sc && !race.sc.inPit ? sectorIndexAt(race.track, race.sc.d) + 1 : null;
           const last = scInLastSector(race.track);
-          html += `<button class="ctl-btn ctl-green" data-action="sc-in">${now ? 'Safety Car kommt in dieser Runde rein' : 'Safety Car kommt nächste Runde rein'}</button>
+          html += `<button class="ctl-btn ctl-green" data-action="sc-in">${now ? 'SC IN THIS LAP' : 'SC IN NEXT LAP'}</button>
             <p class="ctl-small">${sec ? `SC ist in Sektor ${sec}. ` : ''}Reinholen in dieser Runde nur bis Sektor ${last} möglich, danach erst in der nächsten Runde.</p>`;
         } else {
           html = `<div class="ctl-status">${n.go ? 'Neustart läuft – Grün an der Ziellinie.' : 'Safety Car kommt in dieser Runde rein. Der Führende bestimmt das Tempo.'}</div>`;
@@ -198,7 +198,7 @@ export class ControlPanel {
           : `<button class="ctl-btn ctl-vsc" data-action="sweep-go:${sel}" ${svcPhase(race) ? '' : 'disabled'}>SWEEPER → SEKTOR ${sel + 1}</button>${scNote}`;
       } else {
         html += busy.has(sel)
-          ? `<div class="ctl-status">Kran in Sektor ${sel + 1} im Einsatz</div><button class="ctl-btn ctl-ghost" data-action="crane-off:${sel}">KRAN ABZIEHEN</button>`
+          ? `<div class="ctl-status">Crane in Sektor ${sel + 1} im Einsatz</div><button class="ctl-btn ctl-ghost" data-action="crane-off:${sel}">REMOVE CRANE</button>`
           : `<button class="ctl-btn ctl-vsc" data-action="crane-go:${sel}" ${svcPhase(race) ? '' : 'disabled'}>CRANE → SEKTOR ${sel + 1}</button>`;
       }
     }
@@ -239,7 +239,7 @@ export class ControlPanel {
         if (this.sel.msg === undefined || !free.some(x => x.i === this.sel.msg)) this.sel.msg = free.length ? free[0].i : 0;
         html += `<div class="ctl-section">TRACK LIMITS · ÜBERWACHT: ${b.tlCorners.join(', ') || '–'}</div>`;
         html += free.length ? `<div class="sec-grid car-grid">${free.map(({ c, i }) => `<button class="sec-pick${i === this.sel.msg ? ' sel' : ''}" data-sec="${i}">${c.id}</button>`).join('')}</div>
-          <button class="ctl-btn ctl-vsc" data-action="msg-tl:${this.sel.msg}" ${live ? '' : 'disabled'}>${race.track.corners[this.sel.msg].id} ÜBERWACHEN</button>` : '<div class="ctl-ok">Alle Kurven werden überwacht.</div>';
+          <button class="ctl-btn ctl-vsc" data-action="msg-tl:${this.sel.msg}" ${live ? '' : 'disabled'}>MONITOR TRACK LIMITS ${race.track.corners[this.sel.msg].id}</button>` : '<div class="ctl-ok">Alle Kurven werden überwacht.</div>';
       }
       if (st.sent.length) html += `<div class="ctl-section">GESENDET</div>${st.sent.slice(-2).reverse().map(x => `<div class="ctl-small">Rd ${x.lap} · ${x.key === 'tl' ? `TRACK LIMITS ${x.arg}` : MESSAGES[x.key].name}</div>`).join('')}`;
     }
@@ -248,7 +248,7 @@ export class ControlPanel {
       const closed = race.svc && race.svc.pitClosed;
       sub = '';
       html = closed
-        ? `<div class="ctl-status">Boxengasse ist GESCHLOSSEN</div><button class="ctl-btn ctl-green" data-action="pit-open">BOXENGASSE ÖFFNEN</button>`
+        ? `<div class="ctl-status">Boxengasse ist GESCHLOSSEN</div><button class="ctl-btn ctl-green" data-action="pit-open">OPEN PIT LANE</button>`
         : `<div class="ctl-status">Boxengasse ist offen</div><button class="ctl-btn ctl-red" data-action="pit-close" ${race.phase !== 'pre' && race.phase !== 'finished' ? '' : 'disabled'}>CLOSE PIT LANE</button>`;
       html += '<p class="ctl-small">Liegt im Ermessen der Rennleitung. Ohne Grund geschlossen kostet es Punkte beim Rennfluss.</p>';
     }
@@ -295,23 +295,23 @@ export class ControlPanel {
         const D = race.delay, ok = canResumeStart(race);
         html += `<div class="ctl-status warn">START VERSCHOBEN – ${D.stage === 'toPit' ? 'das Feld fährt in die Boxengasse' : 'das Feld steht in der Boxengasse'}</div>
           <p class="ctl-small">Die Strecke ist gesperrt: Medical Car, Kehrmaschine und Kran dürfen ohne Safety Car raus. Ist alles geborgen, geht es mit einer neuen Formationsrunde aus der Boxengasse weiter.</p>
-          <button class="ctl-btn ctl-green ctl-big" data-action="start-resume" ${ok ? '' : 'disabled'}>${D.stage === 'toPit' ? 'FELD FÄHRT IN DIE BOXENGASSE …' : ok ? 'NEUE FORMATIONSRUNDE STARTEN' : 'ERST BERGEN – STRECKE NICHT FREI'}</button>`;
+          <button class="ctl-btn ctl-green ctl-big" data-action="start-resume" ${ok ? '' : 'disabled'}>${D.stage === 'toPit' ? 'FIELD ENTERING PIT LANE …' : ok ? 'START NEW FORMATION LAP' : 'TRACK NOT CLEAR YET'}</button>`;
       } else if (issue && !issue.released && f && f.arrived) {
         html += issue.type === 'rain'
           ? '<div class="ctl-status warn">⚠ Starker Regen in der Startaufstellung – die Autos stehen auf Trockenreifen</div><p class="ctl-text">Start abbrechen (Startverschiebung, Reifenwechsel) oder hinter dem Safety Car starten.</p>'
           : `<div class="ctl-status warn">⚠ ${issue.carId} steht mit abgestorbenem Motor in der Startaufstellung</div><p class="ctl-text">Schalte die Startampel jetzt nicht ein – ein stehendes Auto beim Start ist gefährlich.</p>`;
         html += `<p class="ctl-small">${issue.type === 'rain' ? 'Alle wechseln auf Regenreifen.' : `${issue.carId} wird in die Boxengasse geschoben und startet von dort.`} Ein Startabbruch kostet eine Runde (dann ${Math.max(3, race.laps - 1)} Runden).</p>
-          <button class="ctl-btn ctl-red" data-action="start-abort">EXTRA-FORMATIONSRUNDE</button>
-          <button class="ctl-btn ctl-sc" data-action="start-sc">START HINTER DEM SC</button>
-          <button class="ctl-btn ctl-ghost" data-action="start-suspend">START VERSCHIEBEN · FELD IN DIE BOX</button>
-          <button class="ctl-btn ctl-ghost" data-action="start-lights">STARTAMPEL TROTZDEM EINSCHALTEN</button>`;
+          <button class="ctl-btn ctl-red" data-action="start-abort">EXTRA FORMATION LAP</button>
+          <button class="ctl-btn ctl-sc" data-action="start-sc">START BEHIND SC</button>
+          <button class="ctl-btn ctl-ghost" data-action="start-suspend">DELAY START · FIELD TO PIT LANE</button>
+          <button class="ctl-btn ctl-ghost" data-action="start-lights">START LIGHTS ANYWAY</button>`;
       } else if (ph === 'formation' && !(f && f.arrived)) {
-        html += `<button class="ctl-btn ctl-ghost" data-action="start-suspend">START VERSCHIEBEN · FELD IN DIE BOX</button>
-          <button class="ctl-btn ctl-ghost ctl-big" data-action="start-lights">AMPEL EINSCHALTEN · NOCH ${grid.length - inBox} UNTERWEGS</button>`;
+        html += `<button class="ctl-btn ctl-ghost" data-action="start-suspend">DELAY START · FIELD TO PIT LANE</button>
+          <button class="ctl-btn ctl-ghost ctl-big" data-action="start-lights">START LIGHTS · ${grid.length - inBox} CARS STILL MOVING</button>`;
       } else if (ph === 'grid' || ph === 'formation') {
         html += `<div class="ctl-status ok">Startaufstellung komplett</div>
-          ${rs ? '' : '<button class="ctl-btn ctl-ghost" data-action="start-abort">EXTRA-FORMATIONSRUNDE</button><button class="ctl-btn ctl-ghost" data-action="start-sc">START HINTER SC</button><button class="ctl-btn ctl-ghost" data-action="start-suspend">START VERSCHIEBEN · FELD IN DIE BOX</button>'}
-          <button class="ctl-btn ctl-amber ctl-big" data-action="start-lights">STARTAMPEL EINSCHALTEN</button>`;
+          ${rs ? '' : '<button class="ctl-btn ctl-ghost" data-action="start-abort">EXTRA FORMATION LAP</button><button class="ctl-btn ctl-ghost" data-action="start-sc">START BEHIND SC</button><button class="ctl-btn ctl-ghost" data-action="start-suspend">DELAY START · FIELD TO PIT LANE</button>'}
+          <button class="ctl-btn ctl-amber ctl-big" data-action="start-lights">START LIGHTS</button>`;
       } else if (ph === 'lights' && !allOn) {
         html += `<button class="ctl-btn ctl-ghost ctl-big" disabled>${lit ? `LICHTER ${lit} / 5 …` : 'PRE-START …'}</button>`;
       } else {
@@ -331,17 +331,17 @@ export class ControlPanel {
       } else if (n.phase === 'stopped' && race.isSession) {
         const ok = canRestart(race);
         html = `<div class="ctl-status">Session unterbrochen seit ${since} – die Uhr steht (noch ${Math.ceil(race.remaining / 60)} Min.)</div>
-          <button class="ctl-btn ctl-green" data-action="session-resume" ${ok ? '' : 'disabled'}>Session fortsetzen</button>
+          <button class="ctl-btn ctl-green" data-action="session-resume" ${ok ? '' : 'disabled'}>RESUME SESSION</button>
           ${ok ? '' : '<p class="ctl-small">Fortsetzen erst möglich, wenn die Strecke geräumt ist.</p>'}
-          <button class="ctl-btn ctl-ghost" data-action="session-end">Session nicht fortsetzen</button>
+          <button class="ctl-btn ctl-ghost" data-action="session-end">END SESSION</button>
           <p class="ctl-small">Sinnvoll nur, wenn kaum noch Zeit übrig ist oder die Strecke lange nicht frei wird.</p>`;
       } else if (n.phase === 'stopped') {
         const ok = canRestart(race);
         html = `<div class="ctl-status">Rennen unterbrochen seit ${since}</div>
-          <button class="ctl-btn ctl-sc" data-action="restart-sc" ${ok ? '' : 'disabled'}>Neustart hinter dem Safety Car</button>
-          <button class="ctl-btn ctl-ghost" data-action="restart-standing" ${ok ? '' : 'disabled'}>Stehender Neustart</button>
+          <button class="ctl-btn ctl-sc" data-action="restart-sc" ${ok ? '' : 'disabled'}>RESTART BEHIND SC</button>
+          <button class="ctl-btn ctl-ghost" data-action="restart-standing" ${ok ? '' : 'disabled'}>STANDING RESTART</button>
           ${ok ? '' : '<p class="ctl-small">Neustart erst möglich, wenn die Strecke geräumt ist.</p>'}
-          <button class="ctl-btn ctl-ghost" data-action="race-end">Rennen nicht neu starten (Wertung)</button>
+          <button class="ctl-btn ctl-ghost" data-action="race-end">END RACE · NO RESTART</button>
           <p class="ctl-small">Punkte je nach gefahrener Distanz: unter 2 Runden keine, bis 25 % / 50 % / 75 % gestaffelt, ab 75 % volle Punkte.</p>`;
       } else {
         html = `<div class="ctl-status">${n.phase === 'formation' ? 'Formationsrunde zum Neustart läuft' : n.phase === 'grid' ? 'Startaufstellung komplett – Startampel über den Knopf auf der Karte' : 'Startampel läuft'}</div>

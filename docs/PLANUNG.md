@@ -5,6 +5,10 @@
 
 ---
 
+## 0. Zusammenarbeit
+- Antworten an den Nutzer kurz halten: nur das Wesentliche (was geändert wurde, offene Fragen). Keine ausführlichen Erklärungen.
+- Kommunikation und Oberfläche auf Deutsch; Knöpfe im RC Desk auf Englisch.
+
 ## 1. Vision
 
 Wir sind **Rennleiter (Race Director)** eines Formel-1-Rennens. Fahrer und Teams
@@ -699,3 +703,14 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 - Manifest: neue App-ID `/racecontrol/race-control`, Ausrichtung `any` (Tablet quer). Tablet-/Desktop-Ansicht nur ab 600 px Höhe, damit ein Handy im Querformat die Handy-Ansicht behält.
 - Nachtrag: Auch unter der neuen Adresse und mit neuer App-ID meldete Chrome „bereits installiert“. Gelöst durch Chrome → Website-Einstellungen → kenecky.github.io → „Löschen und zurücksetzen“ (vorher Backup des Reise-Trackers, danach wieder eingespielt; die installierte Tracker-App blieb erhalten). Danach ließ sich Race Control sofort installieren.
 - Falls das wieder passiert: dieselbe Reihenfolge – Tracker-Backup, Daten von kenecky.github.io löschen, Chrome beenden, installieren, Backup einspielen.
+
+### SC, Teamstärken, englische Desk-Knöpfe (v55)
+- SC fährt immer aus der Boxenausfahrt, auch beim Start hinter dem SC (wartet dort, bis der Führende kommt).
+- Gelbe Lichtleiste auf dem SC blinkt, solange es draußen bleibt; aus, sobald „SC in“ angesagt ist.
+- SC fährt dem Feld nicht mehr davon: max. ~25 m über dem Sollabstand (35 m), sonst wartet es auf das erste Auto; begrenzte Beschleunigung, Spitze ~230 km/h.
+- Einfahrt: SC baut erst ab Sektor 7 (statt 6) Abstand auf.
+- SC-Tempo geprüft: SC-Runde ≈ 1,65× Rennrunde (real ≈ 1,4–1,5×) → nicht zu schnell, bleibt. Langsam war das Aufschließen: Verfolger fahren jetzt mit großem Abstand fast Renntempo (98 % / 90 % / 76 %). Österreich: Feld geschlossen nach ~190 s statt ~300 s (inkl. Boxenstopps).
+- Teams: Cadillac 66 (vorher 72), Aston Martin 69 (74), Audi 81 (79); 0,08 s/Runde je Punkt (vorher 0,06), in kürzeren Rennen gespreizt (×√(volle Runden/Runden)) → Hinterbänkler werden auch im kurzen Rennen überrundet.
+- Schwer: Leertaste/Pause auch während eines Vorfalls auf der Strecke gesperrt.
+- „Nach dem Rennen“-Fälle stehen während des Rennens unter ENTSCHIEDEN, nach dem Rennen wieder unter OFFEN.
+- Desk-Knöpfe auf Englisch, Kran auf der Karte „CRANE“.

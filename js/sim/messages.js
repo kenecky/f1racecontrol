@@ -3,10 +3,10 @@
 // Zu viele Mitteilungen ohne Anlass verlieren ihre Wirkung.
 
 export const MESSAGES = {
-  yellow:  { name: 'GELBE FLAGGEN BEACHTEN', text: 'Alle Fahrer werden daran erinnert, unter gelben Flaggen deutlich zu verlangsamen.', dur: 600 },
-  blue:    { name: 'BLAUE FLAGGEN BEACHTEN', text: 'Überrundete Fahrer müssen bei blauer Flagge sofort Platz machen.', dur: 600 },
-  driving: { name: 'FAHRVERHALTEN IN ZWEIKÄMPFEN', text: 'Mehrfache Richtungswechsel und Bremsmanöver auf der Geraden werden streng bestraft.', dur: 600 },
-  pit:     { name: 'TEMPOLIMIT BOXENGASSE', text: 'Teams werden an das Tempolimit von 80 km/h und die Linie an der Boxenausfahrt erinnert.', dur: 900 },
+  yellow:  { name: 'RESPECT YELLOW FLAGS', text: 'Alle Fahrer werden daran erinnert, unter gelben Flaggen deutlich zu verlangsamen.', dur: 600 },
+  blue:    { name: 'RESPECT BLUE FLAGS', text: 'Überrundete Fahrer müssen bei blauer Flagge sofort Platz machen.', dur: 600 },
+  driving: { name: 'DRIVING STANDARDS', text: 'Mehrfache Richtungswechsel und Bremsmanöver auf der Geraden werden streng bestraft.', dur: 600 },
+  pit:     { name: 'PIT LANE SPEED LIMIT', text: 'Teams werden an das Tempolimit von 80 km/h und die Linie an der Boxenausfahrt erinnert.', dur: 900 },
   tl:      { name: 'TRACK LIMITS', text: 'Track Limits werden ab sofort in dieser Kurve überwacht.', dur: Infinity },
 };
 

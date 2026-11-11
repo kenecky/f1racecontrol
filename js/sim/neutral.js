@@ -1,11 +1,13 @@
 // Neutralisierungen: Virtual Safety Car, Safety Car, rote Flagge (inkl. Neustart).
-import { speedAt, wrapD, crossed, sectorIndexAt } from './trackModel.js';
+import { speedAt, wrapD, crossed, sectorIndexAt, accelAt } from './trackModel.js';
 import { COMPOUNDS, bestCompound } from './tyres.js';
 import { beginRestartFormation } from './start.js';
 import { rollRestartCase, rollRedWork } from './cases2.js';
 
 export const VSC_FACTOR = 0.62;   // Delta-Tempo unter VSC (Anteil der Renngeschwindigkeit)
-const SC_SPEED = 0.6;             // Tempo des Safety Cars
+const SC_SPEED = 0.6;             // Tempo des Safety Cars (Anteil des Renntempos)
+const SC_VMAX = 64;               // m/s – auf langen Geraden fehlt dem SC die Leistung (~230 km/h)
+const SC_LEAD = 25;               // so weit darf das SC dem ersten Auto über den Sollabstand hinaus voraus sein (m)
 const RED_SPEED = 0.55;           // Tempo auf dem Weg in die Boxengasse
 const SC_GAP = 35;                // Abstand des ersten Autos zum Safety Car (m)
 const RESTART_SPEED = 0.55;       // Tempo des Führenden vor dem Neustart
@@ -77,7 +79,7 @@ function launchSafetyCar(race) {
   const leader = leaderOnTrack(race);
   if (!leader) return;
   const toExit = wrapD(tr, tr.pit.exit - leader.d);
-  if (toExit > 260 || toExit < 40) return;
+  if (toExit > (sc.atStart ? 340 : 260) || (toExit < 40 && !sc.atStart)) return;
   sc.waiting = false;
   sc.inPit = false;
   sc.d = wrapD(tr, tr.pit.exit);
@@ -87,8 +89,8 @@ function launchSafetyCar(race) {
 
 // Rennstart hinter dem Safety Car (z. B. bei starkem Regen)
 export function startBehindSC(race) {
-  const pole = race.cars.reduce((a, b) => (b.d > a.d ? b : a));
-  race.sc = { d: wrapD(race.track, pole.d + 60), v: 0, move: 0, inPit: false };
+  // Auch beim Start fährt das SC aus der Boxenausfahrt (liegt immer vor der Startaufstellung) vor das Feld
+  race.sc = { d: wrapD(race.track, race.track.pit.exit), v: 0, move: 0, inPit: true, waiting: true, atStart: true };
   race.neutral = { type: 'sc', phase: 'out', start: 0, unlap: false, startLap: 0, fromStart: true };
   race.neutralStats.sc++;
   for (const c of race.cars) c.reaction = race.rng.range(0.3, 1.2);
@@ -139,7 +141,7 @@ export function scInPossibleThisLap(race) {
 function scPullingAway(race) {
   const n = race.neutral;
   return Boolean(n && n.type === 'sc' && n.phase === 'in' && !n.skipEntry && race.sc && !race.sc.inPit
-    && sectorIndexAt(race.track, race.sc.d) >= scInLastSector(race.track) - 1);
+    && sectorIndexAt(race.track, race.sc.d) >= scInLastSector(race.track));   // ab dem Sektor nach dem Grenz-Sektor (Standard: 7)
 }
 
 export function redFlag(race) {
@@ -244,9 +246,11 @@ export function neutralSpeedFactor(race, car) {
   }
   if (race.behindSC.has(car) && scPullingAway(race)) return SC_SPEED;
   const g = race.physGap.get(car) ?? 999;
-  if (n.phase === 'in' && g > 14) return g > 300 ? 0.92 : 0.86;   // Lücke vor dem Neustart schließen
-  if (g > 300) return 0.92;
-  if (g > 80) return 0.78;
+  if (n.phase === 'in' && g > 14) return g > 300 ? 0.95 : 0.88;   // Lücke vor dem Neustart schließen
+  // Aufschließen zum SC-Zug: mit großem Abstand fast Renntempo (Delta), dann zügig an den Vordermann
+  if (g > 300) return 0.98;
+  if (g > 80) return 0.9;
+  if (g > 30) return 0.76;
   return 0.7;
 }
 
@@ -262,8 +266,17 @@ export function moveSafetyCar(race, dt) {
   let v;
   if (sc.waiting) { launchSafetyCar(race); if (sc.waiting) { sc.v = 0; sc.move = 0; return; } }
   if (sc.inPit) v = tr.pitLaneSpeed;
+  else if (scPullingAway(race)) v = speedAt(tr, sc.d) * 0.85;    // Einfahrt: Abstand zum Feld aufbauen
   else {
-    v = speedAt(tr, sc.d) * (scPullingAway(race) ? 0.85 : SC_SPEED);
+    v = Math.min(speedAt(tr, sc.d) * SC_SPEED, SC_VMAX);
+    // Das SC hat nicht die Leistung, dem Feld davonzufahren: zu großer Abstand → auf das erste Auto warten
+    const head = race.scHead;
+    if (head && race.behindSC.has(head)) {
+      const gap = wrapD(tr, sc.d - head.d);
+      if (gap > SC_GAP + SC_LEAD) v = Math.min(v, head.v * (gap > SC_GAP + 2 * SC_LEAD ? 0.85 : 0.97));
+    }
+    // begrenzte Beschleunigung (bremsen kann es sofort)
+    if (v > sc.v) v = Math.min(v, sc.v + accelAt(sc.v) * 0.75 * dt);
   }
   sc.v = v;
   sc.move = v * dt;

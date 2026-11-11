@@ -553,7 +553,7 @@ export class TrackMap {
     if (s.medical) tag(s.medical.d, 0, 'MED', '#e8ecf2', '#1d4ed8');
     if (s.startMed && s.startMed.phase === 'go') tag(s.startMed.d, 0, 'MED', '#e8ecf2', '#1d4ed8');
     if (s.sweeper) tag(s.sweeper.d, 0, 'SWEEP', '#9ca3af');
-    for (const c of s.cranes) tag(c.d, 13 * this.widthScale(), 'KRAN', '#facc15');
+    for (const c of s.cranes) tag(c.d, 13 * this.widthScale(), 'CRANE', '#facc15');
     if (s.pitClosed) {
       const [x, y] = this.pos(this.track.pit.entry, pitLat);
       ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 3;
@@ -633,6 +633,21 @@ export class TrackMap {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('SC', x, y + 0.5);
+    // Gelbe Lichtleiste: blinkt, solange das SC draußen bleibt; aus, sobald „SC in“ angesagt ist
+    const n = race.neutral;
+    if (n && n.type === 'sc' && n.phase === 'out' && !sc.inPit) {
+      const on = Math.floor(performance.now() / 350) % 2 === 0;
+      for (const k of [-1, 1]) {
+        const lx = x + k * 5, ly = y - h / 2 - 3.5;
+        ctx.beginPath();
+        ctx.arc(lx, ly, 3, 0, Math.PI * 2);
+        ctx.fillStyle = (k === -1) === on ? '#ffe14a' : '#5a4a10';
+        if ((k === -1) === on) { ctx.shadowColor = '#ffd400'; ctx.shadowBlur = 8; }
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.lineWidth = 1; ctx.strokeStyle = '#000'; ctx.stroke();
+      }
+    }
   }
 
   drawLabel(ctx, x, y, label, sel) {

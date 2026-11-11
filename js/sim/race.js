@@ -85,13 +85,15 @@ export class Race {
     this.neutralStats = { vsc: 0, sc: 0, red: 0, vscTime: 0, scTime: 0, redTime: 0, idle: 0 };
 
     const teamById = Object.fromEntries(teams.map(t => [t.id, t]));
+    // Kürzere Rennen: Abstand der Autos etwas spreizen, damit Hinterbänkler auch dort überrundet werden
+    const spread = kind === 'race' ? Math.pow(this.wear, 0.5) : 1;
     this.cars = drivers.map(drv => {
       const team = teamById[drv.team];
       return {
         id: drv.id,
         driver: drv,
         team,
-        basePenalty: (100 - team.pace) * 0.06 + (100 - drv.pace) * 0.03,
+        basePenalty: (100 - team.pace) * 0.08 * spread + (100 - drv.pace) * 0.03,   // Auto 0,08 s/Runde je Punkt
         d: 0, v: 0, move: 0,
         lap: 0, lapStart: 0, lastLap: null, bestLap: null,
         compound: 'M', tyreAge: 0, plan: [], planIdx: 0, stops: 0,

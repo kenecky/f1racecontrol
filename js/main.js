@@ -1653,11 +1653,14 @@ const DEC_STATUS = {
 };
 const DEC_ORDER = { new: 0, investigating: 1, hearing: 2, post: 3, decided: 4, nfa: 5 };
 const OPEN_ST = ['new', 'investigating', 'post', 'hearing'];
+// „Nach dem Rennen“-Fälle stehen während des Rennens unter ENTSCHIEDEN (Liste OFFEN bleibt zum Abarbeiten sauber),
+// nach dem Rennen wieder unter OFFEN
+function openSt() { return race && race.phase !== 'finished' ? ['new', 'investigating', 'hearing'] : OPEN_ST; }
 let decFilter = 'open', decDocId = null, decSig = '';
 function decOpen() { return !$('decScreen').classList.contains('hidden'); }
 function decCases() {
   if (!race) return [];
-  const list = race.cases.filter(c => decFilter === 'all' || (decFilter === 'open' ? OPEN_ST.includes(c.status) : !OPEN_ST.includes(c.status)));
+  const list = race.cases.filter(c => decFilter === 'all' || (decFilter === 'open' ? openSt().includes(c.status) : !openSt().includes(c.status)));
   return list.sort((a, b) => (decFilter === 'open' ? DEC_ORDER[a.status] - DEC_ORDER[b.status] : 0) || b.id - a.id);
 }
 function openDecisions(id = null) {
@@ -1711,7 +1714,7 @@ function renderDec(force = false) {
     .map(([l, st, col]) => `<div><b style="color:${count(st) ? col : '#4b5563'}">${count(st)}</b><span>${l}</span></div>`).join('');
   for (const b of $('decTabs').children) {
     b.classList.toggle('on', b.dataset.f === decFilter);
-    if (b.dataset.f === 'open') b.textContent = `OFFEN (${count(OPEN_ST)})`;
+    if (b.dataset.f === 'open') b.textContent = `OFFEN (${count(openSt())})`;
   }
   $('decList').innerHTML = list.length ? list.map(c => {
     const [lab, col] = DEC_STATUS[c.status];
@@ -1719,7 +1722,7 @@ function renderDec(force = false) {
     const meta = [c.when ? c.when.toUpperCase() : c.lap ? `RD ${c.lap}` : 'VOR DEM START', c.typeName.toUpperCase()];
     if (v && v.carId) meta.push(`${PENALTIES[v.penalty].short} ${v.carId}`);
     else if (c.scene) meta.push('🎥 SZENE');
-    const done = !OPEN_ST.includes(c.status);
+    const done = !openSt().includes(c.status);
     return `<button class="dec-it${c.status === 'new' ? ' new' : c.status === 'investigating' ? ' inv' : ''}${done ? ' done' : ''}" data-doc="${c.id}">
       <span class="dec-no">DOC<b>${c.id}</b></span><span><span class="dec-tt">${c.title}</span><span class="dec-mt">${meta.join(' · ')}</span></span>
       <span class="dec-st" style="color:${col};border-color:${col}">${lab}</span></button>`;
@@ -1775,7 +1778,8 @@ function pendingCases() {
   return race ? race.cases.filter(c => c.status === 'new' || c.status === 'investigating').length : 0;
 }
 function pauseBlocked() {
-  return race && race.difficulty === 'hard' && !paused && !['finished', 'chequered'].includes(race.phase) && pendingCases() > 0;
+  return race && race.difficulty === 'hard' && !paused && !['finished', 'chequered'].includes(race.phase)
+    && (pendingCases() > 0 || race.hazards.some(h => !h.ended));   // auch bei einem Vorfall auf der Strecke
 }
 function vibrate(pattern) {
   if (settings.vibrate === false || !navigator.vibrate) return;
@@ -1786,7 +1790,7 @@ $('pauseBtn').addEventListener('click', () => {
   if (!race || race.phase === 'pre') return;
   if (pauseBlocked()) {
     const n = pendingCases();
-    toast(`Schwer: Pause erst möglich, wenn alle Fälle bearbeitet sind (${n} offen)`);
+    toast(n ? `Schwer: Pause erst möglich, wenn alle Fälle bearbeitet sind (${n} offen)` : 'Schwer: keine Pause während eines Vorfalls auf der Strecke');
     return;
   }
   paused = !paused;
