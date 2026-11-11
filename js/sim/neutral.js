@@ -2,6 +2,7 @@
 import { speedAt, wrapD, crossed, sectorIndexAt, accelAt } from './trackModel.js';
 import { COMPOUNDS, bestCompound } from './tyres.js';
 import { beginRestartFormation } from './start.js';
+import { wetPace } from './services.js';
 import { rollRestartCase, rollRedWork } from './cases2.js';
 
 export const VSC_FACTOR = 0.62;   // Delta-Tempo unter VSC (Anteil der Renngeschwindigkeit)
@@ -268,7 +269,7 @@ export function moveSafetyCar(race, dt) {
   if (sc.inPit) v = tr.pitLaneSpeed;
   else if (scPullingAway(race)) v = speedAt(tr, sc.d) * 0.85;    // Einfahrt: Abstand zum Feld aufbauen
   else {
-    v = Math.min(speedAt(tr, sc.d) * SC_SPEED, SC_VMAX);
+    v = Math.min(speedAt(tr, sc.d) * SC_SPEED * wetPace(race), SC_VMAX);
     // Das SC hat nicht die Leistung, dem Feld davonzufahren: zu großer Abstand → auf das erste Auto warten
     const head = race.scHead;
     if (head && race.behindSC.has(head)) {

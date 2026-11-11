@@ -95,6 +95,9 @@ export function startLapMedical(race) {
 // Hilfen für die Gefahren-Bergung
 export function craneIn(race, sector) { return svc(race).cranes.some(c => c.sector === sector); }
 
+// Nässe: Medical Car (und Safety Car) fahren langsamer – bei voller Nässe ~25 % (wie das Feld)
+export function wetPace(race) { return 1 - 0.25 * (race.weather ? race.weather.wetness : 0); }
+
 // ---------- Simulation ----------
 export function updateServices(race, dt) {
   const s = race.svc;
@@ -104,7 +107,7 @@ export function updateServices(race, dt) {
   const m = s.medical;
   if (m) {
     if (m.phase === 'out' || m.phase === 'return') {
-      const vt = speedAt(tr, m.d) * MED_FACTOR;
+      const vt = speedAt(tr, m.d) * MED_FACTOR * wetPace(race);
       m.v = vt;
       const prev = m.d;
       m.d += vt * dt;
@@ -150,7 +153,7 @@ export function updateServices(race, dt) {
         race.emit('rc', `MEDICAL CAR fährt direkt zur Unfallstelle in Sektor ${crash.sector + 1}.`, { sector: crash.sector });
       } else {
         const last = Math.min(...field.map(c => c.d));
-        const vt = Math.min(speedAt(tr, sm.d) * 0.9, Math.max(10, (last - 60 - sm.d) * 2 + 20));
+        const vt = Math.min(speedAt(tr, sm.d) * 0.8 * wetPace(race), Math.max(10, (last - 60 - sm.d) * 2 + 20));
         const prev = sm.d;
         sm.d += vt * dt;
         sm.v = vt;

@@ -30,6 +30,7 @@ import { updateServices, svc } from './services.js';
 import { rollRaceEvents, updateEvents, rollLooseWheel } from './events.js';
 import { rollBlueFlag, rollNeutralCases, rollChicaneCut, rollPitLine, rollPitClosedEntry, rollLanguage } from './cases2.js';
 import { updateWeatherEvents } from './weatherEvents.js';
+import { energyStep, energyEdge } from './energy.js';
 export { COMPOUNDS };
 
 // Vorsicht nach Strafen: weniger Risiko und Fehler, aber auch etwas langsamer (0 … 1)
@@ -311,6 +312,7 @@ export class Race {
         if (nf !== null) {
           // Neutralisierung: einheitliches Tempo für alle
           vt = speedAt(tr, car.d) * nf;
+          energyStep(this, car, DT, true);
           if (car.pass && !car.pass.slow) car.pass = null;
         } else {
           vt = speedAt(tr, car.d) * (tr.baseLap / this.lapTarget(car));
@@ -334,6 +336,7 @@ export class Race {
           if (car.pass && this.time < car.pass.until) vt *= car.pass.blue ? 1.02 : 1.06;
           if (car.defendUntil > this.time) vt *= 0.985;
           vt *= this.programFactor(car);                       // Sessions: Aufwärm-/Auslaufrunde
+          vt *= energyStep(this, car, DT, false);              // Hybrid-Energie: Einsatz auf Geraden, Laden in Kurven
         }
       }
       if (this.time < car.reaction) vt = 0;
@@ -571,6 +574,7 @@ export class Race {
     p += (aggressionOf(B) - 65) / 300;
     p -= (aggressionOf(A) - 65) / 400;
     if (B.lap === 0) p += 0.12;   // Startrunde: mehr Bewegung im Feld
+    p += energyEdge(B, A);        // mehr Hybrid-Energie hilft beim Überholen
     p *= zone.factor;
     p *= 1 - 0.35 * this.weather.wetness;   // Gischt und wenig Grip bei Nässe
     return Math.max(0.02, Math.min(0.85, p));

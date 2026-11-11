@@ -1292,8 +1292,13 @@ function closeFlags() {
 // ---------- Tempo-Menü ----------
 
 function renderSpeedMenu() {
-  $('speedMenu').querySelector('.speed-grid').innerHTML = SPEEDS.map(v =>
-    `<button class="speed-opt${v === settings.speed ? ' active' : ''}" data-speed="${v}">${v}×</button>`).join('');
+  // Schieberegler mit 6 Stufen (Striche mit Beschriftung)
+  const ticks = $('speedMenu').querySelector('.speed-ticks');
+  if (!ticks.children.length) ticks.innerHTML = SPEEDS.map((v, i) => `<button data-i="${i}">${v}×</button>`).join('');
+  const idx = Math.max(0, SPEEDS.indexOf(settings.speed));
+  $('speedRange').value = idx;
+  $('speedRange').style.setProperty('--p', `${idx / (SPEEDS.length - 1) * 100}%`);
+  for (const b of ticks.children) b.classList.toggle('on', Number(b.dataset.i) === idx);
   $('slowToggle').checked = settings.slowOnIncident;
 }
 
@@ -1804,13 +1809,38 @@ $('speedBtn').addEventListener('click', e => {
   e.stopPropagation();
   toggleSpeedMenu();
 });
-$('speedMenu').addEventListener('click', e => {
-  const b = e.target.closest('.speed-opt');
-  if (b) {
-    setSpeed(Number(b.dataset.speed));
-    toggleSpeedMenu(false);
-  }
+$('speedRange').addEventListener('input', e => setSpeed(SPEEDS[Number(e.target.value)]));
+$('speedMenu').querySelector('.speed-ticks').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (b) setSpeed(SPEEDS[Number(b.dataset.i)]);
 });
+
+// Installierte App (ohne Browser-Leiste): auf der Startseite nach unten ziehen = neu laden (z. B. für ein Update)
+(() => {
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (!standalone) return;
+  const scr = $('startScreen'), ind = $('ptr');
+  let y0 = null, dy = 0;
+  const atTop = () => scr.scrollTop <= 0 && [...scr.querySelectorAll('.sheet')].every(el => el.scrollTop <= 0);
+  scr.addEventListener('touchstart', e => { y0 = !scr.classList.contains('hidden') && atTop() ? e.touches[0].clientY : null; dy = 0; }, { passive: true });
+  scr.addEventListener('touchmove', e => {
+    if (y0 === null) return;
+    dy = e.touches[0].clientY - y0;
+    if (dy <= 0) { ind.classList.add('hidden'); return; }
+    ind.classList.remove('hidden');
+    ind.style.transform = `translateY(${Math.min(dy, 120) * 0.6}px)`;
+    ind.firstElementChild.textContent = dy > 90 ? '↻ Loslassen zum Aktualisieren' : '↓ Zum Aktualisieren ziehen';
+  }, { passive: true });
+  scr.addEventListener('touchend', async () => {
+    if (y0 === null) return;
+    y0 = null;
+    if (dy > 90) {
+      ind.firstElementChild.textContent = '↻ Wird aktualisiert …';
+      try { const r = await navigator.serviceWorker?.getRegistration(); if (r) await r.update(); } catch { /* egal */ }
+      location.reload();
+    } else ind.classList.add('hidden');
+  });
+})();
 $('soundToggle').checked = settings.sound !== false;
 $('soundToggle').addEventListener('change', e => {
   settings.sound = e.target.checked;
@@ -1940,7 +1970,15 @@ function renderDriverCard() {
       ${cell(race.isSession ? 'Startplatz' : 'Stopps', race.isSession ? '–' : car.stops)}
       ${cell('Strafen', pens.join(' · ') || 'keine')}
       ${cell('Startplatz', race.isSession ? '–' : car.gridPos)}
-    </div>${fileHtml}`;
+    </div>${energyHtml(car)}${fileHtml}`;
+}
+// Hybrid-Energie in den Fahrerdetails: Ladestand und ob gerade eingesetzt oder geladen wird
+function energyHtml(car) {
+  if (car.energy === undefined || car.retired || car.finished) return '';
+  const pct = Math.round(car.energy * 100);
+  const mode = car.inPit ? 'Box' : car.deploy > 1 ? 'Überholmodus' : car.deploy > 0 ? 'Einsatz' : 'Laden';
+  const col = pct > 50 ? '#4ade80' : pct > 20 ? '#facc15' : '#f87171';
+  return `<div class="dc-energy"><span>ENERGIE</span><i><b style="width:${pct}%;background:${col}"></b></i><em>${pct} % · ${mode}</em></div>`;
 }
 $('driverCard').addEventListener('click', e => { if (e.target.closest('.dc-close')) stopFollow(); });
 

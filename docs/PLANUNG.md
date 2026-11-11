@@ -714,3 +714,10 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 - Schwer: Leertaste/Pause auch während eines Vorfalls auf der Strecke gesperrt.
 - „Nach dem Rennen“-Fälle stehen während des Rennens unter ENTSCHIEDEN, nach dem Rennen wieder unter OFFEN.
 - Desk-Knöpfe auf Englisch, Kran auf der Karte „CRANE“.
+
+### Hybrid-Energie, Tempo-Regler, Aktualisieren in der App (v56)
+- Hybrid-Energie (js/sim/energy.js): Akku 0–100 %. Auf Geraden Einsatz (mehr Tempo, beim Überholen deutlich mehr), in Kurven/beim Bremsen Laden. Pro Runde ~50 % Laden, ~55 % Einsatz bei vollem Einsatz → Fahrer teilen ein; leerer Akku kostet auf der Geraden Tempo. Topteams laden effizienter (~100 % gegenüber ~81 %). Mehr Energie als der Vordermann erhöht die Überholchance. Anzeige in den Fahrerdetails (Tower → Fahrer).
+- Tempo als Schieberegler mit 6 Stufen (Striche antippbar).
+- Installierte App: auf der Startseite nach unten ziehen lädt neu (holt Updates).
+- „ALL SECTORS GREEN“.
+- Nässe: Medical Car und Safety Car bei voller Nässe ~25 % langsamer; Medical Car der ersten Runde folgt dem Feld mit 80 % (vorher 90 %) und fällt im Regen zurück.

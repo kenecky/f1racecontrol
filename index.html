@@ -93,7 +93,7 @@
   <div id="speedMenu" class="popover hidden" role="menu">
     <button id="menuPauseBtn" class="menu-pause">▶ WEITER</button>
     <div class="popover-title">Tempo</div>
-    <div class="speed-grid"></div>
+    <div class="speed-slider"><input id="speedRange" type="range" min="0" max="5" step="1" aria-label="Tempo"><div class="speed-ticks"></div></div>
     <label class="switch-row">
       <input id="soundToggle" type="checkbox">
       <span>Ton (Motoren, Startampel, Funk, Hinweise)</span>
@@ -140,7 +140,7 @@
     </div>
     <div id="flagList" class="flag-list"></div>
     <div class="flag-sheet-foot">
-      <button id="allGreenBtn" class="secondary-btn">Alle Sektoren grün schalten</button>
+      <button id="allGreenBtn" class="secondary-btn">ALL SECTORS GREEN</button>
     </div>
   </div>
 
@@ -193,6 +193,7 @@
     </div>
   </div>
 
+  <div id="ptr" class="ptr hidden"><span>↓ Zum Aktualisieren ziehen</span></div>
   <div id="startScreen" class="overlay start-screen">
     <div class="sheet">
       <div class="brand">
@@ -243,7 +244,7 @@
       </div>
       <button id="seasonBtn" class="secondary-btn season-btn hidden">🏆 Saison-Übersicht</button>
       <div id="history" class="history st-card"></div>
-      <div class="app-version">Version 55</div>
+      <div class="app-version">Version 56</div>
       <details class="options st-card">
         <summary>Optionen</summary>
         <label>Rennen-Nr. (gleiche Nr. = gleiches Rennen)
