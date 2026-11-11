@@ -172,7 +172,8 @@ export function prepareBriefing(race) {
   let decoy = r.pick(corners).id;
   if (decoy === hotspot) decoy = corners[(corners.findIndex(c => c.id === hotspot) + 2) % corners.length].id;
   const drivers = race.cars.map(c => c.id);
-  const pick = () => drivers[Math.floor(r.next() * drivers.length)];
+  // jeder Fahrer höchstens einmal
+  const pick = () => drivers.splice(Math.floor(r.next() * drivers.length), 1)[0];
   let decoy2 = r.pick(corners).id;
   if (decoy2 === hotspot || decoy2 === decoy) decoy2 = corners[(corners.findIndex(c => c.id === hotspot) + 4) % corners.length].id;
   const GENERAL = [
@@ -191,7 +192,6 @@ export function prepareBriefing(race) {
     { who: pick(), text: `„In ${decoy} ist der Randstein sehr hoch, aber da gewinnt man nichts.“` },
     { who: pick(), text: `„Bitte ${hotspot} konsequent kontrollieren, sonst ist es unfair.“` },
     { who: pick(), text: `„In ${decoy2} kürzt keiner ab, da liegt Kies direkt hinter dem Randstein.“` },
-    { who: pick(), text: takeGen() },
     { who: pick(), text: takeGen() },
     { who: pick(), text: takeGen() },
   ];

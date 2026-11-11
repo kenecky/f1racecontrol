@@ -1570,3 +1570,15 @@ body { background: #15181d; }
 .status #speedBtn { min-width: 40px; padding: 0 6px; }
 .status .pause-btn { min-width: 40px; }
 .error-note { color: #fca5a5 !important; }
+/* Drivers' Briefing: alles auf einen Bildschirm ohne Scrollen */
+#briefScreen .sheet { padding: calc(10px + env(safe-area-inset-top)) 14px calc(12px + env(safe-area-inset-bottom)); }
+#briefScreen .sheet-title { font-size: 17px; margin: 0 0 4px; }
+#briefScreen .sheet > .ctl-small { font-size: 11.5px; line-height: 1.35; margin: 0 0 6px; }
+#briefBody { overflow: hidden; display: flex; flex-direction: column; }
+#briefBody .setup-label { margin-bottom: 2px; }
+#briefScreen .brief-note { padding: 5px 0; font-size: 12.5px; line-height: 1.32; }
+#briefScreen .brief-note b { min-width: 32px; font-size: 12px; }
+#briefScreen .brief-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap: 5px; }
+#briefScreen .brief-chips .chip { min-width: 0; padding: 7px 0; text-align: center; }
+#briefScreen .sheet-actions { margin-top: 10px; }
+#briefScreen .sheet-actions .primary-btn { height: 52px; }
