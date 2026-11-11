@@ -80,9 +80,11 @@ export class ControlPanel {
     this.kind = null;
   }
 
-  hazardsHtml(race) {
+  hazardsHtml(race, compact = false) {
     const active = race.hazards.filter(h => !h.ended && h.type !== 'spin');
     if (!active.length) return '<div class="ctl-ok">✓ Keine offene Gefahr auf der Strecke.</div>';
+    // Starting Procedure: eine Zeile je Gefahr, damit die Konsole nicht scrollt
+    if (compact) return active.map(h => `<div class="ctl-hazard ctl-hz-line">${WARN_ICON} <b>${hazardWhere(h)}:</b><span class="hz-d">${h.desc}</span><em>${Math.round(hazardProgress(h) * 100)} %</em></div>`).join('');
     return active.map(h => {
       const p = Math.round(hazardProgress(h) * 100);
       // Einsatzfahrzeuge in diesem Sektor
@@ -303,14 +305,14 @@ export class ControlPanel {
         html += `<p class="ctl-small">${issue.type === 'rain' ? 'Alle wechseln auf Regenreifen.' : `${issue.carId} wird in die Boxengasse geschoben und startet von dort.`} Ein Startabbruch kostet eine Runde (dann ${Math.max(3, race.laps - 1)} Runden).</p>
           <button class="ctl-btn ctl-red" data-action="start-abort">EXTRA FORMATION LAP</button>
           <button class="ctl-btn ctl-sc" data-action="start-sc">START BEHIND SC</button>
-          <button class="ctl-btn ctl-ghost" data-action="start-suspend">DELAY START · FIELD TO PIT LANE</button>
+          <button class="ctl-btn ctl-ghost" data-action="start-suspend">DELAY START</button>
           <button class="ctl-btn ctl-ghost" data-action="start-lights">START LIGHTS ANYWAY</button>`;
       } else if (ph === 'formation' && !(f && f.arrived)) {
-        html += `<button class="ctl-btn ctl-ghost" data-action="start-suspend">DELAY START · FIELD TO PIT LANE</button>
+        html += `<button class="ctl-btn ctl-ghost" data-action="start-suspend">DELAY START</button>
           <button class="ctl-btn ctl-ghost ctl-big" data-action="start-lights">START LIGHTS · ${grid.length - inBox} CARS STILL MOVING</button>`;
       } else if (ph === 'grid' || ph === 'formation') {
-        html += `<div class="ctl-status ok">Startaufstellung komplett</div>
-          ${rs ? '' : '<button class="ctl-btn ctl-ghost" data-action="start-abort">EXTRA FORMATION LAP</button><button class="ctl-btn ctl-ghost" data-action="start-sc">START BEHIND SC</button><button class="ctl-btn ctl-ghost" data-action="start-suspend">DELAY START · FIELD TO PIT LANE</button>'}
+        // „Startaufstellung komplett“ zeigt schon STARTBOX x/x – die drei Alternativen passen in eine Reihe
+        html += `${rs ? '' : '<button class="ctl-btn ctl-ghost ctl-third" data-action="start-abort">EXTRA FORMATION LAP</button><button class="ctl-btn ctl-ghost ctl-third" data-action="start-sc">START BEHIND SC</button><button class="ctl-btn ctl-ghost ctl-third" data-action="start-suspend">DELAY START</button>'}
           <button class="ctl-btn ctl-amber ctl-big" data-action="start-lights">START LIGHTS</button>`;
       } else if (ph === 'lights' && !allOn) {
         html += `<button class="ctl-btn ctl-ghost ctl-big" disabled>${lit ? `LICHTER ${lit} / 5 …` : 'PRE-START …'}</button>`;
@@ -357,7 +359,7 @@ export class ControlPanel {
       const label = boCar ? `ARMED – BLK/ORG FOR ${boCar.id} NOW` : ARMED_LABEL[key] || 'ARMED – NOW';
       html = html.replace(new RegExp(`(<button class="ctl-btn[^"]*)("[^>]*data-action="${this.armed.action}"[^>]*>)([^<]*)`), `$1 armed$2${label}`);
     }
-    this.body.innerHTML = html + `<div class="ctl-section">TRACK STATUS</div>${this.hazardsHtml(race)}`;
+    this.body.innerHTML = html + `<div class="ctl-section">TRACK STATUS</div>${this.hazardsHtml(race, this.kind === 'start')}`;
     // Vollbild-Pult: Aktionsknöpfe nach unten an den Daumen
     if (this.foot) {
       this.foot.innerHTML = '';

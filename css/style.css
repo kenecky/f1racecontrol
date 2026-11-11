@@ -1711,3 +1711,10 @@ body { background: #15181d; }
 /* v56: Aktualisieren durch Herunterziehen (installierte App, Startseite) */
 .ptr { position: fixed; left: 50%; top: 8px; z-index: 40; margin-left: -110px; width: 220px; text-align: center; pointer-events: none;
   background: #facc15; color: #15181d; border: 2px solid #0c0e12; border-radius: 16px; padding: 6px 10px; font: 700 12px var(--mono); }
+/* v57: Startaufstellung – drei Alternativen in einer Reihe */
+.ctl-foot:has(.ctl-third) { grid-template-columns: repeat(3, 1fr); }
+.ctl-foot .ctl-btn.ctl-third { grid-column: auto; font-size: 10.5px; line-height: 1.2; padding: 0 4px; white-space: normal; }
+.ctl-hz-line { display: flex; gap: 5px; align-items: center; padding: 6px 8px !important; font-size: 12px; white-space: nowrap; overflow: hidden; }
+.ctl-hz-line b { flex: none; }
+.ctl-hz-line em { margin-left: auto; padding-left: 6px; font: 700 11px var(--mono); font-style: normal; color: #facc15; flex: none; }
+.ctl-hz-line .hz-d { min-width: 0; overflow: hidden; text-overflow: ellipsis; }

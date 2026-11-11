@@ -693,7 +693,6 @@ function resumeRace() {
   $('startScreen').classList.add('hidden');
   refreshUi();
   updatePauseBtn();
-  if (race.phase !== 'finished') toast('Rennen geladen – mit ▶ geht es weiter');
 }
 
 // ---------- Statistik ----------
@@ -935,7 +934,6 @@ function startMapReplay(c) {
     if (replayResume) { paused = false; updatePauseBtn(); }
     replayResume = false;
   });
-  toast(`Wiederholung #${c.id} auf der Karte – das Rennen ist so lange angehalten`);
 }
 
 // ---------- Startablauf: Formationsrunde, Ampel, Lichter aus ----------
@@ -947,7 +945,6 @@ function doStartLights() {
   if (settings.speed > 1) {
     speedBeforeLights = settings.speed;
     setSpeed(1);
-    toast('Startampel läuft – Tempo 1×');
   }
 }
 
@@ -1005,7 +1002,6 @@ function onStartIssue() {
   seenStartIssue = race.startIssueSeq;
   acc = 0;
   if (settings.slowOnIncident && settings.speed > 1) setSpeed(1);
-  toast('Problem in der Startaufstellung – Rennleitung muss entscheiden');
   openControl('start');
 }
 
@@ -1016,7 +1012,6 @@ function onNewHazard() {
   acc = 0;
   if (settings.slowOnIncident && settings.speed > 1) {
     setSpeed(1);
-    toast('Vorfall auf der Strecke – Tempo auf 1× reduziert');
   }
   refreshUi();
 }
@@ -1809,7 +1804,11 @@ $('speedBtn').addEventListener('click', e => {
   e.stopPropagation();
   toggleSpeedMenu();
 });
-$('speedRange').addEventListener('input', e => setSpeed(SPEEDS[Number(e.target.value)]));
+$('speedRange').addEventListener('input', e => {
+  const v = SPEEDS[Number(e.target.value)];
+  if (v !== settings.speed) vibrate(12);   // kurze Bestätigung je Stufe
+  setSpeed(v);
+});
 $('speedMenu').querySelector('.speed-ticks').addEventListener('click', e => {
   const b = e.target.closest('button');
   if (b) setSpeed(SPEEDS[Number(b.dataset.i)]);
@@ -2271,6 +2270,5 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (reloaded) return;
     if (!race || race.phase === 'pre') { reloaded = true; location.reload(); }
-    else toast('Neue Version verfügbar – nach dem Rennen die App neu laden');
   });
 }

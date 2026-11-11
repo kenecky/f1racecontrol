@@ -721,3 +721,8 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 - Installierte App: auf der Startseite nach unten ziehen lädt neu (holt Updates).
 - „ALL SECTORS GREEN“.
 - Nässe: Medical Car und Safety Car bei voller Nässe ~25 % langsamer; Medical Car der ersten Runde folgt dem Feld mit 80 % (vorher 90 %) und fällt im Regen zurück.
+
+### Kleinigkeiten (v57)
+- Tempo-Regler: kurze Vibration bei jeder Stufe.
+- Starting Procedure ohne Scrollen: „Startaufstellung komplett“ entfällt (STARTBOX x/x zeigt es), EXTRA FORMATION LAP / START BEHIND SC / DELAY START in einer Reihe, Track Status dort einzeilig je Gefahr.
+- Keine gelben Einblendungen mehr bei Vorfällen, Startampel, Startproblemen, Wiederholung, geladenem Rennen oder neuer Version. Es bleiben nur Rückmeldungen auf eigene Eingaben (z. B. Pause gesperrt) und Fehlermeldungen.
