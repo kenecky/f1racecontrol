@@ -54,7 +54,8 @@ const BIOME = {
   monaco: 'urban', singapore: 'urban', baku: 'urban',
 };
 const PALMS = new Set(['miami', 'singapore', 'yasmarina', 'jeddah', 'bahrain', 'lusail', 'lasvegas', 'monaco']);
-const WATER = [46, 98, 146], SEA_FOAM = [210, 228, 238];
+const WATER = [46, 98, 146];
+const HAZE_C = [176, 196, 210];   // Dunst in der Ferne (wie in renderAt)
 function classColor(c, env) {
   if (c === 1) return WATER;
   if (c === 2) return env.tree === 'palm' ? [118, 134, 78] : [56, 94, 46];
@@ -554,7 +555,7 @@ export class Intro {
       const lit = 0.72 + 0.28 * Math.max(0, -nx * 0.6 - ny * 0.8);
       ctx.beginPath(); ctx.moveTo(base[i][0], base[i][1]); ctx.lineTo(base[(i + 1) % n][0], base[(i + 1) % n][1]);
       ctx.lineTo(top[(i + 1) % n][0], top[(i + 1) % n][1]); ctx.lineTo(top[i][0], top[i][1]); ctx.closePath();
-      ctx.fillStyle = rgb(mix(wall.map(v => v * lit), HAZE, fog)); ctx.fill();
+      ctx.fillStyle = rgb(mix(wall.map(v => v * lit), HAZE_C, fog)); ctx.fill();
       // Fensterbänder bei höheren Häusern
       if (bd.h > 12 && span > 14) {
         ctx.strokeStyle = `rgba(60,80,104,${0.35 * (1 - fog)})`; ctx.lineWidth = 1;
@@ -569,7 +570,7 @@ export class Intro {
       }
     }
     ctx.beginPath(); ctx.moveTo(top[0][0], top[0][1]); for (let i = 1; i < n; i++) ctx.lineTo(top[i][0], top[i][1]); ctx.closePath();
-    ctx.fillStyle = rgb(mix(roof, HAZE, fog)); ctx.fill();
+    ctx.fillStyle = rgb(mix(roof, HAZE_C, fog)); ctx.fill();
   }
 
   // Mauer (z. B. Altstadtmauer) bzw. flache Mole
@@ -580,8 +581,8 @@ export class Intro {
       const a0 = P(ax, ay, 0), b0 = P(bx, by, 0), a1 = P(ax, ay, wl.h), b1 = P(bx, by, wl.h);
       if (!a0 || !b0 || !a1 || !b1) continue;
       ctx.beginPath(); ctx.moveTo(a0[0], a0[1]); ctx.lineTo(b0[0], b0[1]); ctx.lineTo(b1[0], b1[1]); ctx.lineTo(a1[0], a1[1]); ctx.closePath();
-      ctx.fillStyle = rgb(mix(col, HAZE, fog)); ctx.fill();
-      if (wl.h <= 2) { ctx.strokeStyle = rgb(mix(col, HAZE, fog)); ctx.lineWidth = Math.max(1, this.F_r(4, a1[2])); ctx.beginPath(); ctx.moveTo(a1[0], a1[1]); ctx.lineTo(b1[0], b1[1]); ctx.stroke(); }
+      ctx.fillStyle = rgb(mix(col, HAZE_C, fog)); ctx.fill();
+      if (wl.h <= 2) { ctx.strokeStyle = rgb(mix(col, HAZE_C, fog)); ctx.lineWidth = Math.max(1, this.F_r(4, a1[2])); ctx.beginPath(); ctx.moveTo(a1[0], a1[1]); ctx.lineTo(b1[0], b1[1]); ctx.stroke(); }
     }
   }
 
@@ -592,11 +593,11 @@ export class Intro {
     const hull = [pt(bt.l / 2, 0, 1), pt(bt.l * 0.3, bt.w / 2, 1), pt(-bt.l / 2, bt.w / 2, 1), pt(-bt.l / 2, -bt.w / 2, 1), pt(bt.l * 0.3, -bt.w / 2, 1)];
     if (hull.some(q => !q)) return;
     ctx.beginPath(); hull.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.closePath();
-    ctx.fillStyle = rgb(mix([244, 246, 248], HAZE, fog)); ctx.fill();
+    ctx.fillStyle = rgb(mix([244, 246, 248], HAZE_C, fog)); ctx.fill();
     const cab = [pt(bt.l * 0.15, bt.w * 0.3, 3), pt(-bt.l * 0.3, bt.w * 0.3, 3), pt(-bt.l * 0.3, -bt.w * 0.3, 3), pt(bt.l * 0.15, -bt.w * 0.3, 3)];
     if (cab.some(q => !q)) return;
     ctx.beginPath(); cab.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.closePath();
-    ctx.fillStyle = rgb(mix([200, 210, 220], HAZE, fog)); ctx.fill();
+    ctx.fillStyle = rgb(mix([200, 210, 220], HAZE_C, fog)); ctx.fill();
   }
 
   drawBlock(ctx, P, bl, cam, fog) {
