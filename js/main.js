@@ -798,8 +798,13 @@ $('briefOkBtn').addEventListener('click', () => {
 
 // Intro vor dem Rennen (Strecken mit freigegebenem Intro): Antippen überspringt
 function playIntro(done) {
+  // Umgebung der Strecke (aus OpenStreetMap) nachladen – fehlt sie, gibt es die einfache Landschaft
+  import(`./data/scenery/${race.track.def.id}.js`).then(m => runIntro(done, m.default)).catch(() => runIntro(done, null));
+}
+function runIntro(done, scenery) {
   const scr = $('introScreen'), cv = $('introCanvas');
   const info = introInfo(race.track, race.laps, SEASON_2026, TEAMS);
+  info.scenery = scenery;
   // Fließender Übergang: das Intro beginnt genau mit dem Streckenbild der Startseite und zoomt hinein
   const pv = $('trackPreview'), pr = pv.getBoundingClientRect();
   if (pv._map && pr.width && !$('startScreen').classList.contains('hidden')) info.from = { left: pr.left, top: pr.top, ...pv._map };

@@ -39,6 +39,32 @@ const lerpAng = (a, b, k) => { let d = b - a; while (d > Math.PI) d -= 2 * Math.
 const mix = (c1, c2, k) => c1.map((v, i) => Math.round(v + (c2[i] - v) * k));
 const rgb = c => `rgb(${c[0]},${c[1]},${c[2]})`;
 
+// ---------- Umgebung je Strecke ----------
+// Klima: Grundfarbe des Bodens, Streifen neben der Strecke, Baumart. Echte Flächen (Wasser, Wald, Stadt,
+// Gebäude …) kommen aus js/data/scenery/<id>.js (OpenStreetMap).
+const ENV = {
+  green:  { ground: [79, 125, 58],  strip: [[92, 142, 66], [86, 134, 61]],   stripW: 30, tree: 'leaf', trackTrees: 1 },
+  dry:    { ground: [138, 136, 84], strip: [[146, 146, 92], [140, 140, 88]], stripW: 26, tree: 'leaf', trackTrees: 0.5 },
+  desert: { ground: [208, 182, 134], strip: [[200, 176, 130], [194, 170, 124]], stripW: 30, tree: 'palm', trackTrees: 0 },
+  urban:  { ground: [148, 146, 140], strip: [[124, 126, 130], [120, 122, 126]], stripW: 12, tree: 'leaf', trackTrees: 0.15 },
+};
+const BIOME = {
+  bahrain: 'desert', lusail: 'desert', jeddah: 'desert', yasmarina: 'desert', lasvegas: 'desert',
+  barcelona: 'dry', cota: 'dry', madring: 'dry', mexico: 'dry',
+  monaco: 'urban', singapore: 'urban', baku: 'urban',
+};
+const PALMS = new Set(['miami', 'singapore', 'yasmarina', 'jeddah', 'bahrain', 'lusail', 'lasvegas', 'monaco']);
+const WATER = [46, 98, 146], SEA_FOAM = [210, 228, 238];
+function classColor(c, env) {
+  if (c === 1) return WATER;
+  if (c === 2) return env.tree === 'palm' ? [118, 134, 78] : [56, 94, 46];
+  if (c === 3) return [216, 196, 150];
+  if (c === 4) return env === ENV.desert ? [192, 180, 156] : [156, 152, 144];
+  if (c === 5) return env === ENV.desert ? [120, 150, 84] : [98, 148, 72];
+  if (c === 6) return [112, 116, 122];
+  return env.ground;
+}
+
 // Kleiner Zufallsgenerator (fest je Strecke – das Intro sieht jedes Mal gleich aus)
 function rng(seed) {
   let s = seed >>> 0 || 1;
@@ -75,8 +101,13 @@ export class Intro {
     const G = 20, grid = new Set();
     for (const p of this.pts) for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) grid.add(`${Math.floor(p.x / G) + a},${Math.floor(p.y / G) + b}`);
     const nearTrack = (x, y) => grid.has(`${Math.floor(x / G)},${Math.floor(y / G)}`);
-    // Bäume entlang der Strecke
+    // Umgebung: Klima und echte Flächen
+    const env = this.env = ENV[BIOME[tr.def.id] || 'green'];
+    const palms = PALMS.has(tr.def.id);
     const r = rng(tr.L * 7 + 11);
+    this.prepScenery(nearTrack);
+    const clsAt = (x, y) => this.clsAt(x, y);
+    // Bäume entlang der Strecke (nur auf freiem Boden bzw. Rasen, je nach Klima)
     this.trees = [];
     for (const p of this.pts) {
       if (r() < 0.45) continue;
@@ -85,7 +116,25 @@ export class Intro {
         const off = 55 + r() * 120;
         const x = p.x + p.nx * side * off + (r() - 0.5) * 20, y = p.y + p.ny * side * off + (r() - 0.5) * 20;
         if (nearTrack(x, y)) continue;
-        this.trees.push({ x, y, r: 4 + r() * 4, h: 7 + r() * 8, c: r() });
+        const c = clsAt(x, y);
+        if (c !== 0 && c !== 5 && c !== 2) continue;
+        if (r() > (c === 2 ? 1 : env.trackTrees)) continue;
+        this.trees.push({ x, y, r: 4 + r() * 4, h: 7 + r() * 8, c: r(), palm: palms && r() < 0.7 });
+      }
+    }
+    // Wald und Parks aus den Kartendaten
+    if (this.sc) {
+      const sc = this.sc, CELL = sc.cell;
+      const far = this.farGrid;
+      let n = 0;
+      for (let cy = 0; cy < sc.h && n < 2600; cy++) for (let cx = 0; cx < sc.w && n < 2600; cx++) {
+        const c = sc.cls[cy * sc.w + cx];
+        if (c !== 2 && c !== 5) continue;
+        const x = sc.x0 + (cx + r()) * CELL, y = sc.y0 + (cy + r()) * CELL;
+        if (!far(x, y) || nearTrack(x, y)) continue;
+        if (r() > (c === 2 ? 0.55 : 0.1)) continue;
+        this.trees.push({ x, y, r: 4 + r() * 4, h: 7 + r() * 9, c: r(), palm: palms && (c === 5 || env.tree === 'palm') && r() < 0.8 });
+        n++;
       }
     }
     // Tribünen gegenüber der Boxengasse, Boxengebäude auf der Boxenseite
@@ -102,6 +151,84 @@ export class Intro {
     addBlock(-330, 160, pitSide * (HALF_W + 30), pitSide * (HALF_W + 48), 11, 'pit');
     // Kurven
     this.corners = (tr.corners || []).map(c => ({ ...c, p: this.ptAt(c.d) }));
+  }
+
+  // Kartendaten (Bodenraster, Gebäude, Mauern) aufbereiten
+  prepScenery(nearTrack) {
+    const sc0 = this.info.scenery;
+    this.runs = [[], []]; this.buildings = []; this.walls = []; this.boats = [];
+    // „nicht zu weit von der Strecke“ (für Bäume/Boote): 40-m-Raster, Radius 450 m
+    const G = 40, near = new Set();
+    for (const p of this.pts) near.add(`${Math.floor(p.x / G)},${Math.floor(p.y / G)}`);
+    const R = 11;
+    const farCache = new Map();
+    this.farGrid = (x, y) => {
+      const gx = Math.floor(x / G), gy = Math.floor(y / G), key = gx * 100003 + gy;
+      if (farCache.has(key)) return farCache.get(key);
+      let ok = false;
+      for (let a = -R; a <= R && !ok; a++) for (let b = -R; b <= R; b++) if (near.has(`${gx + a},${gy + b}`)) { ok = true; break; }
+      farCache.set(key, ok);
+      return ok;
+    };
+    if (!sc0) { this.sc = null; return; }
+    const cls = new Uint8Array(sc0.w * sc0.h);
+    sc0.rows.forEach((row, y) => { let x = 0; for (let i = 0; i < row.length; i += 2) { cls.fill(row[i], y * sc0.w + x, y * sc0.w + x + row[i + 1]); x += row[i + 1]; } });
+    const sc = this.sc = { ...sc0, cls };
+    // Läufe gleicher Klasse (ohne Standardboden), fein (1 Zelle) und grob (3×3, für hohe Kameras)
+    const mk = (k, out) => {
+      const W = Math.ceil(sc.w / k), H = Math.ceil(sc.h / k), CELL = sc.cell * k;
+      for (let by = 0; by < H; by++) {
+        let cur = -1, start = 0;
+        const flush = bx => {
+          if (cur > 0) for (let s0 = start; s0 < bx; s0 += 8) out.push({ c: cur, x0: sc.x0 + s0 * CELL, x1: sc.x0 + Math.min(bx, s0 + 8) * CELL, y0: sc.y0 + by * CELL, y1: sc.y0 + (by + 1) * CELL });
+        };
+        for (let bx = 0; bx < W; bx++) {
+          let v;
+          if (k === 1) v = cls[by * sc.w + bx];
+          else {
+            const cnt = new Uint16Array(8);
+            for (let a = 0; a < k; a++) for (let b = 0; b < k; b++) { const x = bx * k + b, y = by * k + a; if (x < sc.w && y < sc.h) cnt[cls[y * sc.w + x]]++; }
+            v = 0; for (let c = 1; c < 8; c++) if (cnt[c] > cnt[v]) v = c;
+          }
+          if (v !== cur) { flush(bx); cur = v; start = bx; }
+        }
+        flush(W);
+      }
+    };
+    mk(1, this.runs[0]); mk(3, this.runs[1]);
+    // Gebäude: Grundriss + Höhe, Umlaufsinn für Außenseiten
+    for (const b of sc.b || []) {
+      const pts = [];
+      for (let i = 1; i < b.length; i += 2) pts.push([b[i], b[i + 1]]);
+      let A = 0, cx = 0, cy = 0;
+      for (let i = 0; i < pts.length; i++) { const [ax, ay] = pts[i], [bx, by] = pts[(i + 1) % pts.length]; A += ax * by - bx * ay; cx += ax; cy += ay; }
+      cx /= pts.length; cy /= pts.length;
+      if (nearTrack(cx, cy) && b[0] < 20) continue;   // kleine Bauten direkt an der Strecke stören die Kamerafahrt
+      this.buildings.push({ h: b[0], pts, A, cx, cy });
+    }
+    for (const w of sc.walls || []) {
+      const pts = [];
+      for (let i = 1; i < w.length; i += 2) pts.push([w[i], w[i + 1]]);
+      this.walls.push({ h: w[0] ? 9 : 1.2, pts });
+    }
+    // Boote: an Wasserzellen am Ufer nahe der Strecke (Häfen, Marinas)
+    const r = rng(sc.w * 31 + sc.h);
+    const isW = (x, y) => x >= 0 && y >= 0 && x < sc.w && y < sc.h && cls[y * sc.w + x] === 1;
+    for (let y = 1; y < sc.h - 1 && this.boats.length < 140; y++) for (let x = 1; x < sc.w - 1 && this.boats.length < 140; x++) {
+      if (!isW(x, y)) continue;
+      const shore = !isW(x - 1, y) || !isW(x + 1, y) || !isW(x, y - 1) || !isW(x, y + 1) || !isW(x - 2, y) || !isW(x + 2, y);
+      const wx = sc.x0 + (x + 0.5) * sc.cell, wy = sc.y0 + (y + 0.5) * sc.cell;
+      if (!shore || !this.farGrid(wx, wy) || r() > 0.22) continue;
+      this.boats.push({ x: wx, y: wy, a: r() * Math.PI, l: 12 + r() * 22, w: 4 + r() * 3 });
+    }
+  }
+
+  clsAt(x, y) {
+    const sc = this.sc;
+    if (!sc) return 0;
+    const cx = Math.floor((x - sc.x0) / sc.cell), cy = Math.floor((y - sc.y0) / sc.cell);
+    if (cx < 0 || cy < 0 || cx >= sc.w || cy >= sc.h) return 0;
+    return sc.cls[cy * sc.w + cx];
   }
 
   ptAt(d) {
@@ -220,14 +347,15 @@ export class Intro {
 
     // Himmel und Boden
     const horizon = oy - F * Math.tan(cam.pitch);
-    ctx.fillStyle = '#4f7d3a';
+    const env = this.env;
+    ctx.fillStyle = rgb(env.ground);
     ctx.fillRect(0, 0, W, H);
     if (horizon > -40) {
       const g = ctx.createLinearGradient(0, horizon - 220, 0, horizon);
       g.addColorStop(0, rgb([92, 140, 196])); g.addColorStop(1, rgb(SKY));
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, Math.max(0, horizon));
       const g2 = ctx.createLinearGradient(0, horizon, 0, horizon + 160);
-      g2.addColorStop(0, rgb(HAZE)); g2.addColorStop(1, 'rgba(79,125,58,0)');
+      g2.addColorStop(0, rgb(HAZE)); g2.addColorStop(1, `rgba(${env.ground[0]},${env.ground[1]},${env.ground[2]},0)`);
       ctx.fillStyle = g2; ctx.fillRect(0, horizon, W, 160);
     }
     // leichte Rasenstreifen um die Strecke (Mähmuster) – nur nah
@@ -250,8 +378,20 @@ export class Intro {
       }
     };
     const fogged = (c, dep) => rgb(mix(c, HAZE, fogK(dep)));
-    // Breiter, hellerer Grasstreifen entlang der Strecke
-    ribbon(-HALF_W - 30, HALF_W + 30, 0, this.tr.L, (i, dep) => fogged(i % 6 < 3 ? [92, 142, 66] : [86, 134, 61], dep));
+    // Flächen aus den Kartendaten: Wasser, Wald, Sand, Stadt, Parks (grob, wenn die Kamera hoch ist)
+    {
+      const runs = this.runs ? this.runs[cam.z > 380 ? 1 : 0] : [];
+      for (const rn of runs) {
+        const A = P(rn.x0, rn.y0), B = P(rn.x1, rn.y0), C = P(rn.x1, rn.y1), D = P(rn.x0, rn.y1);
+        if (!A || !B || !C || !D) continue;
+        if (Math.max(A[0], B[0], C[0], D[0]) < -4 || Math.min(A[0], B[0], C[0], D[0]) > W + 4 || Math.max(A[1], B[1], C[1], D[1]) < -4 || Math.min(A[1], B[1], C[1], D[1]) > H + 4) continue;
+        const col = mix(classColor(rn.c, env), HAZE, fogK((A[2] + C[2]) / 2));
+        ctx.fillStyle = rgb(col); ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.lineTo(C[0], C[1]); ctx.lineTo(D[0], D[1]); ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+    }
+    // Streifen entlang der Strecke (Rasen, in der Wüste Sand, in der Stadt Gehweg)
+    ribbon(-HALF_W - env.stripW, HALF_W + env.stripW, 0, this.tr.L, (i, dep) => fogged(i % 6 < 3 ? env.strip[0] : env.strip[1], dep));
     // Auslaufzonen
     for (const ro of this.tr.runoffs || []) {
       const lat0 = ro.side * (HALF_W + ro.offset), lat1 = ro.side * (HALF_W + ro.offset + ro.width);
@@ -316,6 +456,22 @@ export class Intro {
       if (!c) continue;
       objs.push({ dep: c[2], draw: () => this.drawBlock(ctx, P, bl, cam, fogK(c[2])) });
     }
+    for (const bd of this.buildings || []) {
+      const c = P(bd.cx, bd.cy, bd.h / 2);
+      if (!c || c[0] < -200 || c[0] > W + 200 || c[1] < -300 || c[1] > H + 200) continue;
+      objs.push({ dep: c[2], draw: () => this.drawBuilding(ctx, P, bd, cam, fogK(c[2])) });
+    }
+    for (const wl of this.walls || []) {
+      const m = wl.pts[Math.floor(wl.pts.length / 2)];
+      const c = P(m[0], m[1], wl.h / 2);
+      if (!c) continue;
+      objs.push({ dep: c[2], draw: () => this.drawWall(ctx, P, wl, fogK(c[2])) });
+    }
+    for (const bt of this.boats || []) {
+      const c = P(bt.x, bt.y, 1);
+      if (!c || c[0] < -40 || c[0] > W + 40 || c[1] < -40 || c[1] > H + 40) continue;
+      objs.push({ dep: c[2], draw: () => this.drawBoat(ctx, P, bt, fogK(c[2])) });
+    }
     objs.sort((a, b) => b.dep - a.dep);
     for (const o of objs) o.draw();
 
@@ -351,6 +507,19 @@ export class Intro {
     if (!base || !top) return;
     const rad = this.F_r(tr.r, top[2]);
     if (rad < 0.6) return;
+    if (tr.palm) {
+      // Palme: schlanker Stamm, Wedel sternförmig
+      ctx.strokeStyle = rgb(mix([120, 96, 64], [176, 196, 210], fog)); ctx.lineWidth = Math.max(1, rad * 0.18);
+      ctx.beginPath(); ctx.moveTo(base[0], base[1]); ctx.lineTo(top[0], top[1]); ctx.stroke();
+      ctx.fillStyle = rgb(mix(tr.c < 0.5 ? [46, 110, 46] : [62, 128, 52], [176, 196, 210], fog));
+      for (let k = 0; k < 7; k++) {
+        const a = k / 7 * Math.PI * 2 + tr.c * 3;
+        ctx.beginPath();
+        ctx.ellipse(top[0] + Math.cos(a) * rad * 0.7, top[1] + Math.sin(a) * rad * 0.35 + rad * 0.15, rad * 0.75, rad * 0.22, a, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      return;
+    }
     // Schatten
     ctx.fillStyle = `rgba(30,50,20,${0.35 * (1 - fog)})`;
     ctx.beginPath(); ctx.ellipse(base[0] + rad * 0.4, base[1] + rad * 0.15, rad * 1.1, rad * 0.55, 0, 0, Math.PI * 2); ctx.fill();
@@ -367,6 +536,68 @@ export class Intro {
   }
 
   F_r(r, dep) { return this.lastF * r / dep; }
+
+  // Gebäude als Quader mit echtem Grundriss: sichtbare Außenwände, dann Dach
+  drawBuilding(ctx, P, bd, cam, fog) {
+    const base = [], top = [];
+    for (const [x, y] of bd.pts) { const a = P(x, y, 0), b = P(x, y, bd.h); if (!a || !b) return; base.push(a); top.push(b); }
+    const span = Math.abs(top[0][0] - base[0][0]) + Math.abs(top[0][1] - base[0][1]);
+    const tall = bd.h > 28;
+    const wall = tall ? [184, 194, 206] : bd.h > 14 ? [214, 206, 192] : [226, 216, 198];
+    const roof = tall ? [150, 160, 172] : [188, 178, 164];
+    const n = bd.pts.length, sgn = bd.A > 0 ? 1 : -1;
+    for (let i = 0; i < n; i++) {
+      const [ax, ay] = bd.pts[i], [bx, by] = bd.pts[(i + 1) % n];
+      const dx = bx - ax, dy = by - ay, l = Math.hypot(dx, dy) || 1;
+      const nx = sgn * dy / l, ny = -sgn * dx / l;
+      if ((cam.x - (ax + bx) / 2) * nx + (cam.y - (ay + by) / 2) * ny <= 0) continue;
+      const lit = 0.72 + 0.28 * Math.max(0, -nx * 0.6 - ny * 0.8);
+      ctx.beginPath(); ctx.moveTo(base[i][0], base[i][1]); ctx.lineTo(base[(i + 1) % n][0], base[(i + 1) % n][1]);
+      ctx.lineTo(top[(i + 1) % n][0], top[(i + 1) % n][1]); ctx.lineTo(top[i][0], top[i][1]); ctx.closePath();
+      ctx.fillStyle = rgb(mix(wall.map(v => v * lit), HAZE, fog)); ctx.fill();
+      // Fensterbänder bei höheren Häusern
+      if (bd.h > 12 && span > 14) {
+        ctx.strokeStyle = `rgba(60,80,104,${0.35 * (1 - fog)})`; ctx.lineWidth = 1;
+        const floors = Math.min(24, Math.floor(bd.h / 3.4));
+        for (let f = 1; f < floors; f++) {
+          const k = f / floors;
+          ctx.beginPath();
+          ctx.moveTo(lerp(base[i][0], top[i][0], k), lerp(base[i][1], top[i][1], k));
+          ctx.lineTo(lerp(base[(i + 1) % n][0], top[(i + 1) % n][0], k), lerp(base[(i + 1) % n][1], top[(i + 1) % n][1], k));
+          ctx.stroke();
+        }
+      }
+    }
+    ctx.beginPath(); ctx.moveTo(top[0][0], top[0][1]); for (let i = 1; i < n; i++) ctx.lineTo(top[i][0], top[i][1]); ctx.closePath();
+    ctx.fillStyle = rgb(mix(roof, HAZE, fog)); ctx.fill();
+  }
+
+  // Mauer (z. B. Altstadtmauer) bzw. flache Mole
+  drawWall(ctx, P, wl, fog) {
+    const col = wl.h > 2 ? [196, 170, 128] : [176, 176, 170];
+    for (let i = 0; i < wl.pts.length - 1; i++) {
+      const [ax, ay] = wl.pts[i], [bx, by] = wl.pts[i + 1];
+      const a0 = P(ax, ay, 0), b0 = P(bx, by, 0), a1 = P(ax, ay, wl.h), b1 = P(bx, by, wl.h);
+      if (!a0 || !b0 || !a1 || !b1) continue;
+      ctx.beginPath(); ctx.moveTo(a0[0], a0[1]); ctx.lineTo(b0[0], b0[1]); ctx.lineTo(b1[0], b1[1]); ctx.lineTo(a1[0], a1[1]); ctx.closePath();
+      ctx.fillStyle = rgb(mix(col, HAZE, fog)); ctx.fill();
+      if (wl.h <= 2) { ctx.strokeStyle = rgb(mix(col, HAZE, fog)); ctx.lineWidth = Math.max(1, this.F_r(4, a1[2])); ctx.beginPath(); ctx.moveTo(a1[0], a1[1]); ctx.lineTo(b1[0], b1[1]); ctx.stroke(); }
+    }
+  }
+
+  // Yacht im Hafen
+  drawBoat(ctx, P, bt, fog) {
+    const ca = Math.cos(bt.a), sa = Math.sin(bt.a);
+    const pt = (l, w, z) => P(bt.x + ca * l - sa * w, bt.y + sa * l + ca * w, z);
+    const hull = [pt(bt.l / 2, 0, 1), pt(bt.l * 0.3, bt.w / 2, 1), pt(-bt.l / 2, bt.w / 2, 1), pt(-bt.l / 2, -bt.w / 2, 1), pt(bt.l * 0.3, -bt.w / 2, 1)];
+    if (hull.some(q => !q)) return;
+    ctx.beginPath(); hull.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.closePath();
+    ctx.fillStyle = rgb(mix([244, 246, 248], HAZE, fog)); ctx.fill();
+    const cab = [pt(bt.l * 0.15, bt.w * 0.3, 3), pt(-bt.l * 0.3, bt.w * 0.3, 3), pt(-bt.l * 0.3, -bt.w * 0.3, 3), pt(bt.l * 0.15, -bt.w * 0.3, 3)];
+    if (cab.some(q => !q)) return;
+    ctx.beginPath(); cab.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.closePath();
+    ctx.fillStyle = rgb(mix([200, 210, 220], HAZE, fog)); ctx.fill();
+  }
 
   drawBlock(ctx, P, bl, cam, fog) {
     const corner = (pt, lat, z) => P(pt[0] + bl.nx * lat, pt[1] + bl.ny * lat, z);
@@ -465,7 +696,7 @@ export class Intro {
     // Eckdaten: Kacheln, eine nach der anderen
     const tiles = info.tiles || [];
     const tIn = 11.2, per = 0.3;
-    const tOut = ease(t, 14.8, 15.4);
+    const tOut = 0;   // Kacheln bleiben bis zum Ende (Ausblenden mit dem ganzen Bild)
     if (t > tIn && tOut < 1) {
       const cols = 3, gap = 6, tw = (W - 28 - gap * (cols - 1)) / cols, th = 52, y0 = H - 124;
       tiles.forEach((tile, i) => {
@@ -484,8 +715,8 @@ export class Intro {
       });
       ctx.globalAlpha = 1;
     }
-    // Abschluss
-    const endK = ease(t, 15.4, 16) * (1 - ease(t, INTRO_DUR - 0.5, INTRO_DUR - 0.1));
+    // Abschluss-Text entfällt – die Eckdaten-Kacheln bleiben bis zum Ende stehen
+    const endK = 0;
     if (endK > 0) {
       ctx.globalAlpha = endK;
       const y = H * 0.74;

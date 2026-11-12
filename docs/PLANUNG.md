@@ -786,3 +786,8 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 ### Intro-Übergang, Lautstärken (v67)
 - Intro beginnt genau mit dem Streckenbild der Startseite (gleiche Lage, Größe und Stil); die übrige Startseite blendet aus, dann zoomt die Kamera fließend hinunter auf die Start-Ziel-Gerade.
 - SC-Motor deutlich lauter, Startampel-Töne leiser und weicher.
+
+### Intro: Kacheln bis zum Ende, Umgebung je Strecke (v68, in Arbeit)
+- Kein „LIGHTS OUT IN KÜRZE“ mehr; die 6 Info-Kacheln bleiben bis zum Ende.
+- Klima je Strecke (Wüste, trocken, Stadt, grün) mit passender Bodenfarbe und Baumart (Palmen).
+- tools/gen_scenery.py erzeugt aus OpenStreetMap (Overpass-API) js/data/scenery/<id>.js: Bodenraster (Wasser/Meer, Wald, Sand, Stadt, Park, Parkplatz), Gebäude mit Höhe, Mauern/Molen. Das Intro lädt die Datei nach und zeichnet Flächen, Gebäude, Yachten. Kartendaten © OpenStreetMap-Mitwirkende (ODbL).
