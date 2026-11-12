@@ -4,7 +4,32 @@
 import { pointAt } from '../sim/trackModel.js';
 
 const HALF_W = 7;                  // halbe Streckenbreite in Metern
-export const INTRO_DUR = 18.4;     // Sekunden
+export const INTRO_DUR = 17.2;     // Sekunden
+// Strecken mit freigegebenem Intro (werden nacheinander ergänzt)
+export const INTRO_TRACKS = new Set(['albertpark']);
+
+// Einblendungen fürs Intro: Eckdaten-Kacheln, Kalender-Zeile, Abschluss
+export function introInfo(track, laps, season, teams) {
+  const def = track.def;
+  const round = season.find(r => r.track === def.id);
+  const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+  let kicker = `FORMEL 1 · ${new Date().getFullYear()}`;
+  if (round) { const d = new Date(round.date + 'T12:00:00'); kicker = `Rennen ${round.round} / ${season.length} · ${d.getDate()}. ${MONTHS[d.getMonth()]} ${d.getFullYear()}`; }
+  const km = v => v.toFixed(v < 10 ? 3 : 1).replace('.', ',');
+  return {
+    kicker,
+    tiles: [
+      ['STRECKENLÄNGE', km(def.lengthM / 1000), 'km'],
+      ['RUNDEN', String(laps)],
+      ['RENNDISTANZ', km(def.lengthM * laps / 1000), 'km'],
+      ['KURVEN', String(track.corners.length)],
+      ['ÜBERHOLZONEN', String((def.overtakeZones || []).length)],
+      ['REGENRISIKO', Math.round((def.rainChance ?? 0.38) * 100) + ' %'],
+    ],
+    cars: teams.flatMap(t => [t.color, t.color]),
+    endText: 'LIGHTS OUT IN KÜRZE',
+  };
+}
 
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const smooth = x => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
@@ -102,8 +127,7 @@ export class Intro {
   //  4,6–9,6 Flug von hinten über die Gerade und die Ziellinie
   //  9,6–11  Aufsteigen
   // 11–15    Drehung um 180° hoch über der Strecke – die ganze Strecke im Bild
-  // 15–16,6  Absinken vor der Ziellinie
-  // 16,6–18,4 Blick von vorne zurück auf die Start-Ziel-Gerade, Ausblenden
+  // 15–17,2  Übersicht der Strecke, ganz langsam weiterdrehend, Abschluss-Einblendung, Ausblenden
   camera(t) {
     const W = this.W, H = this.H;
     const F = (H / 2) / Math.tan((50 * Math.PI / 180) / 2);
@@ -155,8 +179,7 @@ export class Intro {
     else if (t < 9.6) { const k = (t - 4.6) / 5; c = fly(k * (0.85 + 0.15 * k)); }
     else if (t < 11) c = blend(fly(1), orbit(0), ease(t, 9.6, 11));
     else if (t < 15) c = orbit(ease(t, 11, 15) * 0.85 + (t - 11) / 4 * 0.15);
-    else if (t < 16.6) c = blend(orbit(1), back(0), ease(t, 15, 16.6));
-    else c = back((t - 16.6) / 1.8);
+    else c = orbit(1 + (t - 15) * 0.0375);   // Übersicht: dreht im gleichen Tempo sanft aus
     c.F = F;
     return c;
   }
@@ -376,7 +399,7 @@ export class Intro {
 
   // Kurvenmarken: schweben über der Kurve, solange man sie gut sieht
   drawCorners(ctx, P, t) {
-    if (t < 11.2 || t > 15.2) return;
+    if (t < 11.2 || t > INTRO_DUR - 0.4) return;
     const alpha = ease(t, 11.2, 11.8) * (1 - ease(t, 14.6, 15.2));
     ctx.font = '700 12px "RC Mono", monospace';
     ctx.textBaseline = 'middle';
@@ -458,7 +481,7 @@ export class Intro {
       ctx.globalAlpha = 1;
     }
     // Abschluss
-    const endK = ease(t, 16.8, 17.4) * (1 - ease(t, INTRO_DUR - 0.5, INTRO_DUR - 0.1));
+    const endK = ease(t, 15.4, 16) * (1 - ease(t, INTRO_DUR - 0.5, INTRO_DUR - 0.1));
     if (endK > 0) {
       ctx.globalAlpha = endK;
       const y = H * 0.74;

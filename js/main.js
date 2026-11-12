@@ -3,6 +3,7 @@ import { TEAMS } from './data/teams.js';
 import { DRIVERS } from './data/drivers.js';
 import { TRACKS } from './data/tracks/index.js';
 import { SEASON_2026 } from './data/season2026.js';
+import { Intro, INTRO_DUR, INTRO_TRACKS, introInfo } from './ui/intro.js';
 import {
   newSeason, migrateSeason, currentRound, currentWeekend, sessionSetup, finishSession, roundDate,
   activePoints, driverStandings, teamStandings, BAN_POINTS, KIND_NAME, KIND_SHORT, SPRINT_TRACKS,
@@ -794,7 +795,38 @@ $('briefOkBtn').addEventListener('click', () => {
   startRace();
 });
 
+// Intro vor dem Rennen (Strecken mit freigegebenem Intro): Antippen überspringt
+function playIntro(done) {
+  const scr = $('introScreen'), cv = $('introCanvas');
+  scr.classList.remove('hidden');
+  const intro = new Intro(cv, race.track, introInfo(race.track, race.laps, SEASON_2026, TEAMS));
+  intro.resize();
+  const t0 = performance.now();
+  let over = false;
+  const finish = () => {
+    if (over) return;
+    over = true;
+    scr.classList.add('hidden');
+    scr.removeEventListener('pointerdown', finish);
+    done();
+  };
+  scr.addEventListener('pointerdown', finish);
+  const loop = now => {
+    if (over) return;
+    const t = (now - t0) / 1000;
+    if (t >= INTRO_DUR) { finish(); return; }
+    intro.renderAt(t);
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+}
+
 function startRace() {
+  if (!race.isSession && INTRO_TRACKS.has(race.track.def.id) && !race.introShown) {
+    race.introShown = true;
+    playIntro(() => startRace());
+    return;
+  }
   if (!race.isSession && prepareBriefing(race) && !race.briefing.done) { showBriefing(); return; }
   race.startedAt = Date.now();
   savedRace = null;
