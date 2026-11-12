@@ -92,7 +92,7 @@ export class Sound {
     filter.connect(out);
     out.connect(this.master);
     const oscs = [];
-    for (const [type, det, vol] of [['square', 0, 0.16], ['sawtooth', -8, 0.1], ['triangle', 1200, 0.08]]) {
+    for (const [type, det, vol] of [['sawtooth', 0, 0.12], ['sawtooth', -9, 0.09], ['triangle', 1200, 0.1]]) {
       const o = c.createOscillator();
       o.type = type;
       o.detune.value = det;
@@ -104,12 +104,12 @@ export class Sound {
     }
     // V8-Blubbern: Lautstärke pulsiert mit der Zündfolge
     const lfo = c.createOscillator();
-    lfo.type = 'square';
+    lfo.type = 'sine';
     lfo.frequency.value = 9;
     const lfoG = c.createGain();
-    lfoG.gain.value = 0.35;
+    lfoG.gain.value = 0.07;   // nur ein leichtes Pulsieren
     const trem = c.createGain();
-    trem.gain.value = 0.65;
+    trem.gain.value = 0.93;
     lfo.connect(lfoG).connect(trem.gain);
     lfo.start();
     filter.disconnect();
@@ -122,7 +122,7 @@ export class Sound {
     if (!this.scEngine) { if (level <= 0) return; this.buildScEngine(); }
     const t = this.ctx.currentTime, e = this.scEngine;
     e.out.gain.setTargetAtTime(level * 0.22, t, 0.3);
-    const f = 32 + rpm * 70;
+    const f = 45 + rpm * 95;   // tiefer als F1, aber gleichmäßiger Lauf
     for (const o of e.oscs) o.frequency.setTargetAtTime(f, t, 0.25);
     e.lfo.frequency.setTargetAtTime(6 + rpm * 14, t, 0.25);
     e.filter.frequency.setTargetAtTime(220 + rpm * 700, t, 0.25);

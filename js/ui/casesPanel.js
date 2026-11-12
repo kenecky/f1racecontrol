@@ -139,7 +139,7 @@ export class CasesPanel {
       const decision = v ? row('DECISION', v.carId
         ? `<b>${PENALTIES[v.penalty].name} für ${v.carId}${v.points ? ` · ${v.points} Strafpunkt${v.points > 1 ? 'e' : ''}` : ''}</b>`
         : `<b>${c.status === 'nfa' ? 'Keine weitere Untersuchung' : 'Keine Strafe'}</b>`) : '';
-      const stamp = v ? `<div class="doc-stamp ${v.carId ? 'pen' : 'ok'}">${v.carId ? 'PENALTY' : c.status === 'nfa' ? 'NFA' : 'NO PENALTY'}</div>` : '';
+      const stamp = v ? '<div class="doc-stamp decided">DECIDED</div>' : '';   // neutral: entschieden – egal ob mit oder ohne Strafe
       body = `
         <div class="case-body">
           <div class="doc">
@@ -195,14 +195,16 @@ export class CasesPanel {
         <button class="ctl-btn ctl-sc" data-act="hearing">Fahrer zur Anhörung vorladen</button>`;
     }
     if (c.status === 'investigating' || c.status === 'hearing') return this.form(c, finished);
+    // Entschiedener Fall: unten „Dokument schließen“ (wie das ✕ oben)
+    const close = this.noRevise ? '' : '<button class="ctl-btn ctl-ghost" data-act="close-doc">DOKUMENT SCHLIESSEN</button>';
     if (canRevise(race, c) && !this.noRevise) {
       const f = this.forms[c.id] || {};
       return f.reviseArmed
         ? `<div class="case-actions"><p class="ctl-small">Revidieren hebt das Urteil auf (bereits verbüßte Strafen bleiben) und kostet Ansehen bei den Teams und Punkte in der Konsistenz.</p>
-            <button class="ctl-btn ctl-red armed" data-act="revise">ZUM REVIDIEREN ERNEUT DRÜCKEN</button></div>`
-        : '<div class="case-actions"><button class="ctl-btn ctl-ghost" data-act="revise-arm">URTEIL REVIDIEREN</button></div>';
+            <button class="ctl-btn ctl-red armed" data-act="revise">ZUM REVIDIEREN ERNEUT DRÜCKEN</button>${close}</div>`
+        : `<div class="case-actions"><button class="ctl-btn ctl-ghost" data-act="revise-arm">URTEIL REVIDIEREN</button>${close}</div>`;
     }
-    return '';
+    return close ? `<div class="case-actions">${close}</div>` : '';
   }
 
   form(c, finished) {

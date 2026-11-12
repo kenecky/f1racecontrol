@@ -10,8 +10,8 @@ import { rollStartRegs } from './regs.js';
 import { rainAt } from './weather.js';
 import { COMPOUNDS, bestCompound } from './tyres.js';
 
-const F_SPEED = 0.8;    // Tempo in der Formationsrunde (Anteil der Renngeschwindigkeit)
-const F_VMAX = 70;      // m/s (250 km/h)
+const F_SPEED = 0.65;   // Tempo in der Formationsrunde (Anteil der Renngeschwindigkeit) – langsam genug, dass ein Dreher aufholen kann
+const F_VMAX = 62;      // m/s (~225 km/h)
 const SLOT = 8;         // Abstand der Startplätze (m)
 const slotD = i => -(6 + i * SLOT);
 const slotOf = d => Math.round((-d - 6) / SLOT);
@@ -178,7 +178,7 @@ function moveFormation(race, dt) {
         if (waiting) car.offTrack.until = race.time + 0.5;
         else {
           endOffTrack(race, car);
-          if (!car.retired) moveToBack(race, car);
+          if (!car.retired) startRegain(race, car);
         }
       }
       continue;
@@ -190,6 +190,17 @@ function moveFormation(race, dt) {
     }
     const toGo = car.fTarget - car.d;
     let vt = Math.min(speedAt(tr, car.d) * F_SPEED, F_VMAX);
+    // Platz verloren (Dreher/Ausritt): darf überholen, um die Startreihenfolge wiederherzustellen
+    if (car.fRegain) {
+      vt = Math.min(speedAt(tr, car.d), Math.sqrt(Math.max(0, 2 * 6 * (toGo - 0.2))));
+      if (vt > car.v) car.v = Math.min(vt, car.v + 7 * dt);
+      else car.v = Math.max(vt, car.v - 14 * dt);
+      car.move = Math.max(0, Math.min(car.v * dt, toGo));
+      const prev = car.d;
+      car.d += car.move;
+      regainCheck(race, car, prev);
+      continue;
+    }
     if (car.inPit) vt = Math.min(vt, tr.pitLaneSpeed);   // Neustart: erst durch die Boxengasse
     vt = Math.min(vt, Math.sqrt(Math.max(0, 2 * 6 * (toGo - 0.2))));
     let room = toGo;
@@ -219,14 +230,37 @@ function moveFormation(race, dt) {
   if (live.every(c => !c.offTrack && c.fTarget - c.d < 0.6 && c.v < 0.3)) arriveOnGrid(race);
 }
 
-// Nach einem Dreher in der Formationsrunde: Start vom Ende des Feldes
-function moveToBack(race, car) {
+// Nach einem Dreher/Ausritt in der Formationsrunde (Reglement): Der Fahrer darf überholen, um seinen
+// ursprünglichen Startplatz zurückzuholen. Schafft er das nicht bis zur ersten Safety-Car-Linie
+// (hier: Boxeneinfahrt), muss er in die Boxengasse und startet von dort.
+function startRegain(race, car) {
   const f = race.formation;
-  f.order = f.order.filter(id => id !== car.id).concat(car.id);
-  car.fSlot = f.backSlot;
-  car.fTarget = race.track.L + slotD(f.backSlot++);
-  race.emit('rc', `${car.id} hat in der Formationsrunde Plätze verloren und startet vom Ende des Feldes.`, { cars: [car.id] });
+  f.order = f.order.filter(id => id !== car.id).concat(car.id);   // vorerst hinter dem Feld
+  car.fRegain = { slot: car.fSlot };
+  race.emit('rc', `${car.id} hat in der Formationsrunde Plätze verloren – darf bis zur ersten Safety-Car-Linie aufholen, sonst Start aus der Boxengasse.`, { cars: [car.id] });
 }
+
+function regainCheck(race, car, prev) {
+  const f = race.formation, tr = race.track;
+  const behind = f.order.map(id => race.carById[id]).filter(c => c !== car && !c.retired && !c.pitStart && c.fSlot > car.fRegain.slot);
+  if (behind.every(c => c.d < car.d - 12)) {
+    // Startreihenfolge wiederhergestellt: zurück an den eigenen Platz
+    f.order = f.order.filter(id => id !== car.id);
+    const idx = f.order.findIndex(id => race.carById[id].fSlot > car.fRegain.slot);
+    f.order.splice(idx < 0 ? f.order.length : idx, 0, car.id);
+    car.fRegain = null;
+    race.emit('rc', `${car.id} hat seinen Startplatz in der Formationsrunde zurückgeholt.`, { cars: [car.id] });
+    return;
+  }
+  const entry = tr.pit.entry;
+  if (prev < entry && car.d >= entry) {
+    car.fRegain = null;
+    f.order = f.order.filter(id => id !== car.id);
+    toPitLane(race, car);
+    race.emit('rc', `${car.id} hat seinen Startplatz bis zur ersten Safety-Car-Linie nicht zurückgeholt und startet aus der Boxengasse.`, { cars: [car.id] });
+  }
+}
+
 
 function arriveOnGrid(race) {
   const f = race.formation;

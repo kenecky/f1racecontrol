@@ -1742,3 +1742,4 @@ body { background: #15181d; }
 .sd-step.on i { background: #15181d; }
 .desk .seq-step { letter-spacing: .02em; }
 .desk .seq-step:first-child { flex: 1.5; }
+.doc-stamp.decided { color: #1e3a8a; border-color: #1e3a8a; }

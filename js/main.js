@@ -212,6 +212,7 @@ const controlPanel = new ControlPanel({
 
 function caseAction(act, id, form) {
     const c = id ? race.cases.find(x => x.id === id) : null;
+    if (act === 'close-doc') { showDecList(); return; }
     if (act === 'scene-full') { openSceneFull(c, form.t); return; }
     if (act === 'scene-map') { closeDecisions(); startMapReplay(c); return; }
     if (act === 'investigate') investigate(race, c);
@@ -1045,7 +1046,12 @@ function checkGridFull() {
   const full = race.preStart && f && f.arrived;
   if (full && !gridWasFull && settings.speed > 1) { speedBeforeLights = settings.speed; setSpeed(1); }
   gridWasFull = Boolean(full);
+  // Ende der Inspektionsrunde (Meldung des SC): sofort 1×
+  const insp = Boolean(race.inspection && race.inspection.report);
+  if (insp && !inspWasDone && settings.speed > 1) setSpeed(1);
+  inspWasDone = insp;
 }
+let inspWasDone = false;
 function refreshUi() {
   ensureWide();
   if (race) checkGridFull();
