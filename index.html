@@ -17,7 +17,7 @@
 <body>
   <div id="app">
     <header class="status">
-      <button id="menuBtn" class="icon-btn" aria-label="Neues Rennen">☰</button>
+      <button id="menuBtn" class="icon-btn" aria-label="Menü">☰</button>
       <div class="status-lap">
         <span id="lapLabel" class="label">Runde</span>
         <span id="lap">–</span>
@@ -95,18 +95,31 @@
     <button id="menuPauseBtn" class="menu-pause">▶ WEITER</button>
     <div class="popover-title">Tempo</div>
     <div class="speed-slider"><input id="speedRange" type="range" min="0" max="5" step="1" aria-label="Tempo"><div class="speed-ticks"></div></div>
-    <label class="switch-row">
-      <input id="soundToggle" type="checkbox">
-      <span>Ton (Motoren, Startampel, Funk, Hinweise)</span>
-    </label>
-    <label class="switch-row">
-      <input id="slowToggle" type="checkbox">
-      <span>Bei neuen Vorfällen und Entscheidungen auf 1× abbremsen</span>
-    </label>
-    <label class="switch-row">
-      <input id="vibrateToggle" type="checkbox">
-      <span>Vibration bei neuen Vorfällen und Entscheidungen</span>
-    </label>
+  </div>
+
+  <!-- ☰ Menü während des Rennens -->
+  <div id="optionsScreen" class="overlay hidden">
+    <div class="sheet opt-sheet">
+      <h2 class="sheet-title">Menü</h2>
+      <label class="switch-row">
+        <input id="soundToggle" type="checkbox">
+        <span>Ton (Motoren, Startampel, Funk, Hinweise)</span>
+      </label>
+      <label class="switch-row">
+        <input id="vibrateToggle" type="checkbox">
+        <span>Vibration bei neuen Vorfällen und Entscheidungen</span>
+      </label>
+      <label class="switch-row">
+        <input id="slowToggle" type="checkbox">
+        <span>Bei neuen Vorfällen und Entscheidungen auf 1× abbremsen</span>
+      </label>
+      <div class="opt-actions">
+        <button id="optSaveBtn" class="secondary-btn">💾 Spiel speichern</button>
+        <div id="optSaved" class="opt-saved"></div>
+        <button id="optHomeBtn" class="secondary-btn">Zurück zur Startseite</button>
+        <button id="optCloseBtn" class="primary-btn">Weiter</button>
+      </div>
+    </div>
   </div>
 
   <!-- Kontrollpult im Vollbild -->
@@ -245,7 +258,7 @@
       </div>
       <button id="seasonBtn" class="secondary-btn season-btn hidden">🏆 Saison-Übersicht</button>
       <div id="history" class="history st-card"></div>
-      <div class="app-version">Version 63</div>
+      <div class="app-version">Version 64</div>
       <details class="options st-card">
         <summary>Optionen</summary>
         <label>Rennen-Nr. (gleiche Nr. = gleiches Rennen)

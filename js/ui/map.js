@@ -4,6 +4,7 @@ import { pointAt, wrapD, sectorIndexAt } from '../sim/trackModel.js';
 import { drawTrackArt } from './trackArt.js';
 import { sceneCarAt, HALF_W } from '../sim/scenes.js';
 import { drawCar } from './scenePlayer.js';
+import { isStraight } from '../sim/energy.js';
 
 export const PIT_OFFSET_PX = 9;
 const MAX_ZOOM = 6;
@@ -479,9 +480,11 @@ export class TrackMap {
       const side = slot % 2 === 0 ? -1 : 1;
       lat = side * 4 * Math.min(1, Math.max(0, (70 - toGo) / 60));
       // Reifen aufwärmen: Zickzack auf der Formationsrunde (nicht kurz vor der Startbox, nicht beim Aufholen)
-      if (toGo > 300 && car.v > 8 && !car.fRegain) {
+      // nur auf den Geraden und kurz vor der Startaufstellung (nicht mehr im letzten Stück in die Box)
+      const warm = isStraight(this.track, car.d) || (toGo < 500 && toGo > 110);
+      if (warm && car.v > 8 && !car.fRegain) {
         const k = car.id.charCodeAt(0) * 7 + car.id.charCodeAt(1) * 3;
-        const fade = Math.min(1, (toGo - 300) / 200) * Math.min(1, car.d / 150 + 0.2);
+        const fade = Math.min(1, Math.max(0, (toGo - 110) / 60)) * Math.min(1, car.d / 150 + 0.2);
         lat += Math.sin(car.d / 22 + k) * 3.2 * fade;
       }
     } else if (car.lap === 0 && car.d < 120) {

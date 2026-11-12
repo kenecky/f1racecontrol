@@ -1743,3 +1743,10 @@ body { background: #15181d; }
 .desk .seq-step { letter-spacing: .02em; }
 .desk .seq-step:first-child { flex: 1.5; }
 .doc-stamp.decided { color: #1e3a8a; border-color: #1e3a8a; }
+/* v64: Tempo-Knopf zeigt Pause/Lauf, Menü-Fenster, TV-Knopf zentriert */
+#speedBtn.is-running, .speed-btn.is-running { border-color: #22c55e !important; box-shadow: 0 0 8px rgba(34,197,94,.35), 0 3px 0 #0c0e12; }
+#speedBtn.is-paused, .speed-btn.is-paused { border-color: #ef4444 !important; color: #fca5a5; box-shadow: 0 0 8px rgba(239,68,68,.45), 0 3px 0 #0c0e12; }
+.opt-sheet { max-width: 420px; }
+.opt-actions { display: grid; gap: 8px; margin-top: 14px; }
+.opt-saved { min-height: 14px; font: 600 11px var(--mono); color: #86efac; text-align: center; }
+.tv-btn { display: inline-flex; align-items: center; justify-content: center; text-align: center; padding-left: 0; padding-right: 0; min-width: 44px; }

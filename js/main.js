@@ -1203,6 +1203,7 @@ function updatePauseBtn() {
   $('menuPauseBtn').classList.toggle('blocked', Boolean(pauseBlocked()));
   $('pauseBtn').setAttribute('aria-label', paused ? 'Weiter' : 'Pause');
   $('app').classList.toggle('is-paused', Boolean(paused && race && race.phase !== 'pre'));
+  renderSpeedBtns();
 }
 
 function updateCasesBadge() {
@@ -1229,10 +1230,18 @@ function select(id) {
 
 function setSpeed(v) {
   settings.speed = v;
-  $('speedBtn').textContent = `${v}×`;
-  for (const b of document.querySelectorAll('.speed-btn')) b.textContent = `${v}×`;
+  renderSpeedBtns();
   saveSettings(settings);
   renderSpeedMenu();
+}
+// Tempo-Knöpfe: laufend = Tempo, grün umrandet; pausiert = ❚❚, rot umrandet
+function renderSpeedBtns() {
+  const isPaused = Boolean(paused && race && race.phase !== 'pre');
+  for (const b of [$('speedBtn'), ...document.querySelectorAll('.speed-btn')]) {
+    b.textContent = isPaused ? '❚❚' : `${settings.speed}×`;
+    b.classList.toggle('is-paused', isPaused);
+    b.classList.toggle('is-running', !isPaused);
+  }
 }
 
 // ---------- Flaggen-Panel ----------
@@ -1838,10 +1847,12 @@ $('pauseBtn').addEventListener('click', () => {
 });
 
 $('menuPauseBtn').addEventListener('click', () => { $('pauseBtn').click(); toggleSpeedMenu(false); renderDeskHead(); });
-for (const b of document.querySelectorAll('.speed-btn')) b.addEventListener('click', e => { e.stopPropagation(); toggleSpeedMenu(undefined, b); });
+// Tempo-Knopf: Antippen = Pause/Weiter, Gedrückthalten = Tempo-Leiste (siehe unten)
+for (const b of document.querySelectorAll('.speed-btn')) b.addEventListener('click', e => { e.stopPropagation(); $('pauseBtn').click(); renderDeskHead(); });
 $('speedBtn').addEventListener('click', e => {
   e.stopPropagation();
-  toggleSpeedMenu();
+  $('pauseBtn').click();
+  renderDeskHead();
 });
 // Tempo-Knopf gedrückt halten: Leiste klappt nach unten auf, mit dem Finger nach unten wischen,
 // beim Loslassen gilt die gewählte Stufe (kurze Vibration je Stufe)
@@ -2225,15 +2236,38 @@ $('openCasesBtn').addEventListener('click', () => {
   $('resultScreen').classList.add('hidden');
   openDecisions();
 });
+// ☰ Menü: Optionen (Ton, Vibration, 1× bei Vorfällen), Spiel speichern, zurück zur Startseite
+let optWasRunning = false;
 $('menuBtn').addEventListener('click', () => {
   if (!race || race.phase === 'pre') return;
+  optWasRunning = !paused;
   paused = true;
   updatePauseBtn();
-  if (confirm('Aktuelles Rennen abbrechen und ein neues Rennen vorbereiten?')) {
-    clearRaceState();
-    savedRace = null;
-    newRace();
-  }
+  $('optSaved').textContent = '';
+  $('optionsScreen').classList.remove('hidden');
+});
+function closeOptions(resume = true) {
+  $('optionsScreen').classList.add('hidden');
+  if (resume && optWasRunning) { paused = false; updatePauseBtn(); }
+  optWasRunning = false;
+}
+$('optCloseBtn').addEventListener('click', () => closeOptions());
+$('optSaveBtn').addEventListener('click', () => {
+  autosave();
+  if (recorder) persistReplay();
+  const t = new Date();
+  $('optSaved').textContent = `✓ Gespeichert um ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+});
+$('optHomeBtn').addEventListener('click', () => {
+  // Rennen sichern und zur Startseite – dort kann es fortgesetzt werden
+  autosave();
+  if (recorder) persistReplay();
+  closeOptions(false);
+  const keep = race;
+  recorder = null;
+  newRace();
+  savedRace = keep;
+  renderResume();
 });
 $('modeSingle').addEventListener('click', () => setMode('single'));
 $('modeSeason').addEventListener('click', () => setMode('season'));

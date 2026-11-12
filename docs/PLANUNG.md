@@ -768,3 +768,9 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 - Sobald die Formationsrunde läuft, stehen DELAY START | EXTRA FORMATION LAP | START BEHIND SC bereit. Extra-Runde und Start hinter dem SC werden vorgemerkt und ausgeführt, sobald alle in der Startaufstellung stehen.
 - Autos fahren auf der Formationsrunde Zickzack (Reifen aufwärmen), nicht kurz vor der Startbox und nicht beim Aufholen nach einem Dreher.
 - RC Desk oben links während der Formationsrunde nur „FORMATION“.
+
+### Tempo-Knopf = Pause, Menü ☰ (v64)
+- Tempo-Knopf: Antippen = Pause/Weiter, Gedrückthalten = Tempo-Leiste. Laufend: Tempo, grün umrandet; pausiert: ❚❚, rot umrandet. Das alte Tempo-Menü entfällt.
+- ☰ (TV): Fenster mit Ton, Vibration, „bei Vorfällen auf 1×“, „Spiel speichern“, „Zurück zur Startseite“ (Rennen bleibt gespeichert und kann fortgesetzt werden) und „Weiter“. Öffnen pausiert das Spiel.
+- Zickzack in der Formationsrunde nur auf Geraden und kurz vor der Startaufstellung.
+- TV-Knopf: Text zentriert.
