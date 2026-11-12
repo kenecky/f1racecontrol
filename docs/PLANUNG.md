@@ -782,3 +782,7 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 ### Intro, gleich breite Knöpfe (v66)
 - Intro vor dem Rennen (zunächst nur Australien, weitere nach Freigabe in INTRO_TRACKS in js/ui/intro.js): Übersicht → Zoom auf Start/Ziel → Flug über die Gerade → 180°-Drehung hoch über der Strecke mit Eckdaten → Ende mit Übersicht der ganzen Strecke und „LIGHTS OUT IN KÜRZE“ (17,2 s). Antippen überspringt. Kalenderzeile aus SEASON_2026, Runden/Distanz passend zur gewählten Renndauer.
 - LOG / DOCS / RC DESK oben: feste Breite, nichts springt beim Wechseln.
+
+### Intro-Übergang, Lautstärken (v67)
+- Intro beginnt genau mit dem Streckenbild der Startseite (gleiche Lage, Größe und Stil); die übrige Startseite blendet aus, dann zoomt die Kamera fließend hinunter auf die Start-Ziel-Gerade.
+- SC-Motor deutlich lauter, Startampel-Töne leiser und weicher.

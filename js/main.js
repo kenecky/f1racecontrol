@@ -521,6 +521,7 @@ function drawTrackPreview(cv, tr) {
   ctx.strokeStyle = '#f1f4f8'; ctx.lineWidth = 2.6; ctx.stroke();
   const x0 = ox + tr.xs[0] * k, y0 = oy + tr.ys[0] * k;
   ctx.fillStyle = '#ef4444'; ctx.fillRect(x0 - 4, y0 - 4, 8, 8);
+  cv._map = { ox, oy, k };   // für den fließenden Übergang ins Intro
 }
 
 $('gpList').addEventListener('click', e => {
@@ -798,9 +799,16 @@ $('briefOkBtn').addEventListener('click', () => {
 // Intro vor dem Rennen (Strecken mit freigegebenem Intro): Antippen überspringt
 function playIntro(done) {
   const scr = $('introScreen'), cv = $('introCanvas');
+  const info = introInfo(race.track, race.laps, SEASON_2026, TEAMS);
+  // Fließender Übergang: das Intro beginnt genau mit dem Streckenbild der Startseite und zoomt hinein
+  const pv = $('trackPreview'), pr = pv.getBoundingClientRect();
+  if (pv._map && pr.width && !$('startScreen').classList.contains('hidden')) info.from = { left: pr.left, top: pr.top, ...pv._map };
   scr.classList.remove('hidden');
-  const intro = new Intro(cv, race.track, introInfo(race.track, race.laps, SEASON_2026, TEAMS));
+  scr.classList.remove('show');
+  const intro = new Intro(cv, race.track, info);
   intro.resize();
+  intro.renderAt(0);
+  requestAnimationFrame(() => scr.classList.add('show'));
   const t0 = performance.now();
   let over = false;
   const finish = () => {

@@ -121,8 +121,8 @@ export class Intro {
 
   // ---------- Kamera ----------
   // Ablauf (Sekunden):
-  //  0–1,4   Umriss der Strecke von oben (wie auf der Startseite)
-  //  1,4–3,4 Zoom hinunter hinter die Start-Ziel-Gerade
+  //  0–0,5   Umriss der Strecke von oben – genau wie auf der Startseite
+  //  0,5–3,4 fließender Zoom hinunter hinter die Start-Ziel-Gerade
   //  3,4–4,6 Neigen in die Helikopter-Perspektive
   //  4,6–9,6 Flug von hinten über die Gerade und die Ziellinie
   //  9,6–11  Aufsteigen
@@ -134,7 +134,10 @@ export class Intro {
     const a = this.smoothPt(-320, 60), b = this.smoothPt(40, 60);
     const head = Math.atan2(b.y - a.y, b.x - a.x);          // Richtung der Start-Ziel-Geraden
     const fit = Math.max(this.box.w / (W * 0.82), this.box.h / (H * 0.62)) * F;
-    const top = { x: this.box.cx, y: this.box.cy, z: fit, yaw: -Math.PI / 2, pitch: Math.PI / 2 };
+    let top = { x: this.box.cx, y: this.box.cy, z: fit, yaw: -Math.PI / 2, pitch: Math.PI / 2 };
+    // Start genau am Streckenbild der Startseite (gleiche Lage und Größe) – von dort wird hineingezoomt
+    const fr = this.info.from;
+    if (fr) top = { x: (W / 2 - fr.left - fr.ox) / fr.k, y: (H / 2 - fr.top - fr.oy) / fr.k, z: F / fr.k, yaw: -Math.PI / 2, pitch: Math.PI / 2 };
     const p0 = this.ptAt(-420);
     const low = { x: p0.x, y: p0.y, z: 260, yaw: head, pitch: Math.PI / 2 };
     const pitSide = this.tr.pit ? this.tr.pit.side || 1 : 1;
@@ -173,8 +176,8 @@ export class Intro {
     };
     const blend = (a, b, k) => ({ x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k), z: Math.exp(lerp(Math.log(a.z), Math.log(b.z), k)), yaw: lerpAng(a.yaw, b.yaw, k), pitch: lerp(a.pitch, b.pitch, k) });
     let c;
-    if (t < 1.4) c = top;
-    else if (t < 3.4) c = blend(top, low, ease(t, 1.4, 3.4));
+    if (t < 0.5) c = top;
+    else if (t < 3.4) c = blend(top, low, ease(t, 0.5, 3.4));
     else if (t < 4.6) c = blend(low, fly(0), ease(t, 3.4, 4.6));
     else if (t < 9.6) { const k = (t - 4.6) / 5; c = fly(k * (0.85 + 0.15 * k)); }
     else if (t < 11) c = blend(fly(1), orbit(0), ease(t, 9.6, 11));
@@ -319,7 +322,7 @@ export class Intro {
     // Übersicht am Anfang: leuchtender Umriss wie auf der Startseite, blendet aus
     const outline = 1 - ease(t, 0.9, 2.3);
     if (outline > 0) {
-      ctx.fillStyle = `rgba(6,9,13,${outline * 0.92})`;
+      ctx.fillStyle = `rgba(6,9,13,${Math.min(1, outline * 0.92 + (1 - ease(t, 0, 0.9)) * 0.08)})`;
       ctx.fillRect(0, 0, W, H);
       ctx.beginPath();
       let first = true;
@@ -327,12 +330,13 @@ export class Intro {
       ctx.closePath();
       ctx.lineJoin = 'round';
       ctx.globalAlpha = outline;
-      ctx.shadowColor = 'rgba(250,204,21,.45)'; ctx.shadowBlur = 18;
-      ctx.strokeStyle = '#3a4352'; ctx.lineWidth = 9; ctx.stroke();
+      // gleicher Stil wie das Streckenbild auf der Startseite
+      ctx.shadowColor = 'rgba(250,204,21,.35)'; ctx.shadowBlur = 14;
+      ctx.strokeStyle = '#3a4352'; ctx.lineWidth = 8; ctx.stroke();
       ctx.shadowBlur = 0;
-      ctx.strokeStyle = '#f1f4f8'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.strokeStyle = '#f1f4f8'; ctx.lineWidth = 2.6; ctx.stroke();
       const s = P(pts[0].x, pts[0].y);
-      if (s) { ctx.fillStyle = '#ef4444'; ctx.fillRect(s[0] - 5, s[1] - 5, 10, 10); }
+      if (s) { ctx.fillStyle = '#ef4444'; ctx.fillRect(s[0] - 4, s[1] - 4, 8, 8); }
       ctx.globalAlpha = 1;
     }
     this.drawCorners(ctx, P, t);

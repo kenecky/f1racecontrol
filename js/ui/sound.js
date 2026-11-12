@@ -121,11 +121,11 @@ export class Sound {
     if (!this.ctx) return;
     if (!this.scEngine) { if (level <= 0) return; this.buildScEngine(); }
     const t = this.ctx.currentTime, e = this.scEngine;
-    e.out.gain.setTargetAtTime(level * 0.22, t, 0.3);
+    e.out.gain.setTargetAtTime(level * 0.75, t, 0.3);   // tiefer Klang wirkt leiser – daher deutlich mehr Pegel
     const f = 45 + rpm * 95;   // tiefer als F1, aber gleichmäßiger Lauf
     for (const o of e.oscs) o.frequency.setTargetAtTime(f, t, 0.25);
     e.lfo.frequency.setTargetAtTime(6 + rpm * 14, t, 0.25);
-    e.filter.frequency.setTargetAtTime(220 + rpm * 700, t, 0.25);
+    e.filter.frequency.setTargetAtTime(320 + rpm * 1300, t, 0.25);
   }
 
   // level 0…1 (Lautstärke), rpm 0…1 (Drehzahl)
@@ -175,9 +175,9 @@ export class Sound {
   }
 
   // Ein rotes Licht geht an
-  light() { this.tone(660, 0, 0.16, { type: 'square', vol: 0.09 }); }
+  light() { this.tone(660, 0, 0.16, { type: 'sine', vol: 0.05 }); }   // Startampel: leiser, weicher
   // Lichter aus: Aufheulen der Motoren
-  lightsOut() { this.tone(990, 0, 0.12, { type: 'square', vol: 0.06 }); this.launchUntil = (this.ctx ? this.ctx.currentTime : 0) + 2.5; }
+  lightsOut() { this.tone(990, 0, 0.12, { type: 'sine', vol: 0.04 }); this.launchUntil = (this.ctx ? this.ctx.currentTime : 0) + 2.5; }
   // Funk: Knacken + kurzer Piepton
   radio() {
     this.noiseBurst(0, 0.12, { freq: 2200, q: 1.2, vol: 0.12 });
