@@ -1750,3 +1750,4 @@ body { background: #15181d; }
 .opt-actions { display: grid; gap: 8px; margin-top: 14px; }
 .opt-saved { min-height: 14px; font: 600 11px var(--mono); color: #86efac; text-align: center; }
 .tv-btn { display: inline-flex; align-items: center; justify-content: center; text-align: center; padding-left: 0; padding-right: 0; min-width: 44px; }
+#speedBtn, .speed-btn { display: inline-flex; align-items: center; justify-content: center; text-align: center; }

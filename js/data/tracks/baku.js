@@ -11,7 +11,7 @@ export default {
   laps: 51,
   baseLap: 103.6,
   pitLaneSpeed: 80,
-  pitLaneSide: 1,
+  pitLaneSide: -1,   // Box auf der Seite zur Stadt (von Hand korrigiert)
   street: true,
   rainChance: 0.1,
   generated: true,

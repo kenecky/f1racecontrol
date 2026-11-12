@@ -774,3 +774,7 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 - ☰ (TV): Fenster mit Ton, Vibration, „bei Vorfällen auf 1×“, „Spiel speichern“, „Zurück zur Startseite“ (Rennen bleibt gespeichert und kann fortgesetzt werden) und „Weiter“. Öffnen pausiert das Spiel.
 - Zickzack in der Formationsrunde nur auf Geraden und kurz vor der Startaufstellung.
 - TV-Knopf: Text zentriert.
+
+### Kleinigkeiten (v65)
+- Tempo-Knopf: Text zentriert.
+- Baku: Boxengasse auf der anderen Seite der Start-Ziel-Geraden.
