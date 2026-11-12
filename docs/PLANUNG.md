@@ -745,3 +745,7 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 - Flaggen: Sektor-Zoom stärker.
 - Fix: Sektor in FLAGS antippen hat die ganze Seite verschoben – danach fehlte in der TV-Ansicht die obere Leiste.
 - Fix: Tempo-Menü schließt bei Rennende.
+
+### Silverstone, Schimpfwörter (v60)
+- Silverstone: Start/Ziel, Startaufstellung und Boxengasse auf der Hamilton-Geraden zwischen Club und Abbey (seit 2011). Kurven ab Abbey neu nummeriert (T1 Abbey … T16 Club), Marshal- und Zeitsektoren neu aufgeteilt. Saves eines laufenden Silverstone-Rennens aus älteren Versionen passen nicht mehr.
+- Strafen für Schimpfwörter im Funk: kein Protest, kein Antrag auf Überprüfung, keine Revision; in der Anhörung keine neuen Beweise, nur die Aussage des Fahrers.

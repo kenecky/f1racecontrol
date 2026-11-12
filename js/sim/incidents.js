@@ -625,6 +625,8 @@ function startPileup(race, cars) {
 
 // Schilderungen der Fahrer und zusätzliche Daten, die erst bei der Anhörung vorliegen
 export function hearingEvidence(race, c) {
+  // Schimpfwörter im Funk: keine neuen Beweise möglich – nur die Aussage des Fahrers
+  if (c.type === 'language') return [ev('hearing', `Schilderung ${c.cars[0]}`, race.rng.pick(['„Das war im Eifer des Gefechts, tut mir leid.“', '„Ich war frustriert, das sollte nicht passieren.“', '„Das war nicht gegen jemanden gerichtet.“', '„Ich entschuldige mich bei allen, die das gehört haben.“', '„Das Adrenalin – mehr kann ich dazu nicht sagen.“']))];
   const r = race.rng;
   const t = c.truth;
   const out = [];

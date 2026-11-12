@@ -153,7 +153,7 @@ export function revertPenalty(race, base) {
 
 // Urteil nachträglich revidieren (einmal je Fall) – kostet Glaubwürdigkeit
 export function canRevise(race, c) {
-  return ['decided', 'nfa'].includes(c.status) && !c.revised && !['protest', 'tlLap'].includes(c.type)
+  return ['decided', 'nfa'].includes(c.status) && !c.revised && !['protest', 'tlLap', 'language'].includes(c.type)
     && !race.cases.some(x => x.type === 'protest' && x.base === c.id);
 }
 export function reviseCase(race, c) {
@@ -197,7 +197,7 @@ export function rollProtests(race) {
   const r = race.rng;
   let n = 0;
   for (const c of [...race.cases]) {
-    if (n >= 2 || !['decided', 'nfa'].includes(c.status) || c.type === 'protest' || c.type === 'tech' || !c.truth) continue;
+    if (n >= 2 || !['decided', 'nfa'].includes(c.status) || c.type === 'protest' || c.type === 'tech' || c.type === 'language' || !c.truth) continue;   // Schimpfwörter: kein Einspruch – was im Funk gesagt wurde, wurde gesagt
     const { verdict } = evaluateCase(race, c);
     const v = c.verdict || { carId: null };
     const t = c.truth;
