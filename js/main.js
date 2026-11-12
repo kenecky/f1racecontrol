@@ -1274,7 +1274,7 @@ function markDesk() {
 }
 function renderDeskHead() {
   if (!race) return;
-  const lbl = $('lapLabel').textContent.toUpperCase(), lap = race.preStart && lbl === 'START' ? 'START' : `${lbl === 'LAP' ? '' : lbl + ' '}${$('lap').textContent}`, clock = $('clock').textContent;
+  const lbl = $('lapLabel').textContent.toUpperCase(), lap = race.preStart && ['START', 'FORMATION'].includes(lbl) ? lbl : `${lbl === 'LAP' ? '' : lbl + ' '}${$('lap').textContent}`, clock = $('clock').textContent;
   for (const el of document.querySelectorAll('.lap-now')) el.textContent = lap;
   for (const el of document.querySelectorAll('.clock-now')) el.textContent = `${clock}${paused ? ' · PAUSE' : ''}`;
   const f = $('flag');

@@ -763,3 +763,8 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 - Entschiedene Fälle: neutraler Stempel „DECIDED“ (vorher „PENALTY“ auch ohne Strafe); unten „DOKUMENT SCHLIESSEN“.
 - Nach der Meldung der Inspektionsrunde und bei vollem Grid sofort 1×.
 - SC-Sound: gleichmäßiger Lauf, kaum noch Blubbern.
+
+### Formationsrunde: Entscheidungen früher, Zickzack (v63)
+- Sobald die Formationsrunde läuft, stehen DELAY START | EXTRA FORMATION LAP | START BEHIND SC bereit. Extra-Runde und Start hinter dem SC werden vorgemerkt und ausgeführt, sobald alle in der Startaufstellung stehen.
+- Autos fahren auf der Formationsrunde Zickzack (Reifen aufwärmen), nicht kurz vor der Startbox und nicht beim Aufholen nach einem Dreher.
+- RC Desk oben links während der Formationsrunde nur „FORMATION“.

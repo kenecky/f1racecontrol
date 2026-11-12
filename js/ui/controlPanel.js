@@ -116,6 +116,7 @@ export class ControlPanel {
       race.phase, race.lightsOn, kind === 'start' && Math.floor(((n && n.restart ? n.lightsTimer : race.lightsTimer) || 0) * 5), kind === 'start' && race.formation && race.cars.filter(c => c.fTarget !== undefined && c.fTarget - c.d <= 0.6).length, race.formation && race.formation.arrived, race.startIssue && race.startIssue.carId, race.startIssue && race.startIssue.released, race.laps,
       this.armed && this.armed.action, this.sel[kind],
       n && n.type === 'vsc' && n.phase === 'ending' && Math.ceil(n.endAt - race.time),
+      race.formation && race.formation.pending,
       race.inspection && [race.inspection.stage, race.inspection.report, race.sc && sectorIndexAt(race.track, race.sc.d)],
       race.svc && [!!race.svc.medical, race.svc.medical && race.svc.medical.phase, !!race.svc.sweeper, race.svc.cranes.map(c => c.sector), race.svc.pitClosed],
     ]);
@@ -322,8 +323,10 @@ export class ControlPanel {
           <button class="ctl-btn ctl-ghost" data-action="start-suspend">DELAY START</button>
           <button class="ctl-btn ctl-ghost" data-action="start-lights">START LIGHTS ANYWAY</button>`;
       } else if (ph === 'formation' && !(f && f.arrived)) {
-        html += `<button class="ctl-btn ctl-ghost" data-action="start-suspend">DELAY START</button>
-          <button class="ctl-btn ctl-ghost ctl-big" data-action="start-lights">START LIGHTS · ${grid.length - inBox} CARS STILL MOVING</button>`;
+        const pend = f && f.pending;
+        if (pend) html += `<div class="ctl-status warn">${pend === 'abort' ? 'EXTRA FORMATION LAP' : 'START BEHIND SC'} angeordnet – sobald alle in der Startaufstellung stehen</div>`;
+        html += `<button class="ctl-btn ctl-ghost ctl-third" data-action="start-suspend">DELAY START</button><button class="ctl-btn ctl-ghost ctl-third" data-action="start-abort" ${pend ? 'disabled' : ''}>EXTRA FORMATION LAP</button><button class="ctl-btn ctl-ghost ctl-third" data-action="start-sc" ${pend ? 'disabled' : ''}>START BEHIND SC</button>
+          <button class="ctl-btn ctl-ghost ctl-big" data-action="start-lights" ${pend ? 'disabled' : ''}>START LIGHTS · ${grid.length - inBox} CARS STILL MOVING</button>`;
       } else if (ph === 'grid' || ph === 'formation') {
         // „Startaufstellung komplett“ zeigt schon STARTBOX x/x – die drei Alternativen passen in eine Reihe
         html += `${rs ? '' : '<button class="ctl-btn ctl-ghost ctl-third" data-action="start-suspend">DELAY START</button><button class="ctl-btn ctl-ghost ctl-third" data-action="start-abort">EXTRA FORMATION LAP</button><button class="ctl-btn ctl-ghost ctl-third" data-action="start-sc">START BEHIND SC</button>'}

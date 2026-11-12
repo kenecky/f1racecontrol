@@ -280,6 +280,11 @@ function arriveOnGrid(race) {
   race.emit('info', race.phase === 'grid'
     ? 'Alle Autos stehen in der Startaufstellung – die Startampel kann eingeschaltet werden.'
     : 'Alle Autos stehen jetzt in der Startaufstellung.');
+  // Vorgemerkte Entscheidung der Rennleitung ausführen
+  const pending = f.pending;
+  f.pending = null;
+  if (pending === 'abort') abortStart(race);
+  else if (pending === 'sc') startFromGridBehindSC(race);
 }
 
 // Formationsrunde noch nicht beendet, aber das Rennen startet: Autos rollen von ihrer Position aus los
@@ -498,6 +503,13 @@ function stalledAtStart(race, car) {
 
 // Start abbrechen: Extra-Formationsrunde, Renndistanz −1 Runde
 export function abortStart(race) {
+  // Während der Formationsrunde: vormerken, ausgeführt wird es, sobald alle in der Startaufstellung stehen
+  if (race.phase === 'formation' && race.formation && !race.formation.arrived && !race.formation.restart) {
+    if (race.formation.pending) return false;
+    race.formation.pending = 'abort';
+    race.emit('rc', 'EXTRA-FORMATIONSRUNDE angeordnet – sobald das Feld in der Startaufstellung steht.');
+    return true;
+  }
   if ((race.phase !== 'grid' && race.phase !== 'lights') || !race.formation.arrived) return false;
   const issue = race.startIssue;
   race.startIssue = null;
@@ -640,6 +652,13 @@ export function resumeStart(race) {
 
 // Start hinter dem Safety Car (z. B. Starkregen oder Problem in der Startaufstellung)
 export function startFromGridBehindSC(race) {
+  // Während der Formationsrunde: vormerken, ausgeführt wird es, sobald alle in der Startaufstellung stehen
+  if (race.phase === 'formation' && race.formation && !race.formation.arrived && !race.formation.restart) {
+    if (race.formation.pending) return false;
+    race.formation.pending = 'sc';
+    race.emit('rc', 'START HINTER DEM SAFETY CAR angeordnet – sobald das Feld in der Startaufstellung steht.');
+    return true;
+  }
   if ((race.phase !== 'grid' && race.phase !== 'lights') || !race.formation.arrived) return false;
   const issue = race.startIssue;
   race.startIssue = null;
