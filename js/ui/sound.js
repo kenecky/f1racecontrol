@@ -80,6 +80,54 @@ export class Sound {
     this.engine = { out, filter, oscs };
   }
 
+  // ---------- Safety Car: Straßen-V8 (tiefes Blubbern statt hohem F1-Heulen) ----------
+  buildScEngine() {
+    const c = this.ctx;
+    const out = c.createGain();
+    out.gain.value = 0;
+    const filter = c.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 320;
+    filter.Q.value = 4;
+    filter.connect(out);
+    out.connect(this.master);
+    const oscs = [];
+    for (const [type, det, vol] of [['square', 0, 0.16], ['sawtooth', -8, 0.1], ['triangle', 1200, 0.08]]) {
+      const o = c.createOscillator();
+      o.type = type;
+      o.detune.value = det;
+      const g = c.createGain();
+      g.gain.value = vol;
+      o.connect(g).connect(filter);
+      o.start();
+      oscs.push(o);
+    }
+    // V8-Blubbern: Lautstärke pulsiert mit der Zündfolge
+    const lfo = c.createOscillator();
+    lfo.type = 'square';
+    lfo.frequency.value = 9;
+    const lfoG = c.createGain();
+    lfoG.gain.value = 0.35;
+    const trem = c.createGain();
+    trem.gain.value = 0.65;
+    lfo.connect(lfoG).connect(trem.gain);
+    lfo.start();
+    filter.disconnect();
+    filter.connect(trem).connect(out);
+    this.scEngine = { out, filter, oscs, lfo };
+  }
+
+  setScEngine(level, rpm) {
+    if (!this.ctx) return;
+    if (!this.scEngine) { if (level <= 0) return; this.buildScEngine(); }
+    const t = this.ctx.currentTime, e = this.scEngine;
+    e.out.gain.setTargetAtTime(level * 0.22, t, 0.3);
+    const f = 32 + rpm * 70;
+    for (const o of e.oscs) o.frequency.setTargetAtTime(f, t, 0.25);
+    e.lfo.frequency.setTargetAtTime(6 + rpm * 14, t, 0.25);
+    e.filter.frequency.setTargetAtTime(220 + rpm * 700, t, 0.25);
+  }
+
   // level 0…1 (Lautstärke), rpm 0…1 (Drehzahl)
   setEngine(level, rpm) {
     if (!this.engine) return;

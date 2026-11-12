@@ -749,3 +749,11 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 ### Silverstone, Schimpfwörter (v60)
 - Silverstone: Start/Ziel, Startaufstellung und Boxengasse auf der Hamilton-Geraden zwischen Club und Abbey (seit 2011). Kurven ab Abbey neu nummeriert (T1 Abbey … T16 Club), Marshal- und Zeitsektoren neu aufgeteilt. Saves eines laufenden Silverstone-Rennens aus älteren Versionen passen nicht mehr.
 - Strafen für Schimpfwörter im Funk: kein Protest, kein Antrag auf Überprüfung, keine Revision; in der Anhörung keine neuen Beweise, nur die Aussage des Fahrers.
+
+### Tempo-Bedienung, SC-Sound, Boxengassenstarts (v61)
+- Safety Car auf der Inspektionsrunde mit eigenem Motorsound (tiefer Straßen-V8 statt F1).
+- Jedes Rennen startet mit Tempo 1×; sind alle Autos in ihren Startboxen, wird automatisch auf 1× gestellt (nach Lights out wieder das vorherige Tempo).
+- Tempo-Knopf: bei offenem Menü gelb umrandet; gedrückt halten → Leiste klappt nach unten auf, nach unten wischen, loslassen übernimmt die Stufe (Vibration je Stufe).
+- RC Desk vor dem Start oben links nur „START“. Schritt „INSPECTION“ passt in den Rahmen.
+- Boxengassenstarts: Teams mit hoher Startplatzstrafe (≥ 10 Plätze) starten zu 60 % aus der Boxengasse; zusätzlich in ~22 % der Rennen ein (selten zwei) Auto wegen Änderungen unter Parc fermé.
+- Offen (Entscheidung Nutzer): Ablauf, wenn ein Auto in der Formationsrunde abfliegt (Regel: Platz bis zur ersten SC-Linie zurückholen, sonst Start aus der Boxengasse).

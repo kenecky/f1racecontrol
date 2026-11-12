@@ -1730,3 +1730,15 @@ body { background: #15181d; }
 .vsc-count { display: flex; flex-direction: column; align-items: center; gap: 2px; margin: 10px 0; padding: 10px; background: #06090d; border: 2px solid #14171c; border-radius: 6px; }
 .vsc-count span { font: 700 11px var(--mono); letter-spacing: .14em; color: #facc15; }
 .vsc-count b { font: 800 54px/1 var(--mono); color: #facc15; text-shadow: 0 0 18px rgba(250,204,21,.5); }
+/* v61: Tempo-Knopf – geöffnet umrandet, Halten = Leiste zum Wischen */
+#speedBtn.menu-open, .speed-btn.menu-open { color: #fff; border-color: #facc15 !important; box-shadow: 0 0 10px rgba(250,204,21,.45), 0 3px 0 #0c0e12; }
+#speedBtn, .speed-btn { touch-action: none; -webkit-touch-callout: none; }
+.speed-drop { position: fixed; z-index: 45; width: 88px; padding: 4px 0; background: #1b1f26; border: 2px solid #facc15; border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.6); transform-origin: top; animation: sdOpen .16s ease-out; }
+@keyframes sdOpen { from { transform: scaleY(.2); opacity: 0; } }
+.sd-step { position: relative; height: 44px; display: flex; align-items: center; gap: 10px; padding-left: 14px; font: 800 15px var(--mono); color: #8892a2; }
+.sd-step i { width: 10px; height: 10px; border-radius: 50%; background: #566072; }
+.sd-step.on { color: #15181d; background: #facc15; }
+.sd-step.on i { background: #15181d; }
+.desk .seq-step { letter-spacing: .02em; }
+.desk .seq-step:first-child { flex: 1.5; }

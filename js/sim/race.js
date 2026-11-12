@@ -125,11 +125,31 @@ export class Race {
     this.carryOver = [];       // Startplatzstrafen für das nächste Rennen
     // Start aus der Boxengasse (z. B. Parc-fermé-Verstoß) – keine normale Startplatzstrafe
     this.pitStartIds = Object.entries(gridPenalties).filter(([, p]) => p >= 99).map(([id]) => id);
+    const pitReason = {};
+    if (kind === 'race') {
+      // Hohe Startplatzstrafe: Teams starten oft lieber aus der Boxengasse (Setup ändern, Start-Trubel meiden)
+      gridPenalties = { ...gridPenalties };
+      for (const [id, p] of Object.entries(gridPenalties)) {
+        if (p >= 10 && p < 99 && this.rng.chance(0.6)) { this.pitStartIds.push(id); delete gridPenalties[id]; pitReason[id] = `nach seiner Startplatzstrafe (${p} Plätze) startet das Team lieber aus der Boxengasse`; }
+      }
+      // Ab und zu: Änderungen am Auto unter Parc-fermé-Bedingungen → Start aus der Boxengasse (auch mehrere)
+      const extra = this.rng.chance(0.22) ? (this.rng.chance(0.3) ? 2 : 1) : 0;
+      const REASONS = ['Änderungen am Setup unter Parc-fermé-Bedingungen', 'neue Teile an der Antriebseinheit über dem Kontingent', 'Getriebewechsel und Setup-Änderungen nach dem Qualifying', 'das Auto wurde nach einem Unfall im Qualifying neu aufgebaut'];
+      for (let k = 0; k < extra; k++) {
+        const pool = this.cars.filter(c => !this.pitStartIds.includes(c.id));
+        const c = pool[Math.floor(this.rng.next() * pool.length)];
+        if (!c) break;
+        this.pitStartIds.push(c.id);
+        delete gridPenalties[c.id];
+        pitReason[c.id] = this.rng.pick(REASONS);
+      }
+    }
+    this.gridPenalties = gridPenalties;
     if (this.pitStartIds.length) {
       this.gridPenalties = gridPenalties = Object.fromEntries(Object.entries(gridPenalties).map(([id, p]) => [id, p >= 99 ? p - 99 : p]).filter(([, p]) => p > 0));
     }
     this.setupGrid();
-    for (const id of this.pitStartIds) if (this.carById[id]) this.emit('rc', `${id} startet aus der Boxengasse.`, { cars: [id] });
+    for (const id of this.pitStartIds) if (this.carById[id]) this.emit('rc', `${id} startet aus der Boxengasse${pitReason[id] ? ` – ${pitReason[id]}` : ''}.`, { cars: [id] });
     for (const [id, places] of Object.entries(gridPenalties)) {
       if (this.carById[id]) this.emit('rc', `${id} startet mit einer Startplatzstrafe von ${places} Plätzen von Platz ${this.carById[id].gridPos}.`, { cars: [id] });
     }

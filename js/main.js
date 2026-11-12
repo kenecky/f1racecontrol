@@ -90,6 +90,9 @@ function updateSound(now) {
     if (sound.launchUntil && sound.ctx.currentTime < sound.launchUntil) { level = 1; rpm = 0.95; }
   }
   sound.setEngine(level, rpm);
+  // Safety Car auf der Inspektionsrunde: eigener, tieferer Motorsound
+  const isc = race.sc && race.sc.inspection && !paused && settings.sound !== false ? race.sc : null;
+  sound.setScEngine(isc ? (isc.inPit ? 0.35 : 0.7) : 0, isc ? Math.min(1, isc.v / 70) : 0);
   // Startampel
   const lo = race.lightsOn || 0;
   if (lo > snd.lights) sound.light();
@@ -797,6 +800,8 @@ function startRace() {
   renderResume();
   $('startScreen').classList.add('hidden');
   race.start('standing');
+  setSpeed(1);   // jedes Rennen beginnt mit Tempo 1×
+  gridWasFull = false;
   recorder = race.isSession ? null : new Recorder(race);
   if (!race.isSession) openControl('start');
   paused = false;
@@ -1033,8 +1038,17 @@ function timingOpts() {
   return { gapMode: settings.gapMode, selected: map.selected };
 }
 
+// Alle Autos in ihren Startboxen: Tempo für den Start automatisch auf 1× (nach Lights out wieder wie vorher)
+let gridWasFull = false;
+function checkGridFull() {
+  const f = race.formation;
+  const full = race.preStart && f && f.arrived;
+  if (full && !gridWasFull && settings.speed > 1) { speedBeforeLights = settings.speed; setSpeed(1); }
+  gridWasFull = Boolean(full);
+}
 function refreshUi() {
   ensureWide();
+  if (race) checkGridFull();
   updateStatus();
   $('pauseBtn').classList.toggle('blocked', Boolean(pauseBlocked()));
   updateAlert();
@@ -1254,7 +1268,7 @@ function markDesk() {
 }
 function renderDeskHead() {
   if (!race) return;
-  const lbl = $('lapLabel').textContent.toUpperCase(), lap = `${lbl === 'LAP' ? '' : lbl + ' '}${$('lap').textContent}`, clock = $('clock').textContent;
+  const lbl = $('lapLabel').textContent.toUpperCase(), lap = race.preStart && lbl === 'START' ? 'START' : `${lbl === 'LAP' ? '' : lbl + ' '}${$('lap').textContent}`, clock = $('clock').textContent;
   for (const el of document.querySelectorAll('.lap-now')) el.textContent = lap;
   for (const el of document.querySelectorAll('.clock-now')) el.textContent = `${clock}${paused ? ' · PAUSE' : ''}`;
   const f = $('flag');
@@ -1316,6 +1330,7 @@ function renderSpeedMenu() {
 function toggleSpeedMenu(show, anchor = $('speedBtn')) {
   const menu = $('speedMenu');
   const open = show ?? menu.classList.contains('hidden');
+  for (const b of [$('speedBtn'), ...document.querySelectorAll('.speed-btn')]) b.classList.toggle('menu-open', open && b === anchor);
   if (!open) { menu.classList.add('hidden'); return; }
   renderSpeedMenu();
   const r = anchor.getBoundingClientRect();
@@ -1822,6 +1837,58 @@ $('speedBtn').addEventListener('click', e => {
   e.stopPropagation();
   toggleSpeedMenu();
 });
+// Tempo-Knopf gedrückt halten: Leiste klappt nach unten auf, mit dem Finger nach unten wischen,
+// beim Loslassen gilt die gewählte Stufe (kurze Vibration je Stufe)
+(() => {
+  const drop = $('speedDrop');
+  drop.innerHTML = SPEEDS.map((v, i) => `<div class="sd-step" data-i="${i}"><i></i><span>${v}×</span></div>`).join('');
+  let hold = null;
+  const STEP_H = 44;
+  const mark = i => { for (const el of drop.children) el.classList.toggle('on', Number(el.dataset.i) === i); };
+  const btns = [$('speedBtn'), ...document.querySelectorAll('.speed-btn')];
+  for (const b of btns) {
+    b.addEventListener('pointerdown', e => {
+      if (e.button !== undefined && e.button > 0) return;
+      const timer = setTimeout(() => {
+        if (!hold) return;
+        hold.active = true;
+        toggleSpeedMenu(false);
+        const r = b.getBoundingClientRect();
+        drop.style.top = `${r.bottom + 6}px`;
+        drop.style.left = `${Math.max(8, Math.min(window.innerWidth - 96, r.left + r.width / 2 - 44))}px`;
+        drop.classList.remove('hidden');
+        hold.top = r.bottom + 6;
+        hold.idx = Math.max(0, SPEEDS.indexOf(settings.speed));
+        mark(hold.idx);
+        b.classList.add('menu-open');
+        vibrate(20);
+      }, 350);
+      hold = { b, timer, active: false };
+      try { b.setPointerCapture(e.pointerId); } catch { /* egal */ }
+    });
+    b.addEventListener('pointermove', e => {
+      if (!hold || !hold.active || hold.b !== b) return;
+      const i = Math.max(0, Math.min(SPEEDS.length - 1, Math.floor((e.clientY - hold.top) / STEP_H)));
+      if (i !== hold.idx) { hold.idx = i; mark(i); vibrate(12); }
+    });
+    const end = () => {
+      if (!hold || hold.b !== b) return;
+      clearTimeout(hold.timer);
+      if (hold.active) {
+        setSpeed(SPEEDS[hold.idx]);
+        drop.classList.add('hidden');
+        b.classList.remove('menu-open');
+        b.dataset.skipClick = '1';   // der folgende Klick öffnet nicht das Menü
+        renderDeskHead();
+      }
+      hold = null;
+    };
+    b.addEventListener('pointerup', end);
+    b.addEventListener('pointercancel', end);
+    b.addEventListener('click', e => { if (b.dataset.skipClick) { delete b.dataset.skipClick; e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+    b.addEventListener('contextmenu', e => e.preventDefault());
+  }
+})();
 $('speedRange').addEventListener('input', e => {
   const v = SPEEDS[Number(e.target.value)];
   if (v !== settings.speed) vibrate(12);   // kurze Bestätigung je Stufe
