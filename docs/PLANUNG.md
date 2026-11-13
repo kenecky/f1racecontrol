@@ -804,3 +804,5 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 - Monaco: Start/Ziel und Startaufstellung auf dem Boulevard Albert 1er zwischen Antony Noghès und Sainte Dévote (vorher zwischen Casino und Mirabeau); Kurven ab Sainte Dévote neu nummeriert, Boxengasse Rascasse → nach Sainte Dévote (tools/move_start.mjs).
 - Kartendaten: Gebäude über der Strecke (Brücken, Tribünen-Überbauten, Tunnel) werden weggelassen; größerer Ausschnitt (1,5 km), Randverlängerung ohne Streifen.
 - China/Monaco: Kamera fliegt genau über der Start-Ziel-Geraden.
+
+- Intro: lange Grand-Prix-Namen (z. B. Barcelona-Katalonien) werden in der Einblendung automatisch kleiner gesetzt (v71).

@@ -747,8 +747,13 @@ export class Intro {
       ctx.fillStyle = '#e10600'; ctx.fillRect(x, y, 6, 64);
       ctx.font = mono('600 10px'); ctx.fillStyle = '#facc15'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
       ctx.fillText((info.kicker || `FORMEL 1 · ${new Date().getFullYear()}`).toUpperCase(), x + 18, y + 18);
-      ctx.font = mono('800 18px'); ctx.fillStyle = '#fff';
-      ctx.fillText(def.grandPrix.toUpperCase(), x + 18, y + 40);
+      // Schrift bei langen Namen verkleinern, damit nichts abgeschnitten wird
+      const gp = def.grandPrix.toUpperCase(), maxW = W - 28 - 30;
+      let fs = 18;
+      ctx.font = mono(`800 ${fs}px`);
+      while (fs > 11 && ctx.measureText(gp).width > maxW) { fs -= 0.5; ctx.font = mono(`800 ${fs}px`); }
+      ctx.fillStyle = '#fff';
+      ctx.fillText(gp, x + 18, y + 40);
       ctx.font = '500 12px system-ui, sans-serif'; ctx.fillStyle = '#c3cad6';
       ctx.fillText(`${def.name} · ${def.country}`, x + 18, y + 57);
       ctx.globalAlpha = 1;
