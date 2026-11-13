@@ -5,8 +5,10 @@ import { pointAt } from '../sim/trackModel.js';
 
 const HALF_W = 7;                  // halbe Streckenbreite in Metern
 export const INTRO_DUR = 17.2;     // Sekunden
-// Strecken mit freigegebenem Intro (werden nacheinander ergänzt)
-export const INTRO_TRACKS = new Set(['albertpark', 'suzuka', 'bahrain', 'baku']);
+// Strecken mit Intro (alle 24 freigegeben)
+export const INTRO_TRACKS = new Set(['albertpark', 'shanghai', 'suzuka', 'bahrain', 'jeddah', 'miami', 'montreal', 'monaco',
+  'barcelona', 'redbullring', 'silverstone', 'spa', 'hungaroring', 'zandvoort', 'monza', 'madring', 'baku', 'singapore',
+  'cota', 'mexico', 'interlagos', 'lasvegas', 'lusail', 'yasmarina']);
 
 // Einblendungen fürs Intro: Eckdaten-Kacheln, Kalender-Zeile, Abschluss
 export function introInfo(track, laps, season, teams) {

@@ -806,3 +806,6 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 - China/Monaco: Kamera fliegt genau über der Start-Ziel-Geraden.
 
 - Intro: lange Grand-Prix-Namen (z. B. Barcelona-Katalonien) werden in der Einblendung automatisch kleiner gesetzt (v71).
+
+### Alle Intros freigegeben (v72)
+- Intros für alle 24 Strecken im Spiel aktiv (INTRO_TRACKS in js/ui/intro.js).
