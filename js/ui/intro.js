@@ -53,6 +53,8 @@ const BIOME = {
   barcelona: 'dry', cota: 'dry', madring: 'dry', mexico: 'dry',
   monaco: 'urban', singapore: 'urban', baku: 'urban',
 };
+// Wahrzeichen (Streckenkoordinaten): Gebäude dort bekommen eine eigene Farbe
+const LANDMARKS = { baku: [{ x: -300, y: 310, r: 12, wall: [200, 172, 126], roof: [178, 150, 108] }] };   // Jungfrauenturm
 const PALMS = new Set(['miami', 'singapore', 'yasmarina', 'jeddah', 'bahrain', 'lusail', 'lasvegas', 'monaco']);
 const WATER = [46, 98, 146];
 const HAZE_C = [176, 196, 210];   // Dunst in der Ferne (wie in renderAt)
@@ -178,10 +180,18 @@ export class Intro {
     // Läufe gleicher Klasse (ohne Standardboden), fein (1 Zelle) und grob (3×3, für hohe Kameras)
     const mk = (k, out) => {
       const W = Math.ceil(sc.w / k), H = Math.ceil(sc.h / k), CELL = sc.cell * k;
+      // gleiche Läufe in aufeinanderfolgenden Zeilen zu Rechtecken zusammenfassen (weniger Flächen zum Zeichnen)
+      let open = new Map();
       for (let by = 0; by < H; by++) {
         let cur = -1, start = 0;
+        const next = new Map();
         const flush = bx => {
-          if (cur > 0) for (let s0 = start; s0 < bx; s0 += 8) out.push({ c: cur, x0: sc.x0 + s0 * CELL, x1: sc.x0 + Math.min(bx, s0 + 8) * CELL, y0: sc.y0 + by * CELL, y1: sc.y0 + (by + 1) * CELL });
+          if (cur > 0) for (let s0 = start; s0 < bx; s0 += 8) {
+            const x0 = sc.x0 + s0 * CELL, x1 = sc.x0 + Math.min(bx, s0 + 8) * CELL, key = `${cur},${x0},${x1}`;
+            const prev = open.get(key);
+            if (prev && prev.y1 - prev.y0 < CELL * 8) { prev.y1 = sc.y0 + (by + 1) * CELL; next.set(key, prev); }
+            else { const r = { c: cur, x0, x1, y0: sc.y0 + by * CELL, y1: sc.y0 + (by + 1) * CELL }; out.push(r); next.set(key, r); }
+          }
         };
         for (let bx = 0; bx < W; bx++) {
           let v;
@@ -194,9 +204,36 @@ export class Intro {
           if (v !== cur) { flush(bx); cur = v; start = bx; }
         }
         flush(W);
+        open = next;
       }
     };
     mk(1, this.runs[0]); mk(3, this.runs[1]);
+    // Außerhalb des Kartenausschnitts: jede Randfläche 4 km nach außen verlängern (Meer bleibt Meer, Stadt bleibt Stadt)
+    {
+      const C = sc.cell, X0 = sc.x0, Y0 = sc.y0, X1 = sc.x0 + sc.w * C, Y1 = sc.y0 + sc.h * C, EXT = 4000;
+      const edge = (n, at, quad) => {
+        let cur = at(0), st = 0;
+        for (let i = 1; i <= n; i++) {
+          const v = i < n ? at(i) : -1;
+          if (v !== cur) { const q = quad(st, i); for (const r of [this.runs[0], this.runs[1]]) r.push({ c: cur, ...q }); cur = v; st = i; }
+        }
+      };
+      edge(sc.w, x => cls[x], (a, b) => ({ x0: X0 + a * C, x1: X0 + b * C, y0: Y0 - EXT, y1: Y0 }));
+      edge(sc.w, x => cls[(sc.h - 1) * sc.w + x], (a, b) => ({ x0: X0 + a * C, x1: X0 + b * C, y0: Y1, y1: Y1 + EXT }));
+      edge(sc.h, y => cls[y * sc.w], (a, b) => ({ x0: X0 - EXT, x1: X0, y0: Y0 + a * C, y1: Y0 + b * C }));
+      edge(sc.h, y => cls[y * sc.w + sc.w - 1], (a, b) => ({ x0: X1, x1: X1 + EXT, y0: Y0 + a * C, y1: Y0 + b * C }));
+      const corner = (c, x0, y0, x1, y1) => { for (const r of this.runs) r.push({ c, x0, y0, x1, y1 }); };
+      corner(cls[0], X0 - EXT, Y0 - EXT, X0, Y0);
+      corner(cls[sc.w - 1], X1, Y0 - EXT, X1 + EXT, Y0);
+      corner(cls[(sc.h - 1) * sc.w], X0 - EXT, Y1, X0, Y1 + EXT);
+      corner(cls[sc.h * sc.w - 1], X1, Y1, X1 + EXT, Y1 + EXT);
+      // Bodenfarbe für den Horizont: häufigste Randklasse
+      const cnt = new Array(8).fill(0);
+      for (let x = 0; x < sc.w; x++) { cnt[cls[x]]++; cnt[cls[(sc.h - 1) * sc.w + x]]++; }
+      for (let y = 0; y < sc.h; y++) { cnt[cls[y * sc.w]]++; cnt[cls[y * sc.w + sc.w - 1]]++; }
+      let dom = 0; for (let c = 1; c < 8; c++) if (cnt[c] > cnt[dom]) dom = c;
+      this.outside = classColor(dom, this.env);
+    }
     // Gebäude: Grundriss + Höhe, Umlaufsinn für Außenseiten
     for (const b of sc.b || []) {
       const pts = [];
@@ -205,7 +242,8 @@ export class Intro {
       for (let i = 0; i < pts.length; i++) { const [ax, ay] = pts[i], [bx, by] = pts[(i + 1) % pts.length]; A += ax * by - bx * ay; cx += ax; cy += ay; }
       cx /= pts.length; cy /= pts.length;
       if (nearTrack(cx, cy) && b[0] < 20) continue;   // kleine Bauten direkt an der Strecke stören die Kamerafahrt
-      this.buildings.push({ h: b[0], pts, A, cx, cy });
+      const lm = (LANDMARKS[this.tr.def.id] || []).find(m => Math.hypot(m.x - cx, m.y - cy) < m.r);
+      this.buildings.push({ h: b[0], pts, A, cx, cy, lm });
     }
     for (const w of sc.walls || []) {
       const pts = [];
@@ -318,7 +356,7 @@ export class Intro {
   // ---------- Zeichnen ----------
   resize() {
     const r = this.cv.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, this.info.maxDpr || 1.5);   // begrenzt: flüssiger auf dem Handy
     this.W = r.width; this.H = r.height; this.dpr = dpr;
     this.cv.width = Math.round(r.width * dpr); this.cv.height = Math.round(r.height * dpr);
   }
@@ -348,15 +386,15 @@ export class Intro {
 
     // Himmel und Boden
     const horizon = oy - F * Math.tan(cam.pitch);
-    const env = this.env;
-    ctx.fillStyle = rgb(env.ground);
+    const env = this.env, groundC = this.outside || env.ground;
+    ctx.fillStyle = rgb(groundC);
     ctx.fillRect(0, 0, W, H);
     if (horizon > -40) {
       const g = ctx.createLinearGradient(0, horizon - 220, 0, horizon);
       g.addColorStop(0, rgb([92, 140, 196])); g.addColorStop(1, rgb(SKY));
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, Math.max(0, horizon));
       const g2 = ctx.createLinearGradient(0, horizon, 0, horizon + 160);
-      g2.addColorStop(0, rgb(HAZE)); g2.addColorStop(1, `rgba(${env.ground[0]},${env.ground[1]},${env.ground[2]},0)`);
+      g2.addColorStop(0, rgb(HAZE)); g2.addColorStop(1, `rgba(${groundC[0]},${groundC[1]},${groundC[2]},0)`);
       ctx.fillStyle = g2; ctx.fillRect(0, horizon, W, 160);
     }
     // leichte Rasenstreifen um die Strecke (Mähmuster) – nur nah
@@ -383,12 +421,12 @@ export class Intro {
     {
       const runs = this.runs ? this.runs[cam.z > 380 ? 1 : 0] : [];
       for (const rn of runs) {
-        const A = P(rn.x0, rn.y0), B = P(rn.x1, rn.y0), C = P(rn.x1, rn.y1), D = P(rn.x0, rn.y1);
+        const A = P(rn.x0 - 1, rn.y0 - 1), B = P(rn.x1 + 1, rn.y0 - 1), C = P(rn.x1 + 1, rn.y1 + 1), D = P(rn.x0 - 1, rn.y1 + 1);
         if (!A || !B || !C || !D) continue;
         if (Math.max(A[0], B[0], C[0], D[0]) < -4 || Math.min(A[0], B[0], C[0], D[0]) > W + 4 || Math.max(A[1], B[1], C[1], D[1]) < -4 || Math.min(A[1], B[1], C[1], D[1]) > H + 4) continue;
         const col = mix(classColor(rn.c, env), HAZE, fogK((A[2] + C[2]) / 2));
-        ctx.fillStyle = rgb(col); ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.lineTo(C[0], C[1]); ctx.lineTo(D[0], D[1]); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = rgb(col);
+        ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.lineTo(C[0], C[1]); ctx.lineTo(D[0], D[1]); ctx.closePath(); ctx.fill();
       }
     }
     // Streifen entlang der Strecke (Rasen, in der Wüste Sand, in der Stadt Gehweg)
@@ -457,7 +495,10 @@ export class Intro {
       if (!c) continue;
       objs.push({ dep: c[2], draw: () => this.drawBlock(ctx, P, bl, cam, fogK(c[2])) });
     }
+    const maxB = cam.z > 380 ? 450 : cam.z > 200 ? 1000 : Infinity;
+    let nb = 0;
     for (const bd of this.buildings || []) {
+      if (nb++ >= maxB && !bd.lm) continue;
       const c = P(bd.cx, bd.cy, bd.h / 2);
       if (!c || c[0] < -200 || c[0] > W + 200 || c[1] < -300 || c[1] > H + 200) continue;
       objs.push({ dep: c[2], draw: () => this.drawBuilding(ctx, P, bd, cam, fogK(c[2])) });
@@ -508,6 +549,12 @@ export class Intro {
     if (!base || !top) return;
     const rad = this.F_r(tr.r, top[2]);
     if (rad < 0.6) return;
+    if (rad < 3) {
+      // weit weg: nur ein Farbtupfer (schnell)
+      ctx.fillStyle = rgb(mix(tr.palm ? [62, 128, 52] : tr.c < 0.5 ? [52, 110, 48] : [72, 128, 56], [176, 196, 210], fog));
+      ctx.beginPath(); ctx.arc(top[0], top[1], rad, 0, Math.PI * 2); ctx.fill();
+      return;
+    }
     if (tr.palm) {
       // Palme: schlanker Stamm, Wedel sternförmig
       ctx.strokeStyle = rgb(mix([120, 96, 64], [176, 196, 210], fog)); ctx.lineWidth = Math.max(1, rad * 0.18);
@@ -543,9 +590,15 @@ export class Intro {
     const base = [], top = [];
     for (const [x, y] of bd.pts) { const a = P(x, y, 0), b = P(x, y, bd.h); if (!a || !b) return; base.push(a); top.push(b); }
     const span = Math.abs(top[0][0] - base[0][0]) + Math.abs(top[0][1] - base[0][1]);
+    if (span < 2.5) {
+      // von weit oben: nur das Dach (schnell)
+      ctx.beginPath(); ctx.moveTo(top[0][0], top[0][1]); for (let i = 1; i < top.length; i++) ctx.lineTo(top[i][0], top[i][1]); ctx.closePath();
+      ctx.fillStyle = rgb(mix(bd.h > 28 ? [170, 180, 192] : [200, 190, 176], HAZE_C, fog)); ctx.fill();
+      return;
+    }
     const tall = bd.h > 28;
-    const wall = tall ? [184, 194, 206] : bd.h > 14 ? [214, 206, 192] : [226, 216, 198];
-    const roof = tall ? [150, 160, 172] : [188, 178, 164];
+    const wall = bd.lm ? bd.lm.wall : tall ? [184, 194, 206] : bd.h > 14 ? [214, 206, 192] : [226, 216, 198];
+    const roof = bd.lm ? bd.lm.roof : tall ? [150, 160, 172] : [188, 178, 164];
     const n = bd.pts.length, sgn = bd.A > 0 ? 1 : -1;
     for (let i = 0; i < n; i++) {
       const [ax, ay] = bd.pts[i], [bx, by] = bd.pts[(i + 1) % n];
@@ -557,7 +610,7 @@ export class Intro {
       ctx.lineTo(top[(i + 1) % n][0], top[(i + 1) % n][1]); ctx.lineTo(top[i][0], top[i][1]); ctx.closePath();
       ctx.fillStyle = rgb(mix(wall.map(v => v * lit), HAZE_C, fog)); ctx.fill();
       // Fensterbänder bei höheren Häusern
-      if (bd.h > 12 && span > 14) {
+      if (bd.h > 12 && span > 14 && span / Math.max(1, bd.h / 3.4) > 3) {
         ctx.strokeStyle = `rgba(60,80,104,${0.35 * (1 - fog)})`; ctx.lineWidth = 1;
         const floors = Math.min(24, Math.floor(bd.h / 3.4));
         for (let f = 1; f < floors; f++) {

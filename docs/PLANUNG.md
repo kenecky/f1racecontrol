@@ -792,3 +792,9 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 - Klima je Strecke (Wüste, trocken, Stadt, grün) mit passender Bodenfarbe und Baumart (Palmen).
 - tools/gen_scenery.py erzeugt aus OpenStreetMap (Overpass-API) js/data/scenery/<id>.js: Bodenraster (Wasser/Meer, Wald, Sand, Stadt, Park, Parkplatz), Gebäude mit Höhe, Mauern/Molen. Das Intro lädt die Datei nach und zeichnet Flächen, Gebäude, Yachten. Kartendaten © OpenStreetMap-Mitwirkende (ODbL).
 - Kartendaten holen: Die Cloud-Umgebung erreicht die Overpass-Server nicht. Deshalb gibt es tools/scenery.html (über GitHub Pages im Browser öffnen → Start → scenery.json herunterladen). tools/split_scenery.py verteilt die Datei auf js/data/scenery/<id>.js.
+
+### Intros mit echter Umgebung (v69)
+- Kartendaten jetzt aus OpenStreetMap-Vektorkacheln von OpenFreeMap (tools/gen_scenery_tiles.mjs, ohne Zusatzpakete): Wasser inkl. Meer, Wald, Sand, Stadt (auch aus Gebäudedichte), Parks, Gebäude mit Höhe. Für alle 24 Strecken erzeugt (js/data/scenery, zusammen ~1,4 MB, wird erst beim Intro geladen). Overpass-Weg (tools/gen_scenery.py, tools/scenery.html) bleibt als Alternative.
+- Randflächen werden 4 km nach außen verlängert (keine harte Kante), Jungfrauenturm Baku in Steinfarbe, Yachten an Ufern.
+- Schneller: grobe Flächen und nur die wichtigsten Gebäude aus großer Höhe, ferne Bäume/Gebäude vereinfacht, Auflösung im Spiel max. 1,5-fach.
+- Noch offen: Altstadtmauer Baku (nicht in den Kacheln enthalten).
