@@ -798,3 +798,9 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 - Randflächen werden 4 km nach außen verlängert (keine harte Kante), Jungfrauenturm Baku in Steinfarbe, Yachten an Ufern.
 - Schneller: grobe Flächen und nur die wichtigsten Gebäude aus großer Höhe, ferne Bäume/Gebäude vereinfacht, Auflösung im Spiel max. 1,5-fach.
 - Noch offen: Altstadtmauer Baku (nicht in den Kacheln enthalten).
+
+### Intros freigegeben, Monaco-Start, China (v70)
+- Intros im Spiel: Australien, Japan, Bahrain, Baku (INTRO_TRACKS).
+- Monaco: Start/Ziel und Startaufstellung auf dem Boulevard Albert 1er zwischen Antony Noghès und Sainte Dévote (vorher zwischen Casino und Mirabeau); Kurven ab Sainte Dévote neu nummeriert, Boxengasse Rascasse → nach Sainte Dévote (tools/move_start.mjs).
+- Kartendaten: Gebäude über der Strecke (Brücken, Tribünen-Überbauten, Tunnel) werden weggelassen; größerer Ausschnitt (1,5 km), Randverlängerung ohne Streifen.
+- China/Monaco: Kamera fliegt genau über der Start-Ziel-Geraden.

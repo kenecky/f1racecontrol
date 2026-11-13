@@ -6,7 +6,7 @@ import { pointAt } from '../sim/trackModel.js';
 const HALF_W = 7;                  // halbe Streckenbreite in Metern
 export const INTRO_DUR = 17.2;     // Sekunden
 // Strecken mit freigegebenem Intro (werden nacheinander ergänzt)
-export const INTRO_TRACKS = new Set(['albertpark']);
+export const INTRO_TRACKS = new Set(['albertpark', 'suzuka', 'bahrain', 'baku']);
 
 // Einblendungen fürs Intro: Eckdaten-Kacheln, Kalender-Zeile, Abschluss
 export function introInfo(track, laps, season, teams) {
@@ -55,6 +55,8 @@ const BIOME = {
 };
 // Wahrzeichen (Streckenkoordinaten): Gebäude dort bekommen eine eigene Farbe
 const LANDMARKS = { baku: [{ x: -300, y: 310, r: 12, wall: [200, 172, 126], roof: [178, 150, 108] }] };   // Jungfrauenturm
+// Seitlicher Versatz der Kamera beim Flug über die Start-Ziel-Gerade (m, zur Tribünenseite); 0 = genau über der Strecke
+const FLY_OFFSET = { shanghai: 0, monaco: 0 };
 const PALMS = new Set(['miami', 'singapore', 'yasmarina', 'jeddah', 'bahrain', 'lusail', 'lasvegas', 'monaco']);
 const WATER = [46, 98, 146];
 const HAZE_C = [176, 196, 210];   // Dunst in der Ferne (wie in renderAt)
@@ -211,11 +213,14 @@ export class Intro {
     // Außerhalb des Kartenausschnitts: jede Randfläche 4 km nach außen verlängern (Meer bleibt Meer, Stadt bleibt Stadt)
     {
       const C = sc.cell, X0 = sc.x0, Y0 = sc.y0, X1 = sc.x0 + sc.w * C, Y1 = sc.y0 + sc.h * C, EXT = 4000;
+      // je 12 Randzellen die häufigste Klasse (keine dünnen Streifen bis zum Horizont)
+      const SEG = 12;
       const edge = (n, at, quad) => {
-        let cur = at(0), st = 0;
-        for (let i = 1; i <= n; i++) {
-          const v = i < n ? at(i) : -1;
-          if (v !== cur) { const q = quad(st, i); for (const r of [this.runs[0], this.runs[1]]) r.push({ c: cur, ...q }); cur = v; st = i; }
+        let cur = -1, st = 0;
+        for (let i = 0; i <= n; i += SEG) {
+          let v = -1;
+          if (i < n) { const cnt = new Array(8).fill(0); for (let j = i; j < Math.min(n, i + SEG); j++) cnt[at(j)]++; v = 0; for (let c = 1; c < 8; c++) if (cnt[c] > cnt[v]) v = c; }
+          if (v !== cur) { if (cur >= 0) { const q = quad(st, Math.min(n, i)); for (const r of [this.runs[0], this.runs[1]]) r.push({ c: cur, ...q }); } cur = v; st = i; }
         }
       };
       edge(sc.w, x => cls[x], (a, b) => ({ x0: X0 + a * C, x1: X0 + b * C, y0: Y0 - EXT, y1: Y0 }));
@@ -311,7 +316,8 @@ export class Intro {
     const fly = k => {
       const d = lerp(-470, 90, k);
       const p = this.smoothPt(d, 50), q = this.smoothPt(d + 300, 60), n = this.ptAt(d);
-      const x = p.x - n.nx * pitSide * 28, y = p.y - n.ny * pitSide * 28, z = 58;
+      const off = FLY_OFFSET[this.tr.def.id] ?? 28;
+      const x = p.x - n.nx * pitSide * off, y = p.y - n.ny * pitSide * off, z = 58;
       const dx = q.x - x, dy = q.y - y;
       return { x, y, z, yaw: Math.atan2(dy, dx), pitch: Math.atan2(z, Math.hypot(dx, dy)) };
     };

@@ -16,6 +16,7 @@ import { fileURLToPath } from 'url';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { TRACKS } = await import(path.join(ROOT, 'js/data/tracks/index.js'));
+const { buildTrack } = await import(path.join(ROOT, 'js/sim/trackModel.js'));
 
 // Mittelpunkt der Projektion – identisch zu tools/gen_tracks.py
 const ORIGIN = {
@@ -28,7 +29,7 @@ const ORIGIN = {
   cota: [30.13521, -97.63474], mexico: [19.40272, -99.08972], interlagos: [-23.70094, -46.69803],
   lasvegas: [36.11650, -115.16576], lusail: [25.49177, 51.45430], yasmarina: [24.46935, 54.60559],
 };
-const Z = 14, MARGIN = 900, CELL = 20, BUILD_DIST = 520, MAX_BUILD = 1800;
+const Z = 14, MARGIN = 1500, CELL = 20, BUILD_DIST = 520, MAX_BUILD = 1800;
 
 // ---------- Kacheln holen ----------
 const cache = process.argv[2];
@@ -256,6 +257,22 @@ function build(id) {
   }
   const R = Math.ceil(BUILD_DIST / G);
   const distOk = (x, y) => { const gx = Math.floor(x / G), gy = Math.floor(y / G); for (let a = -R; a <= R; a++) for (let b = -R; b <= R; b++) if (near.has(`${gx + a},${gy + b}`)) return true; return false; };
+  // Gebäude, die über der Strecke liegen (Brücken, Tribünen-Überbauten, Tunnel-Hotel in Monaco): weglassen –
+  // das Intro kann keine Brücken zeichnen, als Block stünden sie mitten auf der Fahrbahn
+  const T = buildTrack(TRACKS[id]), TG = 10, tgrid = new Map();
+  for (let i = 0; i < T.N; i++) { const key = `${Math.floor(T.xs[i] / TG)},${Math.floor(T.ys[i] / TG)}`; if (!tgrid.has(key)) tgrid.set(key, []); tgrid.get(key).push([T.xs[i], T.ys[i]]); }
+  const overTrack = rg => {
+    let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+    for (const [x, y] of rg) { bx0 = Math.min(bx0, x); bx1 = Math.max(bx1, x); by0 = Math.min(by0, y); by1 = Math.max(by1, y); }
+    const inside = (px, py) => { let c = false; for (let i = 0, j = rg.length - 1; i < rg.length; j = i++) { const [xi, yi] = rg[i], [xj, yj] = rg[j]; if ((yi > py) !== (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) c = !c; } return c; };
+    for (let gx = Math.floor((bx0 - 10) / TG); gx <= Math.floor((bx1 + 10) / TG); gx++) for (let gy = Math.floor((by0 - 10) / TG); gy <= Math.floor((by1 + 10) / TG); gy++) {
+      for (const [px, py] of tgrid.get(`${gx},${gy}`) || []) {
+        if (inside(px, py)) return true;
+        for (const [x, y] of rg) if (Math.hypot(x - px, y - py) < 9) return true;
+      }
+    }
+    return false;
+  };
   const list = [];
   for (const { h, ring } of builds) {
     const rg = (ring.length > 1 && ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]) ? ring.slice(0, -1) : ring;
@@ -265,6 +282,7 @@ function build(id) {
     let A = 0; for (let i = 0; i < rg.length; i++) { const [ax, ay] = rg[i], [bx, by] = rg[(i + 1) % rg.length]; A += ax * by - bx * ay; }
     A = Math.abs(A) / 2;
     if (A < 25 || A > 60000) continue;
+    if (overTrack(rg)) continue;
     const hh = Math.max(3, Math.min(320, h || Math.min(14, 4 + Math.sqrt(A) * 0.25)));
     const sp = simplify(rg, 1.5);   // offener Ring (Anfang ≠ Ende), sonst entartet die Vereinfachung
     if (sp.length < 3) continue;
