@@ -29,6 +29,7 @@
     <li>Die Datei im Chat an Claude schicken.</li>
   </ol>
   <button id="go">Start</button>
+  <button id="retry" style="display:none;background:#fb923c">Fehlende Strecken erneut laden</button>
   <button id="dl">scenery.json herunterladen</button>
   <div id="log"></div>
   <p style="font-size:12px">Kartendaten © OpenStreetMap-Mitwirkende (ODbL).</p>
@@ -48,7 +49,7 @@ const ORIGIN = {
   lasvegas: [36.11650, -115.16576], lusail: [25.49177, 51.45430], yasmarina: [24.46935, 54.60559],
 };
 const ORDER = ['albertpark', 'shanghai', 'suzuka', 'bahrain', 'jeddah', 'miami', 'montreal', 'monaco', 'barcelona', 'redbullring', 'silverstone', 'spa', 'hungaroring', 'zandvoort', 'monza', 'madring', 'baku', 'singapore', 'cota', 'mexico', 'interlagos', 'lasvegas', 'lusail', 'yasmarina'];
-const SERVERS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
+const SERVERS = ['https://overpass-api.de/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
 const MARGIN = 900, CELL = 20, BUILD_DIST = 520, MAX_BUILD = 1800;
 
 const logEl = document.getElementById('log');
@@ -57,7 +58,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function query(s, w, n, e) {
   const b = `(${s.toFixed(6)},${w.toFixed(6)},${n.toFixed(6)},${e.toFixed(6)})`;
-  return `[out:json][timeout:180];
+  return `[out:json][timeout:120];
 (
   way["natural"~"^(water|wood|sand|beach|scrub|bare_rock|heath|grassland|wetland|desert|coastline)$"]${b};
   relation["natural"~"^(water|wood|sand|beach|wetland)$"]${b};
@@ -70,24 +71,33 @@ function query(s, w, n, e) {
   way["amenity"="parking"]${b};
   way["barrier"="city_wall"]${b};
   way["man_made"~"^(pier|breakwater)$"]${b};
-  way["building"]${b};
+);
+out geom;`;
+}
+// Gebäude nur in einem Schlauch entlang der Strecke (deutlich kleinere Abfrage)
+function queryBuildings(line) {
+  const pts = line.map(([la, lo]) => `${la.toFixed(5)},${lo.toFixed(5)}`).join(',');
+  return `[out:json][timeout:120];
+(
+  way["building"](around:${BUILD_DIST},${pts});
 );
 out geom;`;
 }
 
-async function fetchOSM(q) {
-  for (let round = 0; round < 3; round++) {
+async function fetchOSM(q, what) {
+  for (let round = 0; round < 4; round++) {
     for (const url of SERVERS) {
       try {
         const r = await fetch(url, { method: 'POST', body: new URLSearchParams({ data: q }) });
         if (r.ok) return await r.json();
-        log(`  ${new URL(url).host}: HTTP ${r.status}`, 'err');
-      } catch (e) { log(`  ${new URL(url).host}: ${e.message}`, 'err'); }
-      await sleep(4000);
+        log(`  ${what}: ${new URL(url).host} antwortet ${r.status} (überlastet) – nächster Versuch`, 'err');
+      } catch (e) { log(`  ${what}: ${new URL(url).host} nicht erreichbar – nächster Versuch`, 'err'); }
+      await sleep(3000);
     }
-    await sleep(15000 * (round + 1));
+    log(`  ${what}: kurze Pause, dann neuer Durchgang …`);
+    await sleep(20000 * (round + 1));
   }
-  throw new Error('Overpass nicht erreichbar');
+  throw new Error('kein Kartenserver hat geantwortet');
 }
 
 function classify(t) {
@@ -133,7 +143,18 @@ async function build(id) {
   const xs = tpts.map(p => p[0]), ys = tpts.map(p => p[1]);
   const x0 = Math.min(...xs) - MARGIN, x1 = Math.max(...xs) + MARGIN, y0 = Math.min(...ys) - MARGIN, y1 = Math.max(...ys) + MARGIN;
   const [lo0, la1] = inv(x0, y0), [lo1, la0] = inv(x1, y1);
-  const data = await fetchOSM(query(la0, lo0, la1, lo1));
+  const data = await fetchOSM(query(la0, lo0, la1, lo1), 'Flächen');
+  // Streckenverlauf als Linie (lat, lon) für die Gebäude-Abfrage, ca. alle 120 m ein Punkt
+  const line = [];
+  let acc = 0;
+  for (let i = 0; i <= tpts.length; i++) {
+    const p = tpts[i % tpts.length], q = tpts[(i + tpts.length - 1) % tpts.length];
+    acc += i ? Math.hypot(p[0] - q[0], p[1] - q[1]) : 999;
+    if (acc >= 120) { const [lo, la] = inv(p[0], p[1]); line.push([la, lo]); acc = 0; }
+  }
+  await sleep(1500);
+  const bdata = await fetchOSM(queryBuildings(line), 'Gebäude');
+  data.elements = (data.elements || []).concat(bdata.elements || []);
   const W = Math.ceil((x1 - x0) / CELL), H = Math.ceil((y1 - y0) / CELL);
   const px = ([x, y]) => [(x - x0) / CELL, (y - y0) / CELL];
   const geom = el => el.type === 'way' ? [(el.geometry || []).map(p => fwd(p.lon, p.lat))]
@@ -251,9 +272,8 @@ async function build(id) {
 }
 
 const result = {};
-document.getElementById('go').addEventListener('click', async e => {
-  e.target.disabled = true;
-  for (const id of ORDER) {
+async function runAll(ids) {
+  for (const id of ids) {
     log(`${id} …`);
     try {
       const t0 = performance.now();
@@ -263,9 +283,14 @@ document.getElementById('go').addEventListener('click', async e => {
     } catch (err) { log(`  ✗ ${err.message}`, 'err'); }
     await sleep(3000);   // Overpass schonen
   }
-  log(`Fertig: ${Object.keys(result).length} von ${ORDER.length} Strecken.`, 'ok');
+  const missing = ORDER.filter(id => !result[id]);
+  log(`Fertig: ${Object.keys(result).length} von ${ORDER.length} Strecken.${missing.length ? ` Es fehlen: ${missing.join(', ')}` : ''}`, missing.length ? 'err' : 'ok');
   document.getElementById('dl').style.display = 'inline-block';
-});
+  document.getElementById('retry').style.display = missing.length ? 'inline-block' : 'none';
+  document.getElementById('retry').disabled = false;
+}
+document.getElementById('go').addEventListener('click', e => { e.target.disabled = true; runAll(ORDER); });
+document.getElementById('retry').addEventListener('click', e => { e.target.disabled = true; runAll(ORDER.filter(id => !result[id])); });
 document.getElementById('dl').addEventListener('click', () => {
   const blob = new Blob([JSON.stringify(result)], { type: 'application/json' });
   const a = document.createElement('a');
