@@ -14,6 +14,13 @@
   button:disabled { opacity: .5; cursor: default; }
   #dl { background: #facc15; color: #15181d; display: none; margin-top: 12px; }
   ol { padding-left: 20px; }
+  .list { display: grid; gap: 6px; margin: 10px 0; }
+  .row { display: flex; align-items: center; gap: 8px; background: #1e232b; border: 1px solid #2a2f38; border-radius: 8px; padding: 8px 10px; }
+  .row b { flex: 1; min-width: 0; font-size: 14px; }
+  .row small { display: block; color: #8892a2; font-weight: 400; font-size: 11.5px; }
+  .row button { padding: 8px 12px; font-size: 13px; }
+  .row .file { background: #facc15; color: #15181d; }
+  .row.done { border-color: #22c55e; }
   #log { margin-top: 16px; font: 12px/1.5 ui-monospace, monospace; background: #06090d; border: 1px solid #2a2f38; border-radius: 6px; padding: 10px; white-space: pre-wrap; min-height: 120px; }
   .ok { color: #86efac; } .err { color: #fca5a5; }
 </style>
@@ -25,13 +32,11 @@
     (Overpass-API) und bereitet sie für die Intros auf. Das dauert pro Strecke etwa 10–60 Sekunden – wenn die Kartenserver ausgelastet sind,
     auch deutlich länger. Rote Zeilen sind dann normal: Die Seite versucht es selbst weiter, wichtig ist nur der grüne Haken je Strecke.</p>
   <ol>
-    <li>„Start“ drücken und die Seite offen lassen, bis alle Strecken fertig sind.</li>
-    <li>„scenery.json herunterladen“ drücken.</li>
-    <li>Die Datei im Chat an Claude schicken.</li>
+    <li>Bei einer Strecke auf „Laden“ drücken und warten, bis „Datei“ erscheint.</li>
+    <li>„Datei“ drücken – die Datei (z. B. scenery_monaco.json) landet in den Downloads.</li>
+    <li>Die Datei im Chat an Claude schicken. Dann die nächste Strecke.</li>
   </ol>
-  <button id="go">Start</button>
-  <button id="retry" style="display:none;background:#fb923c">Fehlende Strecken erneut laden</button>
-  <button id="dl">scenery.json herunterladen</button>
+  <div id="list" class="list"></div>
   <div id="log"></div>
   <p style="font-size:12px">Kartendaten © OpenStreetMap-Mitwirkende (ODbL).</p>
 </main>
@@ -55,7 +60,12 @@ const SERVERS = ['https://overpass-api.de/api/interpreter', 'https://lz4.overpas
 const MARGIN = 900, CELL = 20, BUILD_DIST = 520, MAX_BUILD = 1800;
 
 const logEl = document.getElementById('log');
-const log = (t, cls = '') => { const s = document.createElement('div'); s.className = cls; s.textContent = t; logEl.append(s); logEl.scrollTop = 1e9; };
+let curId = null;   // Strecke, die gerade lädt – ihr Status steht auch direkt in der Zeile
+const log = (t, cls = '') => {
+  const s = document.createElement('div'); s.className = cls; s.textContent = t; logEl.append(s); logEl.scrollTop = 1e9;
+  const sm = curId && document.querySelector(`.row[data-id="${curId}"] small`);
+  if (sm) { sm.textContent = t.trim(); sm.style.color = cls === 'err' ? '#fca5a5' : cls === 'ok' ? '#86efac' : ''; }
+};
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function query(s, w, n, e) {
@@ -87,10 +97,10 @@ async function fetchOSM(q, what) {
   for (let round = 0; round < 7; round++) {
     for (const url of SERVERS) {
       try {
-        const r = await fetch(url, { method: 'POST', body: new URLSearchParams({ data: q }) });
+        const r = await fetch(url, { method: 'POST', body: new URLSearchParams({ data: q }), signal: AbortSignal.timeout(110000) });
         if (r.ok) { const j = await r.json(); log(`  ${what} ✓ (${new URL(url).host})`, 'ok'); return j; }
         log(`  ${what}: ${new URL(url).host} antwortet ${r.status} (überlastet) – nächster Versuch`, 'err');
-      } catch (e) { log(`  ${what}: ${new URL(url).host} nicht erreichbar – nächster Versuch`, 'err'); }
+      } catch (e) { log(`  ${what}: ${new URL(url).host} ${e.name === 'TimeoutError' ? 'antwortet nicht (Zeitlimit)' : 'nicht erreichbar'} – nächster Versuch`, 'err'); }
       await sleep(3000);
     }
     log(`  ${what}: alle Server ausgelastet – Pause ${15 * (round + 1)} s, dann neuer Durchgang (${round + 2}/7) …`);
@@ -264,31 +274,46 @@ async function build(id) {
   return { cell: CELL, x0: Math.round(x0), y0: Math.round(y0), w: W, h: H, rows, b, walls: wOut };
 }
 
-const result = {};
-async function runAll(ids) {
-  for (const id of ids) {
-    log(`${id} …`);
-    try {
-      const t0 = performance.now();
-      result[id] = await build(id);
-      const s = result[id];
-      log(`  ✓ ${s.w}×${s.h} Zellen · ${s.b.length} Gebäude · ${s.walls.length} Mauern (${((performance.now() - t0) / 1000).toFixed(0)} s)`, 'ok');
-    } catch (err) { log(`  ✗ ${err.message}`, 'err'); }
-    await sleep(3000);   // Overpass schonen
-  }
-  const missing = ORDER.filter(id => !result[id]);
-  log(`Fertig: ${Object.keys(result).length} von ${ORDER.length} Strecken.${missing.length ? ` Es fehlen: ${missing.join(', ')}` : ''}`, missing.length ? 'err' : 'ok');
-  document.getElementById('dl').style.display = 'inline-block';
-  document.getElementById('retry').style.display = missing.length ? 'inline-block' : 'none';
-  document.getElementById('retry').disabled = false;
+// Eine Strecke nach der anderen – jede mit eigenem „Laden“ und eigener Datei
+const result = {}, failed = {};
+let busy = false;
+const listEl = document.getElementById('list');
+const sent = id => { try { return localStorage.getItem('scn.sent.' + id) === '1'; } catch { return false; } };
+function renderList() {
+  listEl.innerHTML = ORDER.map((id, i) => {
+    const def = TRACKS[id], st = result[id] ? 'geladen – jetzt „Datei“ drücken' : failed[id] ? 'hat nicht geklappt – später erneut laden' : sent(id) ? 'schon heruntergeladen' : '';
+    return `<div class="row${result[id] || sent(id) ? ' done' : ''}" data-id="${id}">
+      <b>${i + 1}. ${def.name}<small>${def.country}${st ? ' · ' + st : ''}</small></b>
+      <button class="load" data-id="${id}" ${busy ? 'disabled' : ''}>${result[id] ? 'Neu laden' : 'Laden'}</button>
+      ${result[id] ? `<button class="file" data-id="${id}">Datei</button>` : ''}
+    </div>`;
+  }).join('');
 }
-document.getElementById('go').addEventListener('click', e => { e.target.disabled = true; runAll(ORDER); });
-document.getElementById('retry').addEventListener('click', e => { e.target.disabled = true; runAll(ORDER.filter(id => !result[id])); });
-document.getElementById('dl').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify(result)], { type: 'application/json' });
+async function loadOne(id) {
+  busy = true; renderList();
+  curId = id;
+  log(`${TRACKS[id].name} … lädt`);
+  try {
+    const t0 = performance.now();
+    result[id] = await build(id);
+    const sc = result[id];
+    log(`  ✓ fertig: ${sc.w}×${sc.h} Zellen · ${sc.b.length} Gebäude · ${sc.walls.length} Mauern (${((performance.now() - t0) / 1000).toFixed(0)} s) – jetzt „Datei“ drücken`, 'ok');
+  } catch (err) { log(`  ✗ ${err.message} – bitte später noch einmal „Laden“ drücken`, 'err'); failed[id] = true; }
+  busy = false; curId = null; renderList();
+}
+function download(id) {
+  const blob = new Blob([JSON.stringify({ [id]: result[id] })], { type: 'application/json' });
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = 'scenery.json'; a.click();
+  a.href = URL.createObjectURL(blob); a.download = `scenery_${id}.json`; a.click();
+  try { localStorage.setItem('scn.sent.' + id, '1'); } catch { /* egal */ }
+  renderList();
+}
+listEl.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.classList.contains('load') && !busy) loadOne(b.dataset.id);
+  if (b.classList.contains('file')) download(b.dataset.id);
 });
+renderList();
 </script>
 </body>
 </html>
