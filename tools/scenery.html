@@ -22,7 +22,8 @@
 <main>
   <h1>Kartendaten für die Strecken-Intros</h1>
   <p>Diese Seite holt Gewässer, Küste, Wald, Sand, Stadtflächen und Gebäude rund um jede Strecke aus OpenStreetMap
-    (Overpass-API) und bereitet sie für die Intros auf. Das dauert pro Strecke etwa 10–60 Sekunden.</p>
+    (Overpass-API) und bereitet sie für die Intros auf. Das dauert pro Strecke etwa 10–60 Sekunden – wenn die Kartenserver ausgelastet sind,
+    auch deutlich länger. Rote Zeilen sind dann normal: Die Seite versucht es selbst weiter, wichtig ist nur der grüne Haken je Strecke.</p>
   <ol>
     <li>„Start“ drücken und die Seite offen lassen, bis alle Strecken fertig sind.</li>
     <li>„scenery.json herunterladen“ drücken.</li>
@@ -49,7 +50,8 @@ const ORIGIN = {
   lasvegas: [36.11650, -115.16576], lusail: [25.49177, 51.45430], yasmarina: [24.46935, 54.60559],
 };
 const ORDER = ['albertpark', 'shanghai', 'suzuka', 'bahrain', 'jeddah', 'miami', 'montreal', 'monaco', 'barcelona', 'redbullring', 'silverstone', 'spa', 'hungaroring', 'zandvoort', 'monza', 'madring', 'baku', 'singapore', 'cota', 'mexico', 'interlagos', 'lasvegas', 'lusail', 'yasmarina'];
-const SERVERS = ['https://overpass-api.de/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
+// Hauptserver und seine beiden Einzel-Rechner (lz4, z) – hilft, wenn der Verteiler überlastet ist; dahinter Ausweich-Server
+const SERVERS = ['https://overpass-api.de/api/interpreter', 'https://lz4.overpass-api.de/api/interpreter', 'https://z.overpass-api.de/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
 const MARGIN = 900, CELL = 20, BUILD_DIST = 520, MAX_BUILD = 1800;
 
 const logEl = document.getElementById('log');
@@ -75,27 +77,24 @@ function query(s, w, n, e) {
 out geom;`;
 }
 // Gebäude nur in einem Schlauch entlang der Strecke (deutlich kleinere Abfrage)
-function queryBuildings(line) {
-  const pts = line.map(([la, lo]) => `${la.toFixed(5)},${lo.toFixed(5)}`).join(',');
-  return `[out:json][timeout:120];
-(
-  way["building"](around:${BUILD_DIST},${pts});
-);
+function queryBuildings(s, w, n, e) {
+  return `[out:json][timeout:150];
+way["building"](${s.toFixed(6)},${w.toFixed(6)},${n.toFixed(6)},${e.toFixed(6)});
 out geom;`;
 }
 
 async function fetchOSM(q, what) {
-  for (let round = 0; round < 4; round++) {
+  for (let round = 0; round < 7; round++) {
     for (const url of SERVERS) {
       try {
         const r = await fetch(url, { method: 'POST', body: new URLSearchParams({ data: q }) });
-        if (r.ok) return await r.json();
+        if (r.ok) { const j = await r.json(); log(`  ${what} ✓ (${new URL(url).host})`, 'ok'); return j; }
         log(`  ${what}: ${new URL(url).host} antwortet ${r.status} (überlastet) – nächster Versuch`, 'err');
       } catch (e) { log(`  ${what}: ${new URL(url).host} nicht erreichbar – nächster Versuch`, 'err'); }
       await sleep(3000);
     }
-    log(`  ${what}: kurze Pause, dann neuer Durchgang …`);
-    await sleep(20000 * (round + 1));
+    log(`  ${what}: alle Server ausgelastet – Pause ${15 * (round + 1)} s, dann neuer Durchgang (${round + 2}/7) …`);
+    await sleep(15000 * (round + 1));
   }
   throw new Error('kein Kartenserver hat geantwortet');
 }
@@ -144,16 +143,10 @@ async function build(id) {
   const x0 = Math.min(...xs) - MARGIN, x1 = Math.max(...xs) + MARGIN, y0 = Math.min(...ys) - MARGIN, y1 = Math.max(...ys) + MARGIN;
   const [lo0, la1] = inv(x0, y0), [lo1, la0] = inv(x1, y1);
   const data = await fetchOSM(query(la0, lo0, la1, lo1), 'Flächen');
-  // Streckenverlauf als Linie (lat, lon) für die Gebäude-Abfrage, ca. alle 120 m ein Punkt
-  const line = [];
-  let acc = 0;
-  for (let i = 0; i <= tpts.length; i++) {
-    const p = tpts[i % tpts.length], q = tpts[(i + tpts.length - 1) % tpts.length];
-    acc += i ? Math.hypot(p[0] - q[0], p[1] - q[1]) : 999;
-    if (acc >= 120) { const [lo, la] = inv(p[0], p[1]); line.push([la, lo]); acc = 0; }
-  }
-  await sleep(1500);
-  const bdata = await fetchOSM(queryBuildings(line), 'Gebäude');
+  // Gebäude: Rechteck nur knapp um die Strecke (weiter draußen werden sie ohnehin nicht gezeichnet)
+  const [blo0, bla1] = inv(Math.min(...xs) - BUILD_DIST, Math.min(...ys) - BUILD_DIST), [blo1, bla0] = inv(Math.max(...xs) + BUILD_DIST, Math.max(...ys) + BUILD_DIST);
+  await sleep(2000);
+  const bdata = await fetchOSM(queryBuildings(bla0, blo0, bla1, blo1), 'Gebäude');
   data.elements = (data.elements || []).concat(bdata.elements || []);
   const W = Math.ceil((x1 - x0) / CELL), H = Math.ceil((y1 - y0) / CELL);
   const px = ([x, y]) => [(x - x0) / CELL, (y - y0) / CELL];
