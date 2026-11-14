@@ -13,8 +13,32 @@
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="css/style.css">
+  <!-- Ladeseite: sofort sichtbar, bis alles geladen und die Startseite fertig gezeichnet ist -->
+  <style>
+    #boot { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; background: #15181d; color: #f1f4f8;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; transition: opacity .35s ease; }
+    #boot.gone { opacity: 0; pointer-events: none; }
+    #boot::before, #boot::after { content: ''; position: absolute; left: 0; right: 0; height: 8px; background: repeating-linear-gradient(-45deg, #facc15 0 10px, #15181d 10px 20px); }
+    #boot::before { top: 0; } #boot::after { bottom: 0; }
+    #boot .bt-in { display: flex; flex-direction: column; align-items: center; width: min(260px, 72vw); }
+    #boot .bt-logo { width: 92px; height: 92px; border-radius: 20px; box-shadow: 0 14px 34px -14px rgba(0,0,0,.7); animation: btPuls 1.6s ease-in-out infinite; }
+    #boot .bt-name { margin-top: 16px; font: 800 20px ui-monospace, "RC Mono", monospace; letter-spacing: .14em; }
+    #boot .bt-sub { margin-top: 2px; font-size: 12px; color: #aab3c2; }
+    #boot .bt-bar { width: 100%; height: 6px; margin-top: 24px; border-radius: 3px; background: rgba(255,255,255,.14); overflow: hidden; }
+    #boot .bt-bar i { display: block; height: 100%; width: 6%; border-radius: 3px; background: #facc15; transition: width .2s ease-out; }
+    #boot .bt-text { margin-top: 10px; font-size: 12.5px; color: #c3cad6; min-height: 17px; }
+    @keyframes btPuls { 50% { transform: scale(1.05); } }
+    @media (prefers-reduced-motion: reduce) { #boot .bt-logo { animation: none; } }
+  </style>
 </head>
 <body>
+  <div id="boot"><div class="bt-in">
+    <img class="bt-logo" src="icons/icon-192.png" alt="">
+    <div class="bt-name">RACE CONTROL</div>
+    <div class="bt-sub">Rennleitung · Formel 1</div>
+    <div class="bt-bar"><i id="bootBar"></i></div>
+    <div id="bootText" class="bt-text">Wird geladen …</div>
+  </div></div>
   <div id="app">
     <header class="status">
       <button id="menuBtn" class="icon-btn" aria-label="Menü">☰</button>
@@ -259,7 +283,7 @@
       </div>
       <button id="seasonBtn" class="secondary-btn season-btn hidden">🏆 Saison-Übersicht</button>
       <div id="history" class="history st-card"></div>
-      <div class="app-version">Version 72</div>
+      <div class="app-version">Version 73</div>
       <details class="options st-card">
         <summary>Optionen</summary>
         <label>Rennen-Nr. (gleiche Nr. = gleiches Rennen)

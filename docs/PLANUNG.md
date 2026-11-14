@@ -809,3 +809,9 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 
 ### Alle Intros freigegeben (v72)
 - Intros für alle 24 Strecken im Spiel aktiv (INTRO_TRACKS in js/ui/intro.js).
+
+### Ladeseite, Neuladen, Startknopf, Intro-Musik (v73)
+- Ladeseite beim Öffnen/Neuladen (Logo, Fortschrittsbalken, Ladeschritte); verschwindet erst, wenn alle Dateien und Schriften geladen sind und die Startseite gezeichnet ist.
+- Herunterziehen zum Neuladen nur aus dem oberen Drittel der Startseite und nicht beim seitlichen Wischen durch die Streckenliste.
+- Startknopf nach dem Drücken ausgegraut mit Fortschrittsbalken, bis das Intro läuft. Kartendaten der gewählten Strecke werden schon auf der Startseite vorab geladen.
+- Intro-Musik (js/ui/introMusic.js): eigene Komposition im Stil einer TV-Rennsport-Eröffnung (d-Moll, 128 BPM, treibender Bass, Bläser-Melodie, Arpeggio, Schläge an den Kameraschnitten, Schlussakkord D-Dur), im Browser erzeugt; folgt dem Ton-Schalter, blendet beim Überspringen aus. Keine Kopie der offiziellen F1-Musik (urheberrechtlich geschützt).

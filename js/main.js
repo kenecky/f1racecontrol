@@ -4,6 +4,7 @@ import { DRIVERS } from './data/drivers.js';
 import { TRACKS } from './data/tracks/index.js';
 import { SEASON_2026 } from './data/season2026.js';
 import { Intro, INTRO_DUR, INTRO_TRACKS, introInfo } from './ui/intro.js';
+import { playIntroMusic } from './ui/introMusic.js';
 import {
   newSeason, migrateSeason, currentRound, currentWeekend, sessionSetup, finishSession, roundDate,
   activePoints, driverStandings, teamStandings, BAN_POINTS, KIND_NAME, KIND_SHORT, SPRINT_TRACKS,
@@ -45,6 +46,29 @@ import { prepareBriefing } from './sim/regs.js';
 import { rateRace, AXES } from './control/rating.js';
 import { DIFFICULTY } from './sim/incidents.js';
 import { sendMessage } from './sim/messages.js';
+
+// ---------- Ladeseite (Boot-Bildschirm) ----------
+// Sichtbar ab dem ersten Bild; Schritte laufen kurz sichtbar durch, ausgeblendet wird erst,
+// wenn alle Dateien und Schriften geladen sind und die Startseite gezeichnet ist.
+const BOOT = { steps: [[35, 'Strecken und Simulation geladen …']], shown: 0 };
+function bootStep(pct, text) { BOOT.steps.push([pct, text]); }
+function bootDone() {
+  const el = document.getElementById('boot');
+  if (!el) return;
+  const loaded = new Promise(res => (document.readyState === 'complete' ? res() : window.addEventListener('load', res, { once: true })));
+  const fonts = document.fonts ? document.fonts.ready.catch(() => {}) : Promise.resolve();
+  let i = 0;
+  const bar = document.getElementById('bootBar'), txt = document.getElementById('bootText');
+  const next = () => {
+    if (i < BOOT.steps.length) { bar.style.width = BOOT.steps[i][0] + '%'; txt.textContent = BOOT.steps[i][1]; i++; setTimeout(next, 200); return; }
+    Promise.all([loaded, fonts]).then(() => {
+      try { drawStartHero(); } catch { /* egal */ }
+      bar.style.width = '100%'; txt.textContent = 'Fertig';
+      setTimeout(() => { el.classList.add('gone'); setTimeout(() => el.remove(), 400); }, 250);
+    });
+  };
+  next();
+}
 import { Recorder, ReplayViewer } from './ui/replay.js';
 
 const SPEEDS = [1, 2, 4, 8, 16, 32];
@@ -345,6 +369,7 @@ function newRace(seed = randomSeed()) {
   $('resultScreen').classList.add('hidden');
   $('startScreen').classList.remove('hidden');
   drawStartHero();
+  if (INTRO_TRACKS.has(track.def.id)) setTimeout(() => loadScenery(track.def.id), 300);
   refreshUi();
   updatePauseBtn();
 }
@@ -797,9 +822,23 @@ $('briefOkBtn').addEventListener('click', () => {
 });
 
 // Intro vor dem Rennen (Strecken mit freigegebenem Intro): Antippen überspringt
+// Umgebung der Strecke (aus OpenStreetMap) – schon auf der Startseite vorab laden, damit das Intro sofort beginnt
+const sceneryCache = new Map();
+function loadScenery(id) {
+  if (!sceneryCache.has(id)) sceneryCache.set(id, import(`./data/scenery/${id}.js`).then(m => m.default).catch(() => null));
+  return sceneryCache.get(id);
+}
+function setStartBusy(on) {
+  for (const b of [$('startBtn'), $('resumeBtn')]) {
+    if (!b) continue;
+    b.classList.toggle('busy', on);
+    b.disabled = on;
+  }
+}
 function playIntro(done) {
-  // Umgebung der Strecke (aus OpenStreetMap) nachladen – fehlt sie, gibt es die einfache Landschaft
-  import(`./data/scenery/${race.track.def.id}.js`).then(m => runIntro(done, m.default)).catch(() => runIntro(done, null));
+  setStartBusy(true);
+  // erst den ausgegrauten Knopf mit Balken zeichnen lassen, dann das (rechenintensive) Intro aufbauen
+  requestAnimationFrame(() => setTimeout(() => loadScenery(race.track.def.id).then(sc => runIntro(done, sc)), 40));
 }
 function runIntro(done, scenery) {
   const scr = $('introScreen'), cv = $('introCanvas');
@@ -813,12 +852,17 @@ function runIntro(done, scenery) {
   const intro = new Intro(cv, race.track, info);
   intro.resize();
   intro.renderAt(0);
+  setStartBusy(false);
+  // Intro-Musik (eigene Komposition, im Browser erzeugt) – nur mit eingeschaltetem Ton
+  let music = null;
+  if (settings.sound !== false) { sound.unlock(); if (sound.ctx) try { music = playIntroMusic(sound.ctx, sound.master, sound.noiseBuf); } catch { music = null; } }
   requestAnimationFrame(() => scr.classList.add('show'));
   const t0 = performance.now();
   let over = false;
   const finish = () => {
     if (over) return;
     over = true;
+    if (music) music.stop(0.35);
     scr.classList.add('hidden');
     scr.removeEventListener('pointerdown', finish);
     done();
@@ -1968,10 +2012,19 @@ $('speedMenu').querySelector('.speed-ticks').addEventListener('click', e => {
   const scr = $('startScreen'), ind = $('ptr');
   let y0 = null, dy = 0;
   const atTop = () => scr.scrollTop <= 0 && [...scr.querySelectorAll('.sheet')].every(el => el.scrollTop <= 0);
-  scr.addEventListener('touchstart', e => { y0 = !scr.classList.contains('hidden') && atTop() ? e.touches[0].clientY : null; dy = 0; }, { passive: true });
+  // nur aus dem oberen Drittel der Seite und nicht beim Wischen durch die Streckenliste
+  let x0 = 0;
+  scr.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    const ok = !scr.classList.contains('hidden') && atTop() && t.clientY < window.innerHeight / 3 && !e.target.closest('.gp-list');
+    y0 = ok ? t.clientY : null; x0 = t.clientX; dy = 0;
+  }, { passive: true });
   scr.addEventListener('touchmove', e => {
     if (y0 === null) return;
-    dy = e.touches[0].clientY - y0;
+    const t = e.touches[0];
+    // eher seitlich gewischt → kein Neuladen
+    if (Math.abs(t.clientX - x0) > Math.max(24, Math.abs(t.clientY - y0))) { y0 = null; dy = 0; ind.classList.add('hidden'); return; }
+    dy = t.clientY - y0;
     if (dy <= 0) { ind.classList.add('hidden'); return; }
     ind.classList.remove('hidden');
     ind.style.transform = `translateY(${Math.min(dy, 120) * 0.6}px)`;
@@ -2422,8 +2475,11 @@ settings.panelCollapsed = true;
 appEl.classList.add('collapsed');
 applyTower();
 $('labelsBtn').classList.toggle('active', settings.showLabels);
+bootStep(70, 'Startseite wird vorbereitet …');
 newRace();
 requestAnimationFrame(frame);
+bootStep(90, 'Grafiken werden gezeichnet …');
+bootDone();
 
 // Gespeichertes Rennen vorhanden? → auf dem Startbildschirm zum Fortsetzen anbieten
 loadRaceState().then(data => {

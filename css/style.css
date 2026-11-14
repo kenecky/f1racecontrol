@@ -1757,3 +1757,8 @@ body { background: #15181d; }
 #deskLogBtn, #deskDecBtn, #decLogBtn, #decDeskBtn, #logDeskBtn, #logDecBtn { width: 86px; flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding-left: 0; padding-right: 0; white-space: nowrap; }
 .intro-screen { opacity: 0; transition: opacity .45s ease; }
 .intro-screen.show { opacity: 1; }
+/* v73: Startknopf während das Intro vorbereitet wird: ausgegraut mit Fortschrittsbalken */
+.primary-btn.busy, .secondary-btn.busy { position: relative; overflow: hidden; pointer-events: none; filter: grayscale(.85); opacity: .8; }
+.primary-btn.busy::after, .secondary-btn.busy::after { content: ''; position: absolute; left: 0; bottom: 0; height: 5px; width: 0; background: #facc15;
+  animation: busyBar 1.4s cubic-bezier(.2, .7, .3, 1) forwards; }
+@keyframes busyBar { to { width: 92%; } }
