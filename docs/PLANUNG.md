@@ -823,3 +823,7 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 - Blaue Flaggen früher: ab gut 1 s Abstand (≥ 70 m), der Überrundete geht vom Gas (−7 %) und macht Platz.
 - Tablet/Desktop: in den Spalten RC Desk, Docs und Log stehen Runde und Uhr unter dem Spaltentitel.
 - Auswertung: Entscheidungen antippen öffnet das Fall-Dokument über dem Ergebnis (nur ansehen); ✕ bzw. „Dokument schließen“ führt zurück.
+
+### Musik je Strecke, Reifen aufwärmen (v75)
+- Intro-Musik je Strecke im Stil von Land/Ort (js/ui/introMusic.js, TRACK_STYLE): z. B. Australien Didgeridoo + Rock, China Guzheng + Gong, Japan Koto + Taiko, Bahrain/Saudi-Arabien/Katar/Abu Dhabi Oud/Ney mit Hijaz-Tonleiter (jeweils anders: klassisch, schnell, ruhig, elektronisch), Baku Mugham-Stil, Miami Dembow, Kanada Fiddle, Monaco Streicher + Harfe, Barcelona Flamenco, Madrid Pasodoble, Österreich Akkordeon, Silverstone Marschtrommel + Bläser, Spa Orgel, Ungarn Csárdás-Geige, Zandvoort House, Monza Mandoline, Singapur Elektro, Austin Rockgitarre, Mexiko Mariachi, Interlagos Samba, Las Vegas Swing. Alles eigene Kompositionen, gleiche Zeitachse wie das Intro, Lautheit je Strecke angeglichen.
+- Reifen aufwärmen in der Formationsrunde: nicht mehr alle gleich. Jedes Auto hat eigenen Takt, Ausschlag und „Eifer“; je 200-m-Abschnitt auf einer Geraden entscheidet der Zufall (etwa die Hälfte webt gleichzeitig), weich ein- und ausgeblendet. Direkt vor dem Einsortieren in die Startbox weben rund 85 %. In Kurven nie.

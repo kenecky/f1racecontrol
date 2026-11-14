@@ -855,7 +855,7 @@ function runIntro(done, scenery) {
   setStartBusy(false);
   // Intro-Musik (eigene Komposition, im Browser erzeugt) – nur mit eingeschaltetem Ton
   let music = null;
-  if (settings.sound !== false) { sound.unlock(); if (sound.ctx) try { music = playIntroMusic(sound.ctx, sound.master, sound.noiseBuf); } catch { music = null; } }
+  if (settings.sound !== false) { sound.unlock(); if (sound.ctx) try { music = playIntroMusic(sound.ctx, sound.master, sound.noiseBuf, race.track.def.id); } catch { music = null; } }
   requestAnimationFrame(() => scr.classList.add('show'));
   const t0 = performance.now();
   let over = false;

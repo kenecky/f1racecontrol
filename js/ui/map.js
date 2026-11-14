@@ -461,6 +461,30 @@ export class TrackMap {
     }
   }
 
+  // Reifen aufwärmen auf der Formationsrunde: nur auf Geraden und kurz vor der Startaufstellung.
+  // Jedes Auto anders (Takt, Ausschlag, Eifer) und je Abschnitt zufällig an oder aus – viele, aber nicht alle.
+  // Reine Darstellung, reproduzierbar je Rennen (Hash aus Rennen, Auto und Abschnitt).
+  warmWeave(race, car, toGo) {
+    const h = (n) => { let a = (Math.imul((race.seed | 0) + 1, 2654435761) ^ Math.imul(n + 7, 40503)) >>> 0; for (let i = 0; i < car.id.length; i++) a = Math.imul(a ^ car.id.charCodeAt(i), 16777619) >>> 0; a ^= a >>> 13; a = Math.imul(a, 0x5bd1e995) >>> 0; a ^= a >>> 15; return (a >>> 0) / 4294967296; };
+    const wave = 13 + h(1) * 11;          // Takt der Schlangenlinie (Periode ca. 80–150 m)
+    const amp = 2.2 + h(2) * 1.8;         // Ausschlag
+    const phase = h(3) * 6.283;
+    const keen = 0.3 + h(4) * 0.55;       // wie gerne dieses Auto webt
+    let env = 0;
+    if (toGo < 500 && toGo > 110) {
+      // direkt vor dem Einsortieren: die meisten, aber nicht alle
+      if (h(5) < 0.85) env = Math.min(1, (500 - toGo) / 70) * Math.min(1, (toGo - 110) / 60);
+    } else if (toGo >= 500) {
+      // auf den Geraden: je 200-m-Abschnitt entscheidet der Zufall, mit weichem Ein- und Ausblenden
+      const CH = 200, c = Math.floor(car.d / CH), f = car.d / CH - c;
+      if (h(100 + c) < keen) {
+        const s = (isStraight(this.track, car.d - 35) ? 1 : 0) + (isStraight(this.track, car.d) ? 1 : 0) + (isStraight(this.track, car.d + 35) ? 1 : 0);
+        env = Math.sin(Math.PI * f) ** 0.6 * (s / 3) * (0.65 + h(200 + c) * 0.45);
+      }
+    }
+    return env ? Math.sin(car.d / wave + phase) * amp * env : 0;
+  }
+
   carLateral(race, car) {
     const ws = this.widthScale();
     if (car.offTrack) return car.offTrack.lateral * ws;
@@ -479,14 +503,7 @@ export class TrackMap {
       const slot = car.fSlot ?? Math.round((race.track.L - car.fTarget - 6) / 8);
       const side = slot % 2 === 0 ? -1 : 1;
       lat = side * 4 * Math.min(1, Math.max(0, (70 - toGo) / 60));
-      // Reifen aufwärmen: Zickzack auf der Formationsrunde (nicht kurz vor der Startbox, nicht beim Aufholen)
-      // nur auf den Geraden und kurz vor der Startaufstellung (nicht mehr im letzten Stück in die Box)
-      const warm = isStraight(this.track, car.d) || (toGo < 500 && toGo > 110);
-      if (warm && car.v > 8 && !car.fRegain) {
-        const k = car.id.charCodeAt(0) * 7 + car.id.charCodeAt(1) * 3;
-        const fade = Math.min(1, Math.max(0, (toGo - 110) / 60)) * Math.min(1, car.d / 150 + 0.2);
-        lat += Math.sin(car.d / 22 + k) * 3.2 * fade;
-      }
+      if (car.v > 8 && !car.fRegain) lat += this.warmWeave(race, car, toGo);
     } else if (car.lap === 0 && car.d < 120) {
       const side = car.gridPos % 2 === 1 ? -1 : 1;
       lat = side * 4 * Math.min(1, Math.max(0, (120 - car.d) / 120));
