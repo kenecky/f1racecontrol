@@ -196,7 +196,7 @@ export class CasesPanel {
     }
     if (c.status === 'investigating' || c.status === 'hearing') return this.form(c, finished);
     // Entschiedener Fall: unten „Dokument schließen“ (wie das ✕ oben)
-    const close = this.noRevise ? '' : '<button class="ctl-btn ctl-ghost" data-act="close-doc">DOKUMENT SCHLIESSEN</button>';
+    const close = this.noRevise && !this.showClose ? '' : '<button class="ctl-btn ctl-ghost" data-act="close-doc">DOKUMENT SCHLIESSEN</button>';
     if (canRevise(race, c) && !this.noRevise) {
       const f = this.forms[c.id] || {};
       return f.reviseArmed

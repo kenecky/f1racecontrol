@@ -318,21 +318,19 @@ export class ControlPanel {
           ? '<div class="ctl-status warn">⚠ Starker Regen in der Startaufstellung – die Autos stehen auf Trockenreifen</div><p class="ctl-text">Start abbrechen (Startverschiebung, Reifenwechsel) oder hinter dem Safety Car starten.</p>'
           : `<div class="ctl-status warn">⚠ ${issue.carId} steht mit abgestorbenem Motor in der Startaufstellung</div><p class="ctl-text">Schalte die Startampel jetzt nicht ein – ein stehendes Auto beim Start ist gefährlich.</p>`;
         html += `<p class="ctl-small">${issue.type === 'rain' ? 'Alle wechseln auf Regenreifen.' : `${issue.carId} wird in die Boxengasse geschoben und startet von dort.`} Ein Startabbruch kostet eine Runde (dann ${Math.max(3, race.laps - 1)} Runden).</p>
-          <button class="ctl-btn ctl-red" data-action="start-abort">EXTRA FORMATION LAP</button>
-          <button class="ctl-btn ctl-sc" data-action="start-sc">START BEHIND SC</button>
-          <button class="ctl-btn ctl-ghost" data-action="start-suspend">DELAY START</button>
+          <button class="ctl-btn ctl-delay ctl-third" data-action="start-suspend">DELAY START</button><button class="ctl-btn ctl-xlap ctl-third" data-action="start-abort">EXTRA FORMATION LAP</button><button class="ctl-btn ctl-sc ctl-third" data-action="start-sc">START BEHIND SC</button>
           <button class="ctl-btn ctl-ghost" data-action="start-lights">START LIGHTS ANYWAY</button>`;
       } else if (ph === 'formation' && !(f && f.arrived)) {
         const pend = f && f.pending;
         if (pend) html += `<div class="ctl-status warn">${pend === 'abort' ? 'EXTRA FORMATION LAP' : 'START BEHIND SC'} angeordnet – sobald alle in der Startaufstellung stehen</div>`;
-        html += `<button class="ctl-btn ctl-ghost ctl-third" data-action="start-suspend">DELAY START</button><button class="ctl-btn ctl-ghost ctl-third" data-action="start-abort" ${pend ? 'disabled' : ''}>EXTRA FORMATION LAP</button><button class="ctl-btn ctl-ghost ctl-third" data-action="start-sc" ${pend ? 'disabled' : ''}>START BEHIND SC</button>
+        html += `<button class="ctl-btn ctl-delay ctl-third" data-action="start-suspend">DELAY START</button><button class="ctl-btn ctl-xlap ctl-third" data-action="start-abort" ${pend ? 'disabled' : ''}>EXTRA FORMATION LAP</button><button class="ctl-btn ctl-sc ctl-third" data-action="start-sc" ${pend ? 'disabled' : ''}>START BEHIND SC</button>
           <button class="ctl-btn ctl-ghost ctl-big" data-action="start-lights" ${pend ? 'disabled' : ''}>START LIGHTS · ${grid.length - inBox} CARS STILL MOVING</button>`;
       } else if (ph === 'grid' || ph === 'formation') {
         // „Startaufstellung komplett“ zeigt schon STARTBOX x/x – die drei Alternativen passen in eine Reihe
-        html += `${rs ? '' : '<button class="ctl-btn ctl-ghost ctl-third" data-action="start-suspend">DELAY START</button><button class="ctl-btn ctl-ghost ctl-third" data-action="start-abort">EXTRA FORMATION LAP</button><button class="ctl-btn ctl-ghost ctl-third" data-action="start-sc">START BEHIND SC</button>'}
+        html += `${rs ? '' : '<button class="ctl-btn ctl-delay ctl-third" data-action="start-suspend">DELAY START</button><button class="ctl-btn ctl-xlap ctl-third" data-action="start-abort">EXTRA FORMATION LAP</button><button class="ctl-btn ctl-sc ctl-third" data-action="start-sc">START BEHIND SC</button>'}
           <button class="ctl-btn ctl-amber ctl-big" data-action="start-lights">START LIGHTS</button>`;
       } else if (ph === 'lights' && !allOn) {
-        html += `<button class="ctl-btn ctl-ghost ctl-big" disabled>${lit ? `LICHTER ${lit} / 5 …` : 'PRE-START …'}</button>`;
+        html += `<button class="ctl-btn ctl-red ctl-big lights-out" data-action="seq-out" disabled>LIGHTS OUT · ${lit ? `${lit} / 5` : 'PRE-START'}</button>`;
       } else {
         html += `<button class="ctl-btn ctl-red ctl-big lights-out" data-action="seq-out">LIGHTS OUT</button>`;
       }

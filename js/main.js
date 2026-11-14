@@ -1512,8 +1512,8 @@ function buildResults() {
   const srep = stewardReport(race);
   const sIcon = { ok: '✅', lenient: '🔽', harsh: '🔼', wrong: '❌', open: '❓', pending: '⏳' };
   const sItems = srep.items.map(i => `
-    <div class="report-item"><span class="v">${sIcon[i.verdict]}</span>
-      <div>#${i.c.id} ${i.c.title}<br><span class="n">${i.note}</span></div></div>`).join('');
+    <div class="report-item rep-doc" data-doc="${i.c.id}" role="button"><span class="v">${sIcon[i.verdict]}</span>
+      <div>#${i.c.id} ${i.c.title}<br><span class="n">${i.note}</span></div><span class="rep-open">DOC ›</span></div>`).join('');
   const stewards = `
     <div class="report">
       <h3>Rennkommissare · Entscheidungen</h3>
@@ -1669,6 +1669,7 @@ function scrutinyClick(e) {
   }
 }
 $('resultBody').addEventListener('click', scrutinyClick);
+$('resultBody').addEventListener('click', e => { const it = e.target.closest('.rep-doc'); if (it) openDocFromResults(Number(it.dataset.doc)); });
 $('postBody').addEventListener('click', scrutinyClick);
 
 // ---------- Nach dem Rennen: Anhörungen, offene Entscheidungen, technische Abnahme ----------
@@ -1800,6 +1801,14 @@ function decCases() {
   const list = race.cases.filter(c => decFilter === 'all' || (decFilter === 'open' ? openSt().includes(c.status) : !openSt().includes(c.status)));
   return list.sort((a, b) => (decFilter === 'open' ? DEC_ORDER[a.status] - DEC_ORDER[b.status] : 0) || b.id - a.id);
 }
+// Aus der Auswertung: Fall-Dokument über dem Ergebnis öffnen (nur ansehen), ✕ führt zurück zur Auswertung
+let decFromResults = false;
+function openDocFromResults(id) {
+  decFromResults = true;
+  casesPanel.noRevise = true; casesPanel.showClose = true;
+  $('decScreen').classList.add('over-results');
+  openDecisions(id);
+}
 function openDecisions(id = null) {
   if (!race) return;
   if (!isFull()) closeLog();
@@ -1809,8 +1818,14 @@ function openDecisions(id = null) {
 function closeDecisions() {
   $('decScreen').classList.add('hidden');
   decDocId = null;
+  if (decFromResults) {
+    decFromResults = false;
+    casesPanel.noRevise = false; casesPanel.showClose = false;
+    $('decScreen').classList.remove('over-results');
+  }
 }
 function showDecList() {
+  if (decFromResults) { closeDecisions(); return; }   // zurück zur Auswertung
   decDocId = null;
   $('decListView').classList.remove('hidden');
   $('decDocView').classList.add('hidden');

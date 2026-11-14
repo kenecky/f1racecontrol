@@ -362,6 +362,7 @@ export class Race {
           // Überholverbot unter Gelb bzw. bis zur Linie nach einem Neustart
           if (car.pass && !car.pass.slow && !car.pass.violation && (isYellow(flag) || passingBanned(this, car))) car.pass = null;
           if (car.pass && this.time < car.pass.until) vt *= car.pass.blue ? 1.02 : 1.06;
+          if (car.yieldBlue > this.time) vt *= 0.93;           // blaue Flagge: vom Gas, Platz machen
           if (car.defendUntil > this.time) vt *= 0.985;
           vt *= this.programFactor(car);                       // Sessions: Aufwärm-/Auslaufrunde
           vt *= energyStep(this, car, DT, false);              // Hybrid-Energie: Einsatz auf Geraden, Laden in Kurven
@@ -483,6 +484,17 @@ export class Race {
       const minGap = A.isSC ? 35 : Math.max(7, 0.3 * B.v);
       const banned = passingBanned(this, B);
 
+      // Überrundung: blaue Flagge schon mit gut einer Sekunde Abstand – der Überrundete geht vom Gas und macht Platz
+      if (!A.isSC && B.d - A.d > L / 2 && !banned && gapOld < Math.max(70, B.v * 1.3)) {
+        const underYellowB = isYellow(this.flags[sectorIndexAt(tr, B.d)]) || isYellow(this.flags[sectorIndexAt(tr, A.d)]);
+        if (!underYellowB) {
+          this.startPass(B, A, { blue: true });
+          A.yieldBlue = this.time + 7;
+          rollBlueFlag(this, A, B);
+          if (!this.isSession && this.chatRand() < 0.04) this.emit('radio', `Funk ${B.id}: „${this.chatPick('blueFlag')}“`, { cars: [B.id] });
+          continue;
+        }
+      }
       if (!A.isSC && gapNew < minGap * 1.8) {
         if (this.yieldsTo(B, A)) {
           this.startPass(B, A, { slow: true });
@@ -627,7 +639,7 @@ export class Race {
   get isSession() { return false; }
 
   startPass(B, A, { blue = false, zone = null, slow = false, violation = false, giveback = false }) {
-    B.pass = { target: A.id, until: this.time + (blue ? 8 : 6), blue, zone, slow, violation, giveback };
+    B.pass = { target: A.id, until: this.time + (blue ? 10 : 6), blue, zone, slow, violation, giveback };
     if (!blue) A.defendUntil = this.time + 4;
   }
 

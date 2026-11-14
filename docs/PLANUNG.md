@@ -815,3 +815,11 @@ ein Ergebnis (notfalls vereinfacht) mit der Fehlermeldung samt Code-Stelle; uner
 - Herunterziehen zum Neuladen nur aus dem oberen Drittel der Startseite und nicht beim seitlichen Wischen durch die Streckenliste.
 - Startknopf nach dem Drücken ausgegraut mit Fortschrittsbalken, bis das Intro läuft. Kartendaten der gewählten Strecke werden schon auf der Startseite vorab geladen.
 - Intro-Musik (js/ui/introMusic.js): eigene Komposition im Stil einer TV-Rennsport-Eröffnung (d-Moll, 128 BPM, treibender Bass, Bläser-Melodie, Arpeggio, Schläge an den Kameraschnitten, Schlussakkord D-Dur), im Browser erzeugt; folgt dem Ton-Schalter, blendet beim Überspringen aus. Keine Kopie der offiziellen F1-Musik (urheberrechtlich geschützt).
+
+### Start, blaue Flaggen, Auswertung (v74)
+- DELAY START (blau) | EXTRA FORMATION LAP (lila) | START BEHIND SC (orange) immer nebeneinander, auch bei Startproblemen.
+- LIGHTS OUT erscheint sofort nach START LIGHTS (rot, gesperrt bis alle Lichter an sind).
+- Boxengassen-Starter: Ausfahrt öffnet, sobald das Feld vorbei ist; stehende/abgeflogene Autos halten nicht mehr auf (Notbremse 30 s statt 45 s).
+- Blaue Flaggen früher: ab gut 1 s Abstand (≥ 70 m), der Überrundete geht vom Gas (−7 %) und macht Platz.
+- Tablet/Desktop: in den Spalten RC Desk, Docs und Log stehen Runde und Uhr unter dem Spaltentitel.
+- Auswertung: Entscheidungen antippen öffnet das Fall-Dokument über dem Ergebnis (nur ansehen); ✕ bzw. „Dokument schließen“ führt zurück.

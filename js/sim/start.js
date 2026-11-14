@@ -703,12 +703,14 @@ export function releasePitStarters(race) {
   const L = tr.L;
   const holding = race.cars.filter(c => c.pitHold && !c.retired);
   if (!holding.length || race.phase !== 'running') return;
-  const clear = race.time > 45 || race.cars.every(o => o.retired || o.pitStart || o.d > tr.pit.exit + 30);
+  // Boxenausfahrt öffnet, sobald das Feld vorbei ist (wie in echt). Autos, die neben der Strecke stehen
+  // oder stehen geblieben sind, halten die Boxengassen-Starter nicht auf.
+  const clear = race.time > 30 || race.cars.every(o => o.retired || o.pitStart || o.offTrack || o.limp || (race.time > 6 && o.v < 3) || o.d > tr.pit.exit + 15);
   if (!clear) return;
   holding.forEach((c, i) => {
     c.pitHold = false;
     c.d += L;
-    c.reaction = race.time + 0.5 + i * 1.5;
+    c.reaction = race.time + 0.3 + i * 1.5;
     const k = Math.floor(c.d / 100);
     while (c.msK < k) {
       c.msK++;

@@ -1762,3 +1762,17 @@ body { background: #15181d; }
 .primary-btn.busy::after, .secondary-btn.busy::after { content: ''; position: absolute; left: 0; bottom: 0; height: 5px; width: 0; background: #facc15;
   animation: busyBar 1.4s cubic-bezier(.2, .7, .3, 1) forwards; }
 @keyframes busyBar { to { width: 92%; } }
+/* v74: Start-Alternativen in eigenen Farben */
+.ctl-delay { background: linear-gradient(#93c5fd, #3b82f6); color: #06162e; box-shadow: 0 0 12px rgba(59,130,246,.4), 0 3px 0 #0c0e12; }
+.ctl-xlap { background: linear-gradient(#d8b4fe, #a855f7); color: #1d0636; box-shadow: 0 0 12px rgba(168,85,247,.4), 0 3px 0 #0c0e12; }
+.ctl-btn.lights-out:disabled { filter: grayscale(.4); opacity: .6; }
+/* v74: Auswertung – Entscheidungen antippen öffnet das Dokument über dem Ergebnis */
+.rep-doc { cursor: pointer; align-items: center; }
+.rep-doc:active { background: rgba(250,204,21,.08); }
+.rep-open { margin-left: auto; padding-left: 8px; font: 700 10.5px var(--mono); color: #facc15; white-space: nowrap; }
+#decScreen.over-results { z-index: 12; }
+/* v74: Tablet/Desktop – in den Spalten auch Runde und Uhr anzeigen (unter dem Spaltentitel) */
+@media (min-width: 900px) and (min-height: 600px) and (orientation: landscape) {
+  .fs-lap span, .fs-lap small { display: block !important; }
+  .fs-lap::before { display: block; font: 700 9.5px var(--mono); letter-spacing: .14em; color: #8fd3a2; margin-bottom: 1px; }
+}
